@@ -22,7 +22,9 @@ export default defineConfig(({command, mode}) => {
                 ? undefined
                 : {
                     '/api/rest': {
-                        target: 'http://localhost:3000',
+                        // Dev API port is configurable so the dev server can avoid a
+                        // port already taken on the host machine.
+                        target: process.env.VITE_API_TARGET ?? 'http://localhost:3000',
                         changeOrigin: true,
                         secure: false,
                     },
