@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { Dialog, Sheet, useMedia, XStack, YStack } from 'tamagui'
+import { useMountedWhileOpen } from './useMountedWhileOpen'
 
 /**
  * A modal that is a bottom `Sheet` on phones and a centred `Dialog` from `sm`
@@ -21,6 +22,10 @@ import { Dialog, Sheet, useMedia, XStack, YStack } from 'tamagui'
  *    indicator (`env(safe-area-inset-bottom)`). It cannot go off-screen because
  *    it is not in the part that scrolls.
  *  - **Only the body scrolls.** Title and actions are fixed rows of a column.
+ *  - **A closed dialog is not in the tab order.** Tamagui's `Sheet` keeps its
+ *    children mounted and parked below the viewport, still focusable; the body
+ *    and the action row are therefore mounted only while the dialog is open
+ *    (plus its exit animation). See `useMountedWhileOpen`.
  *
  * Every modal in this client goes through this component. If one needs
  * something this does not offer, extend this rather than hand-rolling a
@@ -85,6 +90,10 @@ export function ResponsiveDialog({
 }: ResponsiveDialogProps) {
   const media = useMedia()
   const isSheet = !media.sm
+  // The whole reason a closed dialog is not a screenful of phantom controls.
+  // Applied to both branches rather than just the sheet: `Dialog.Portal`
+  // already unmounts, so this changes nothing there, and one rule beats two.
+  const mounted = useMountedWhileOpen(open)
 
   // Tamagui's `Dialog` closes on Escape; its `Sheet` does not. Since this
   // component swaps between them on width alone, without this the same modal
@@ -137,8 +146,8 @@ export function ResponsiveDialog({
                 </Dialog.Description>
               ) : null}
             </YStack>
-            <Body>{children}</Body>
-            <Actions>{actions}</Actions>
+            <Body>{mounted ? children : null}</Body>
+            <Actions>{mounted ? actions : null}</Actions>
           </YStack>
         </Sheet.Frame>
       </Sheet>
@@ -182,8 +191,8 @@ export function ResponsiveDialog({
                 </Dialog.Description>
               ) : null}
             </YStack>
-            <Body>{children}</Body>
-            <Actions>{actions}</Actions>
+            <Body>{mounted ? children : null}</Body>
+            <Actions>{mounted ? actions : null}</Actions>
           </YStack>
         </Dialog.Content>
       </Dialog.Portal>

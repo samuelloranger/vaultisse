@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react'
 import { Button, Text, XStack, YStack } from 'tamagui'
 import { ResponsiveDialog } from '@/components/ResponsiveDialog'
 import { DateField, FilterChip } from './SearchControls'
@@ -20,6 +19,12 @@ import { clearedFilters, type SearchScreenParams } from './searchParams'
  * home indicator, and Escape wired up on the sheet branch where Tamagui does
  * not do it. Writing a second `Sheet` here would be a second copy of all of
  * that, and the first one to drift would be this one.
+ *
+ * It also owns the mount rule now. This file used to carry its own
+ * `useMountedWhileOpen`, because twenty-odd chips left in the tab order behind
+ * a closed drawer was the worst instance of a problem every dialog had — but
+ * "the worst instance" was never a reason for a local fix, and the hook is in
+ * `components/useMountedWhileOpen.ts` where every caller gets it.
  *
  * Desktop gets the dialog rather than keeping the old inline card. That is a
  * deliberate call, not an oversight: the inline card cost a desktop reader the
@@ -45,39 +50,6 @@ import { clearedFilters, type SearchScreenParams } from './searchParams'
  * did.
  */
 
-/**
- * Long enough to cover `ResponsiveDialog`'s `"medium"` exit transition. See
- * {@link useMountedWhileOpen}.
- */
-const EXIT_MS = 400
-
-/**
- * `true` while the drawer is open, and for as long as it takes to animate shut.
- *
- * Tamagui's `Sheet` keeps its children mounted when closed — parked off the
- * bottom of the viewport, but still focusable, so a keyboard user tabs into
- * controls they cannot see. Every dialog in this client has that property; it
- * is tolerable for the two-field ones and it is not tolerable for twenty-odd
- * chips and two date pickers. Rather than change `ResponsiveDialog` out from
- * under every other caller, this drawer simply has no body when it is shut.
- *
- * The delay is what keeps the close animation from playing on an empty frame.
- */
-function useMountedWhileOpen(open: boolean): boolean {
-  const [mounted, setMounted] = useState(open)
-
-  useEffect(() => {
-    if (open) {
-      setMounted(true)
-      return
-    }
-    const timer = setTimeout(() => setMounted(false), EXIT_MS)
-    return () => clearTimeout(timer)
-  }, [open])
-
-  return mounted
-}
-
 export function SearchFiltersDialog({
   open,
   onOpenChange,
@@ -98,8 +70,6 @@ export function SearchFiltersDialog({
   sortOptions: readonly { value: SearchScreenParams['sort']; label: string }[]
   stockOptions: readonly { value: SearchScreenParams['stock']; label: string }[]
 }) {
-  const mounted = useMountedWhileOpen(open)
-
   function update(patch: Partial<SearchScreenParams>) {
     onParamsChange({ ...params, ...patch })
   }
@@ -111,152 +81,146 @@ export function SearchFiltersDialog({
       title="Filters"
       description={resultSummary}
       actions={
-        !mounted ? null : (
-          <>
-            <Button
-              testID="filters-clear"
-              onPress={() => onParamsChange(clearedFilters(params))}
-              minHeight={44}
-              fontSize={16}
-              borderRadius="$control"
-              backgroundColor="transparent"
-              borderColor="$borderColor"
-              color="$color"
-            >
-              Clear all
-            </Button>
-            <Button
-              testID="filters-done"
-              onPress={() => onOpenChange(false)}
-              minHeight={44}
-              fontSize={16}
-              borderRadius="$control"
-              backgroundColor="$primary"
-              color="$onPrimary"
-            >
-              Done
-            </Button>
-          </>
-        )
+        <>
+          <Button
+            testID="filters-clear"
+            onPress={() => onParamsChange(clearedFilters(params))}
+            minHeight={44}
+            fontSize={16}
+            borderRadius="$control"
+            backgroundColor="transparent"
+            borderColor="$borderColor"
+            color="$color"
+          >
+            Clear all
+          </Button>
+          <Button
+            testID="filters-done"
+            onPress={() => onOpenChange(false)}
+            minHeight={44}
+            fontSize={16}
+            borderRadius="$control"
+            backgroundColor="$primary"
+            color="$onPrimary"
+          >
+            Done
+          </Button>
+        </>
       }
     >
-      {!mounted ? null : (
-        <>
-          <YStack gap="$2">
-            <Text fontSize={14} color="$colorMuted">
-              Category
-            </Text>
-            <XStack flexWrap="wrap" gap="$2">
-              <FilterChip
-                testID="category-all"
-                label="All"
-                selected={params.categoryId === undefined}
-                onPress={() => update({ categoryId: undefined })}
-              />
-              {categories.map((category) => (
-                <FilterChip
-                  key={category.id}
-                  testID={`category-${category.id}`}
-                  label={category.name}
-                  selected={params.categoryId === category.id}
-                  onPress={() =>
-                    update({
-                      categoryId:
-                        params.categoryId === category.id ? undefined : category.id,
-                    })
-                  }
-                />
-              ))}
-            </XStack>
-          </YStack>
+      <YStack gap="$2">
+        <Text fontSize={14} color="$colorMuted">
+          Category
+        </Text>
+        <XStack flexWrap="wrap" gap="$2">
+          <FilterChip
+            testID="category-all"
+            label="All"
+            selected={params.categoryId === undefined}
+            onPress={() => update({ categoryId: undefined })}
+          />
+          {categories.map((category) => (
+            <FilterChip
+              key={category.id}
+              testID={`category-${category.id}`}
+              label={category.name}
+              selected={params.categoryId === category.id}
+              onPress={() =>
+                update({
+                  categoryId:
+                    params.categoryId === category.id ? undefined : category.id,
+                })
+              }
+            />
+          ))}
+        </XStack>
+      </YStack>
 
-          <YStack gap="$2">
-            <Text fontSize={14} color="$colorMuted">
-              Copies
-            </Text>
-            <XStack flexWrap="wrap" gap="$2">
-              <FilterChip
-                testID="stock-any"
-                label="Any"
-                selected={params.stock === undefined}
-                onPress={() => update({ stock: undefined })}
-              />
-              {stockOptions.map((option) => (
-                <FilterChip
-                  key={option.value}
-                  testID={`stock-${option.value}`}
-                  label={option.label}
-                  selected={params.stock === option.value}
-                  onPress={() =>
-                    update({
-                      stock: params.stock === option.value ? undefined : option.value,
-                    })
-                  }
-                />
-              ))}
-              <FilterChip
-                testID="filter-recent"
-                label="Added recently"
-                selected={params.recent === true}
-                onPress={() => update({ recent: params.recent ? undefined : true })}
-              />
-            </XStack>
-          </YStack>
+      <YStack gap="$2">
+        <Text fontSize={14} color="$colorMuted">
+          Copies
+        </Text>
+        <XStack flexWrap="wrap" gap="$2">
+          <FilterChip
+            testID="stock-any"
+            label="Any"
+            selected={params.stock === undefined}
+            onPress={() => update({ stock: undefined })}
+          />
+          {stockOptions.map((option) => (
+            <FilterChip
+              key={option.value}
+              testID={`stock-${option.value}`}
+              label={option.label}
+              selected={params.stock === option.value}
+              onPress={() =>
+                update({
+                  stock: params.stock === option.value ? undefined : option.value,
+                })
+              }
+            />
+          ))}
+          <FilterChip
+            testID="filter-recent"
+            label="Added recently"
+            selected={params.recent === true}
+            onPress={() => update({ recent: params.recent ? undefined : true })}
+          />
+        </XStack>
+      </YStack>
 
-          <YStack gap="$2">
-            <Text fontSize={14} color="$colorMuted">
-              Added between
-            </Text>
-            <XStack flexWrap="wrap" gap="$3">
-              <YStack flexGrow={1} flexBasis={150} minWidth={0}>
-                <DateField
-                  testID="date-from"
-                  label="From"
-                  value={params.from ?? ''}
-                  onChange={(next) => update({ from: next || undefined })}
-                />
-              </YStack>
-              <YStack flexGrow={1} flexBasis={150} minWidth={0}>
-                <DateField
-                  testID="date-to"
-                  label="To"
-                  value={params.to ?? ''}
-                  onChange={(next) => update({ to: next || undefined })}
-                />
-              </YStack>
-            </XStack>
+      <YStack gap="$2">
+        <Text fontSize={14} color="$colorMuted">
+          Added between
+        </Text>
+        <XStack flexWrap="wrap" gap="$3">
+          <YStack flexGrow={1} flexBasis={150} minWidth={0}>
+            <DateField
+              testID="date-from"
+              label="From"
+              value={params.from ?? ''}
+              onChange={(next) => update({ from: next || undefined })}
+            />
           </YStack>
+          <YStack flexGrow={1} flexBasis={150} minWidth={0}>
+            <DateField
+              testID="date-to"
+              label="To"
+              value={params.to ?? ''}
+              onChange={(next) => update({ to: next || undefined })}
+            />
+          </YStack>
+        </XStack>
+      </YStack>
 
-          {/* Sort and grouping are in here too — they are the rest of what made the
+      {/* Sort and grouping are in here too — they are the rest of what made the
           inline card tall — but they are headed "Display" and left out of the
           count, because neither changes which books come back. */}
-          <YStack gap="$2">
-            <Text fontSize={14} color="$colorMuted">
-              Display
-            </Text>
-            <XStack flexWrap="wrap" gap="$2">
-              {sortOptions.map((option) => (
-                <FilterChip
-                  key={option.value}
-                  testID={`sort-${option.value}`}
-                  label={option.label}
-                  selected={(params.sort ?? 'NAME_ASC') === option.value}
-                  onPress={() => update({ sort: option.value })}
-                />
-              ))}
-            </XStack>
-            <XStack flexWrap="wrap" gap="$2">
-              {/* A named control, not an icon with a tooltip. */}
-              <FilterChip
-                testID="toggle-group"
-                label="Group by category"
-                selected={params.group === true}
-                onPress={() => update({ group: params.group ? undefined : true })}
-              />
-            </XStack>
-          </YStack>
-        </>
-      )}
+      <YStack gap="$2">
+        <Text fontSize={14} color="$colorMuted">
+          Display
+        </Text>
+        <XStack flexWrap="wrap" gap="$2">
+          {sortOptions.map((option) => (
+            <FilterChip
+              key={option.value}
+              testID={`sort-${option.value}`}
+              label={option.label}
+              selected={(params.sort ?? 'NAME_ASC') === option.value}
+              onPress={() => update({ sort: option.value })}
+            />
+          ))}
+        </XStack>
+        <XStack flexWrap="wrap" gap="$2">
+          {/* A named control, not an icon with a tooltip. */}
+          <FilterChip
+            testID="toggle-group"
+            label="Group by category"
+            selected={params.group === true}
+            onPress={() => update({ group: params.group ? undefined : true })}
+          />
+        </XStack>
+      </YStack>
     </ResponsiveDialog>
   )
 }

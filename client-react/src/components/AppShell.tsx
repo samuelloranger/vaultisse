@@ -21,6 +21,7 @@ import {
   Users,
   X,
 } from './icons'
+import { useMountedWhileOpen } from './useMountedWhileOpen'
 
 /**
  * The app frame: the dark "shelf" nav, and the scrolling content column.
@@ -256,6 +257,12 @@ function ColorSchemeToggle() {
 export function AppShell({ children }: { children: React.ReactNode }) {
   const media = useMedia()
   const [drawerOpen, setDrawerOpen] = useState(false)
+  // The drawer's `Sheet` is in the tree at every width — above `sm` it is
+  // simply never opened — and Tamagui keeps a closed sheet's children mounted
+  // and focusable below the viewport. Without this, a keyboard user on a
+  // *desktop* tabs off the bottom of the page into ten rows of a drawer that
+  // cannot be shown at that width. See `useMountedWhileOpen`.
+  const drawerMounted = useMountedWhileOpen(drawerOpen && !media.sm)
 
   return (
     <XStack minHeight="100dvh" backgroundColor="$background">
@@ -343,22 +350,26 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         />
         <Sheet.Handle />
         <Sheet.Frame backgroundColor="$navBg" paddingTop="$2">
-          <XStack alignItems="center" justifyContent="space-between">
-            <Brand />
-            <Button
-              testID="close-nav"
-              aria-label="Close navigation"
-              onPress={() => setDrawerOpen(false)}
-              icon={X}
-              minWidth={44}
-              minHeight={44}
-              marginRight="$2"
-              backgroundColor="transparent"
-              color="$navText"
-              borderWidth={0}
-            />
-          </XStack>
-          <NavList onNavigate={() => setDrawerOpen(false)} />
+          {drawerMounted ? (
+            <>
+              <XStack alignItems="center" justifyContent="space-between">
+                <Brand />
+                <Button
+                  testID="close-nav"
+                  aria-label="Close navigation"
+                  onPress={() => setDrawerOpen(false)}
+                  icon={X}
+                  minWidth={44}
+                  minHeight={44}
+                  marginRight="$2"
+                  backgroundColor="transparent"
+                  color="$navText"
+                  borderWidth={0}
+                />
+              </XStack>
+              <NavList onNavigate={() => setDrawerOpen(false)} />
+            </>
+          ) : null}
         </Sheet.Frame>
       </Sheet>
     </XStack>

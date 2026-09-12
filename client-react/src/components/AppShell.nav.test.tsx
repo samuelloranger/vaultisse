@@ -8,13 +8,12 @@ import {
   RouterProvider,
 } from '@tanstack/react-router'
 import { render, screen, waitFor } from '@testing-library/react'
-import { TamaguiProvider } from 'tamagui'
 import { describe, expect, it } from 'vitest'
 import { policyKeys } from '@/queries/keys'
 import { makePolicy } from '@/test/fixtures'
 import { createTestQueryClient } from '@/test/renderWithProviders'
-import config from '@/theme/tamagui.config'
-import { NavList } from './AppShell'
+import { AppThemeProvider } from '@/theme/ThemeProvider'
+import { AppShell, NavList } from './AppShell'
 
 /**
  * Which nav row is lit, and on which route.
@@ -45,14 +44,12 @@ const ROUTES = [
   '/locations/$id',
 ] as const
 
-function renderNavAt(pathname: string) {
+function renderAt(
+  pathname: string,
+  inside: (props: { children: React.ReactNode }) => React.ReactNode
+) {
   const rootRoute = createRootRoute({
-    component: () => (
-      <>
-        <NavList />
-        <Outlet />
-      </>
-    ),
+    component: () => inside({ children: <Outlet /> }),
   })
   const children = ROUTES.map((path) =>
     createRoute({ getParentRoute: () => rootRoute, path, component: () => null })
@@ -68,12 +65,29 @@ function renderNavAt(pathname: string) {
 
   render(
     <QueryClientProvider client={queryClient}>
-      <TamaguiProvider config={config} defaultTheme="light">
+      {/* The real provider, not a bare `TamaguiProvider`: `AppShell`'s theme
+          toggle reads `useColorScheme()` and throws without it. */}
+      <AppThemeProvider>
         {/* biome-ignore lint/suspicious/noExplicitAny: a stub tree, not the app's registered router */}
         <RouterProvider router={router as any} />
-      </TamaguiProvider>
+      </AppThemeProvider>
     </QueryClientProvider>
   )
+}
+
+/** Just the rows, with no shell around them. */
+function renderNavAt(pathname: string) {
+  renderAt(pathname, ({ children }) => (
+    <>
+      <NavList />
+      {children}
+    </>
+  ))
+}
+
+/** The whole shell, so the drawer is in the tree the way the app has it. */
+function renderShellAt(pathname: string) {
+  renderAt(pathname, ({ children }) => <AppShell>{children}</AppShell>)
 }
 
 /** The row the router considers current, by its label. */
@@ -125,5 +139,40 @@ describe('the selected nav row', () => {
 
     const rowOf = (link: HTMLElement) => link.firstElementChild as HTMLElement
     expect(rowOf(selected).className).not.toEqual(rowOf(other).className)
+  })
+})
+
+/**
+ * The drawer's own contents, when the drawer is shut.
+ *
+ * Separate from the rows above because it is not about *which* row is lit — it
+ * is about the drawer being in the tab order at all. Tamagui's `Sheet` keeps
+ * its children mounted and parked below the viewport when closed, and the
+ * mobile drawer is in the tree at **every** width (above `sm` it is simply
+ * never opened), so before this a keyboard user on a desktop tabbed off the
+ * bottom of the page into ten rows of a nav they could not see.
+ *
+ * jsdom reports no media match, which is the narrow layout, so what is asserted
+ * here is the closed-and-narrow case; the desktop case is the same `Sheet` with
+ * `open` false for a second reason.
+ */
+describe('the closed nav drawer', () => {
+  it('is not in the document', async () => {
+    renderShellAt('/')
+
+    // The shell itself is up…
+    expect(await screen.findByTestId('app-bar')).toBeInTheDocument()
+    // …and the drawer's contents are not.
+    expect(screen.queryByTestId('close-nav')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('nav-Dashboard')).not.toBeInTheDocument()
+  })
+
+  it('appears when it is opened', async () => {
+    renderShellAt('/')
+
+    ;(await screen.findByTestId('open-nav')).click()
+
+    expect(await screen.findByTestId('nav-Dashboard')).toBeInTheDocument()
+    expect(screen.getByTestId('close-nav')).toBeInTheDocument()
   })
 })
