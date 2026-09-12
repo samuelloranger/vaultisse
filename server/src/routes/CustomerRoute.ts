@@ -78,7 +78,7 @@ router.post('/group', requireAuth, async (req: Request, res: Response) => {
     const { name, description } = req.body;
     const userId = appService.getSessionUser(req);
 
-    if (!name || !name.trim()) {
+    if (!name?.trim()) {
         return res.status(400).send('Group name is required');
     }
 
@@ -127,7 +127,7 @@ router.put('/group/:id', requireAuth, async (req: Request, res: Response) => {
         return res.status(400).send('No group ID provided');
     }
 
-    if (!name || !name.trim()) {
+    if (!name?.trim()) {
         return res.status(400).send('Group name is required');
     }
 
@@ -426,7 +426,7 @@ router.put('/:id', requireAuth, async (req: Request, res: Response) => {
             [name, customerId]
         );
 
-        if(queryResult.rowCount != 1) {
+        if(queryResult.rowCount !== 1) {
             return res.status(500).send();
         }
 

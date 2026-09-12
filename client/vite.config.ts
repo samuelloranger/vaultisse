@@ -16,7 +16,12 @@ export default defineConfig(({command, mode}) => {
             },
         },
         build: {
-            minify: 'esbuild', // esbuild handles minification in Vite
+            // Vite 8 minifies with Oxc through Rolldown. The previous explicit
+            // minify: 'esbuild' forced an optional peer that is not installed
+            // in a clean environment - it only worked locally because esbuild
+            // happened to be hoisted into node_modules, and the Docker build
+            // failed on it.
+            minify: true,
         },
         server: {
             proxy: isProd

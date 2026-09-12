@@ -70,7 +70,7 @@ export async function resolveSession(req: Request, res: Response): Promise<Sessi
         return "no-token";
     }
 
-    let decoded;
+    let decoded: jwt.JwtPayload;
     try {
         decoded = jwt.verify(token, appService.getJwtSecret(), {
             algorithms: ["HS256"],
@@ -88,7 +88,7 @@ export async function resolveSession(req: Request, res: Response): Promise<Sessi
         values: [decoded.user_id]
     });
 
-    if (result.rowCount == 0) {
+    if (result.rowCount === 0) {
         return "unauthorized";
     }
 
@@ -126,7 +126,7 @@ export async function resolveSession(req: Request, res: Response): Promise<Sessi
 
     // Check if token is near expiry (e.g., less than 5 minutes left)
     const now = Math.floor(Date.now() / 1000);
-    const timeLeft = decoded.exp - now;
+    const timeLeft = (decoded.exp ?? 0) - now;
 
     if (timeLeft < 5 * 60) {
         // Issue new token with extended expiration

@@ -436,7 +436,7 @@ router.post("/password", requireAuth, passwordChangeLimiter, async (req: Request
             success: true,
             message: "Password updated successfully"
         });
-    } catch (err: any) {
+    } catch (_err: any) {
         res.status(500).send("Internal Server Error");
     } finally {
         client.release();

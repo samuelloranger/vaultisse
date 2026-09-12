@@ -318,7 +318,9 @@ describe("DELETE /user (account deletion)", () => {
             const {rows} = await pool.query(`SELECT created_by FROM ${table} WHERE ${column} = $1`, [value]);
             expect({table, rows: rows.length}).toEqual({table, rows: expect.any(Number)});
             expect(rows.length).toBeGreaterThan(0);
-            rows.forEach((r: any) => expect(r.created_by).toBeNull());
+            for (const r of rows as any[]) {
+                expect(r.created_by).toBeNull();
+            }
         }
     });
 });

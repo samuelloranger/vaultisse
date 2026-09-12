@@ -189,7 +189,7 @@ export class AppService {
         }
         this.m_jwtSecret    = process.env.JWT_SECRET;
         this.m_sessionTime  = Number(process.env.SESSION_TIME);
-        this.m_allowDevAuth = process.env.ALLOW_DEV_AUTH == "true";
+        this.m_allowDevAuth = process.env.ALLOW_DEV_AUTH === "true";
 
         this.m_googleApiKey = String(process.env.GOOGLE_BOOKS_API_KEY)
 
@@ -271,7 +271,7 @@ export class AppService {
      * @private
      */
     private static __printBanner() {
-        const banner = String.raw`
+        const banner = `
 ██╗   ██╗ █████╗ ██╗   ██╗██╗  ████████╗██╗███████╗███████╗███████╗
 ██║   ██║██╔══██╗██║   ██║██║  ╚══██╔══╝██║██╔════╝██╔════╝██╔════╝
 ██║   ██║███████║██║   ██║██║     ██║   ██║███████╗███████╗█████╗
@@ -328,14 +328,14 @@ export class AppService {
             throw Error("No session")
         }
 
-        let decoded;
+        let decoded: jwt.JwtPayload;
         try {
             decoded = jwt.verify(token, this.getJwtSecret(), {
                 algorithms: ["HS256"],
                 audience: "vaultisse",
                 issuer: "vaultisse.com"
             }) as { user_id: number; exp: number };
-        } catch (err) {
+        } catch (_err) {
             throw new Error("Error while getting session user");
         }
 

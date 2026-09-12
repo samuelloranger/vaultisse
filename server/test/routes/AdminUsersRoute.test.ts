@@ -358,7 +358,9 @@ describe("DELETE /admin/users/:id", () => {
         ] as [string, string, any][]) {
             const {rows} = await pool.query(`SELECT created_by FROM ${table} WHERE ${column} = $1`, [value]);
             expect(rows.length).toBeGreaterThan(0);
-            rows.forEach((r: any) => expect(r.created_by).toBeNull());
+            for (const r of rows as any[]) {
+                expect(r.created_by).toBeNull();
+            }
         }
 
         // The audit trail outlives the account it describes: entity_id now

@@ -1,39 +1,39 @@
-ARG NODE_VERSION=22-alpine
+ARG BUN_VERSION=1.4-alpine
 
 # ---------------------------------------------------------------------------
-# 1) Build the Vue client (Vite)
+# 1) Build the client (Vite)
 # ---------------------------------------------------------------------------
-FROM node:${NODE_VERSION} AS client-build
+FROM oven/bun:${BUN_VERSION} AS client-build
 WORKDIR /app/client
-COPY client/package.json client/package-lock.json ./
-RUN npm ci
+COPY client/package.json client/bun.lock ./
+RUN bun install --frozen-lockfile
 COPY client/ ./
-RUN npm run build
+RUN bun run build
 
 # ---------------------------------------------------------------------------
-# 2) Compile the Express/TypeScript server
+# 2) Install production-only server dependencies
+#
+# bcrypt is a native addon, so this stage still needs a C toolchain even
+# though nothing here compiles TypeScript any more.
+
 # ---------------------------------------------------------------------------
-FROM node:${NODE_VERSION} AS server-build
+FROM oven/bun:${BUN_VERSION} AS server-deps
 RUN apk add --no-cache python3 make g++
 WORKDIR /app/server
-COPY server/package.json server/package-lock.json ./
-RUN npm ci
-COPY server/ ./
-RUN npm run build
+COPY server/package.json server/bun.lock ./
+RUN bun install --frozen-lockfile --production
 
 # ---------------------------------------------------------------------------
-# 3) Install production-only server dependencies (no devDependencies, no tsc)
+# 3) Runtime image: Bun plus the server's TypeScript sources.
+#
+# There is no compile step. Bun executes TypeScript directly, so the old
+# tsc build stage is gone along with the separate dist/ copy of the assets.
+# Running from server/src keeps every __dirname lookup at the same depth the
+# compiled server/dist layout had:
+#   server/src/routes -> ../../../client   =>  /app/dist/client
+#   server/src        -> ./assets          =>  /app/dist/server/src/assets
 # ---------------------------------------------------------------------------
-FROM node:${NODE_VERSION} AS server-deps
-RUN apk add --no-cache python3 make g++
-WORKDIR /app/server
-COPY server/package.json server/package-lock.json ./
-RUN npm ci --omit=dev
-
-# ---------------------------------------------------------------------------
-# 4) Runtime image: just Node + compiled output, no build toolchain
-# ---------------------------------------------------------------------------
-FROM node:${NODE_VERSION} AS runtime
+FROM oven/bun:${BUN_VERSION} AS runtime
 ARG APP_VERSION=0.0.0-dev
 
 ENV NODE_ENV=production \
@@ -46,25 +46,22 @@ LABEL org.opencontainers.image.title="vaultisse" \
       org.opencontainers.image.source="https://github.com/AlbertAmat/vaultisse" \
       org.opencontainers.image.licenses="MIT"
 
-# Same runtime layout produced by build.sh, so the compiled server's
-# relative path lookups (server/dist -> ../../../client) resolve the same
-# way they do in the existing PM2/dist.zip deployment.
 WORKDIR /app/dist
 
-COPY --from=server-deps  /app/server/node_modules ./server/node_modules
-COPY --from=server-build /app/server/package.json  ./server/package.json
-COPY --from=server-build /app/server/dist          ./server/dist
-COPY --from=server-build /app/server/src/assets    ./server/dist/assets
-COPY --from=client-build /app/client/dist          ./client
+COPY --from=server-deps /app/server/node_modules ./server/node_modules
+COPY server/package.json                          ./server/package.json
+COPY server/tsconfig.json                         ./server/tsconfig.json
+COPY server/src                                   ./server/src
+COPY --from=client-build /app/client/dist         ./client
 
 RUN mkdir -p /app/logs \
-    && chown -R node:node /app
+    && chown -R bun:bun /app
 
-USER node
+USER bun
 
 EXPOSE 3000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-  CMD node -e "require('http').get({host:'127.0.0.1',port:process.env.API_PORT||3000,path:'/api/rest/app/version'},r=>process.exit(r.statusCode<500?0:1)).on('error',()=>process.exit(1))"
+  CMD bun -e "fetch('http://127.0.0.1:'+(process.env.API_PORT||3000)+'/api/rest/app/version').then(r=>process.exit(r.status<500?0:1)).catch(()=>process.exit(1))"
 
-CMD ["node", "server/dist/index.js"]
+CMD ["bun", "server/src/index.ts"]

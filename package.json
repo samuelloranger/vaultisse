@@ -7,5 +7,13 @@
     "type": "git",
     "url": "git+https://github.com/AlbertAmat/vaultisse.git"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "@biomejs/biome": "2.5.13"
+  },
+  "scripts": {
+    "lint": "biome lint server/src server/test",
+    "lint:fix": "biome lint --write server/src server/test",
+    "format": "biome format --write server/src server/test"
+  }
 }

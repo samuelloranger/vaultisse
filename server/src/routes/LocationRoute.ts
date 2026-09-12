@@ -205,7 +205,7 @@ router.put('/:id', requireAuth, async (req: Request, res: Response) => {
             [name, description, locationId]
         );
 
-        if (queryResult.rowCount != 1) {
+        if (queryResult.rowCount !== 1) {
             return res.status(500).send();
         }
 
@@ -270,7 +270,7 @@ async function existLocation(pool: Pool, locationId: number): Promise<boolean> {
         [locationId]
     );
 
-    return queryResult.rowCount == 1;
+    return queryResult.rowCount === 1;
 }
 
 /** Fetch the books (with stock code/status) currently stored at `locationId`. */

@@ -149,7 +149,7 @@ router.put('/:id', requireAuth, async (req: Request, res: Response) => {
             [name, authorId]
         );
 
-        if(queryResult.rowCount != 1) {
+        if(queryResult.rowCount !== 1) {
             return res.status(500).send();
         }
 

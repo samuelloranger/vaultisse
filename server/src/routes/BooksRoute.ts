@@ -26,7 +26,6 @@ import multer from "multer";
 import {IBookAddMd} from "../types/book/IBookAddMd";
 import {IBookFile} from "../types/book/IBookFile";
 import {Pool, PoolClient} from "pg";
-import {AppErrors} from "../types/AppErrors";
 import {SearchFilter} from "../types/search/SearchFilter";
 import {SortType} from "../types/search/SortType";
 import {normalizeAndValidateIsbn} from "../utils/IsbnVerification";
@@ -134,7 +133,7 @@ router.get('/search', requireAuth, async (req: Request, res: Response) => {
         const skip = MAX_ROWS * page;
 
         const params: any[] = [];
-        const conditions: String[] = [];
+        const conditions: string[] = [];
 
         let sqlStatement = `
             SELECT books.id,
@@ -859,7 +858,7 @@ router.post('', requireAuth, upload.single("image"), handleUploadError(maxCoverI
                 'SELECT id FROM books WHERE isbn = $1',
                 [isbn]
             );
-            if (existIsbn.rowCount == 1) {
+            if (existIsbn.rowCount === 1) {
                 return res.status(404).send("Book with provided ISBN code already exist");
             }
         }
@@ -1431,7 +1430,7 @@ router.post('/:id/stock', requireAuth, async (req: Request, res: Response) => {
     }
 
     const BOOKED_STATUS = 2;
-    if (status == BOOKED_STATUS) {
+    if (status === BOOKED_STATUS) {
         return res.status(406).send('Status "booked" not allowed in add stock action');
     }
 
@@ -1449,7 +1448,7 @@ router.post('/:id/stock', requireAuth, async (req: Request, res: Response) => {
             'SELECT id FROM books WHERE id = $1',
             [bookId]
         );
-        if (existBook.rowCount != 1) {
+        if (existBook.rowCount !== 1) {
             return res.status(404).send("Book not found");
         }
 
@@ -1457,7 +1456,7 @@ router.post('/:id/stock', requireAuth, async (req: Request, res: Response) => {
             'SELECT id FROM locations WHERE id = $1',
             [locationId]
         );
-        if (existLocation.rowCount != 1) {
+        if (existLocation.rowCount !== 1) {
             return res.status(404).send("Location not found");
         }
 
@@ -1466,7 +1465,7 @@ router.post('/:id/stock', requireAuth, async (req: Request, res: Response) => {
                 'SELECT id FROM customers WHERE id = $1',
                 [customerId]
             );
-            if (existCustomer.rowCount != 1) {
+            if (existCustomer.rowCount !== 1) {
                 return res.status(404).send("Customer not found");
             }
         }
@@ -1592,7 +1591,7 @@ router.put('/:id/stock/:stock_id', requireAuth, async (req: Request, res: Respon
             'SELECT id FROM locations WHERE id = $1',
             [location_id]
         );
-        if (existLocation.rowCount != 1) {
+        if (existLocation.rowCount !== 1) {
             return res.status(404).send("Location not found");
         }
 
@@ -1601,7 +1600,7 @@ router.put('/:id/stock/:stock_id', requireAuth, async (req: Request, res: Respon
                 'SELECT id FROM customers WHERE id = $1',
                 [customer_id]
             );
-            if (existCustomer.rowCount != 1) {
+            if (existCustomer.rowCount !== 1) {
                 return res.status(404).send("Customer not found");
             }
         }
@@ -1638,7 +1637,7 @@ router.put('/:id/stock/:stock_id', requireAuth, async (req: Request, res: Respon
             [status, location_id, customer_id, bookId, stockId]
         );
 
-        if (queryResult.rowCount != 1) {
+        if (queryResult.rowCount !== 1) {
             res.status(500).send();
         }
 
@@ -1718,7 +1717,7 @@ router.get('/:bookCode/add/md', requireAuth, async (req: Request, res: Response)
             [bookCode]
         );
 
-        if (stockResult.rows.length == 0) {
+        if (stockResult.rows.length === 0) {
             return res.status(404).send("Book stock not found");
         }
 
@@ -1816,7 +1815,7 @@ function formatPublishedDate(date: string | undefined): string | null {
 
     // Attempt to parse the date and format it to YYYY-MM-DD
     const parsedDate = new Date(date);
-    if (isNaN(parsedDate.getTime())) {
+    if (Number.isNaN(parsedDate.getTime())) {
         return null; // Return null if the date is invalid
     }
 
@@ -1868,7 +1867,7 @@ async function __automaticallyAddBookToLocation(client: Pool | PoolClient, bookI
         FROM locations
     `);
 
-    if (locations.rowCount != null && locations.rowCount == 1) {
+    if (locations.rowCount != null && locations.rowCount === 1) {
         const locationId = locations.rows[0].id;
 
         const code = await generateBookStockCode();

@@ -440,7 +440,7 @@ router.post("/register", authLimiter, async (req: Request, res: Response) => {
         // ever log into, with no in-app way out. Every account after the
         // first is gated normally.
         const client = await pool.connect();
-        let created;
+        let created: { id: number; role: string; disabled: boolean };
 
         try {
             await client.query("BEGIN");
@@ -523,7 +523,7 @@ router.get("/logout", async (req: Request, res: Response) => {
             if ((result.rowCount ?? 0) > 0) {
                 await recordActivity(pool, decoded.user_id, ActivityAction.LOGOUT, {metadata: {ip: req.ip}});
             }
-        } catch (err) {
+        } catch (_err) {
             // Already invalid/expired - nothing to revoke, just clear the cookie below.
         }
     }
