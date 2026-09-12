@@ -2,7 +2,32 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" href="/app/favicon.svg" type="image/svg+xml" />
+    <!--
+      Written as root paths and emitted as `/app/…`: Vite rewrites any absolute
+      URL here that resolves into `public/` to sit under `base`. Both spellings
+      are served, and both are served *without a session* — unlike the rest of
+      `/app`, which 302s to /login. That matters because a manifest is fetched
+      with credentials omitted unless the link says otherwise, and the icons it
+      names are fetched later still, by the OS, with no page and no cookie jar
+      in sight; a 302 at any of those moments is an install with no icon.
+      See PUBLIC_PWA_FILES in server/src/AppService.ts, mirrored for dev by
+      `pwaRootFiles` in vite.config.ts.
+    -->
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
+    <!-- iOS ignores the manifest's icons for the home screen and reads this. -->
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <!--
+      No `media="(prefers-color-scheme: …)"` pair here, deliberately. The theme
+      is a three-state preference — light / dark / system — persisted in
+      localStorage (src/theme/ThemeProvider.tsx), so `prefers-color-scheme` is
+      only authoritative for one of the three and a media-split tag would paint
+      the status bar the wrong colour for a user who overrode their system.
+      This is the light app bar (`$navBg`); ThemeProvider rewrites it to the
+      resolved scheme's `navBg` once React is up.
+    -->
+    <meta name="theme-color" content="#2b2318" />
     <!--
       `viewport-fit=cover` so `env(safe-area-inset-*)` resolves to real values on
       a notched phone. No `maximum-scale` / `user-scalable=no`: suppressing zoom

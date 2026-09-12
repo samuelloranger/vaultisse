@@ -3,6 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!--
+        The PWA install surface. This page is in scope (the manifest declares
+        `scope: "/"`) and it is the *first* screen an installed app shows a
+        signed-out user, because `start_url: "/"` lands here. Without the
+        manifest link here, installing from the sign-in page is impossible; with
+        it, the standalone window keeps its identity across the sign-in
+        navigation instead of being handed back to the browser.
+
+        `theme-color` is the page ground rather than the app bar: this page has
+        no app bar, and the ground is also the manifest's `background_color`, so
+        the splash screen flows into the form without a seam. Static, and
+        light-only, because this page is light-only -- it has no dark variant to
+        switch to.
+    -->
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="icon" href="/favicon.ico" sizes="32x32">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <meta name="theme-color" content="#f7f2ea">
     <title>Vaultisse - Login</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

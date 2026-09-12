@@ -1,5 +1,6 @@
 import { createContext, use, useCallback, useEffect, useMemo, useState } from 'react'
 import { TamaguiProvider } from 'tamagui'
+import { beige, nocturne } from './palette'
 import config from './tamagui.config'
 
 /**
@@ -78,9 +79,19 @@ export function AppThemeProvider({ children }: { children: React.ReactNode }) {
 
   // Tamagui writes its theme class onto <html>; mirror it as a data attribute so
   // plain CSS (theme/globals.ts) and any future third-party widget can see it.
+  //
+  // `theme-color` goes with it. Installed as a PWA, that meta tag is the colour
+  // the OS paints behind the status bar, directly above the app bar — which is
+  // `$navBg`, and `$navBg` is not the same value in the two themes. index.html
+  // ships the light one as a static default (and explains there why it is not a
+  // `prefers-color-scheme` media pair: the preference is three-state and can
+  // disagree with the system).
   useEffect(() => {
     document.documentElement.dataset.scheme = scheme
     document.documentElement.style.colorScheme = scheme
+
+    const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
+    if (meta) meta.content = (scheme === 'dark' ? nocturne : beige).navBg
   }, [scheme])
 
   const value = useMemo(

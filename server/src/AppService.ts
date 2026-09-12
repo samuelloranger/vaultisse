@@ -30,6 +30,75 @@ export function normalizeGoogleApiKey(raw: string | undefined): string | undefin
     return !key || key === "undefined" ? undefined : key;
 }
 
+/**
+ * The compiled client's build output.
+ *
+ * Deliberately a second copy of AuthRoute's `clientDistPath` rather than an
+ * import: AuthRoute resolves it from `server/src/routes`, this file from
+ * `server/src`, so the two are different literals for the same directory and
+ * neither can be expressed in terms of the other without exporting a helper
+ * across a module boundary that currently has no other reason to exist.
+ */
+const clientDistPath = process.env.NODE_ENV === "production"
+    ? path.join(__dirname, "../../client")
+    : path.join(__dirname, "../../client-react/dist");
+
+/**
+ * The PWA install surface, served from the client build **without a session**.
+ *
+ * Everything else the client ships lives under `/app`, which `requireAuthPage`
+ * 302s to `/login` for an anonymous request. That gate cannot cover these
+ * files:
+ *
+ *  - `<link rel="manifest">` is fetched with credentials *omitted* even on the
+ *    same origin unless the link carries `crossorigin="use-credentials"`, and
+ *    the icons the manifest names are fetched by the browser and by the OS
+ *    (Android's WebAPK minting, a launcher icon refresh weeks later) outside
+ *    any page context at all. A 302 to `/login` at any of those moments is an
+ *    install that silently produces no icon.
+ *  - `scope` is `/`, because a cold launch by a signed-out user has to land on
+ *    `/login` and stay inside the standalone window. A manifest describing that
+ *    scope has no business being reachable only from inside the scope's
+ *    authenticated half.
+ *  - `/favicon.ico` is fetched by path-guessing clients that will never see a
+ *    `<link>` tag.
+ *
+ * None of it is private - an app icon and a name are the two things a PWA
+ * publishes by design - but the allowlist is explicit rather than an
+ * `express.static` of the dist root, which would also hand out `index.html`
+ * and the hashed bundle under `assets/` and defeat the gate that does matter.
+ *
+ * Each name is published twice, at `/<name>` and at `/app/<name>`, because the
+ * client's HTML cannot be relied on to ask for the first one: Vite rewrites any
+ * absolute URL in index.html that resolves into `public/` to sit under `base`,
+ * so a hand-written `/favicon.svg` is emitted as `/app/favicon.svg` by the
+ * build and only by the build. Serving both spellings costs one `startsWith`
+ * and removes a whole category of "installable in dev, inert in production".
+ * They are the same bytes and the same app either way - the manifest pins
+ * identity with `"id": "/"` rather than leaving it to infer one from the URL it
+ * happened to be fetched from.
+ */
+const PUBLIC_PWA_FILES = new Set([
+    "/manifest.webmanifest",
+    "/favicon.svg",
+    "/favicon.ico",
+    "/apple-touch-icon.png",
+    "/icon-192.png",
+    "/icon-512.png",
+    "/icon-maskable-192.png",
+    "/icon-maskable-512.png",
+]);
+
+/**
+ * The path within the client build for a public PWA request, or `null` if the
+ * request is not one. Accepts the bare root spelling and the `/app`-prefixed
+ * one the Vite build emits; see PUBLIC_PWA_FILES.
+ */
+export function publicPwaFile(reqPath: string): string | null {
+    const bare = reqPath.startsWith("/app/") ? reqPath.slice("/app".length) : reqPath;
+    return PUBLIC_PWA_FILES.has(bare) ? bare : null;
+}
+
 interface DatabaseConf {
     host: string;
     port: number;
@@ -172,8 +241,22 @@ export class AppService {
                 useDefaults: true,
                 directives: {
                     defaultSrc: ["'self'"],
+                    // Explicit, though `default-src` already covers it: without
+                    // this directive named here, narrowing `default-src` later
+                    // would block the manifest, and a blocked manifest fails
+                    // *silently* - the page renders, and the app simply stops
+                    // being installable with nothing in the network log to say
+                    // why. (`worker-src` is deliberately absent: it falls back
+                    // to `script-src`, which already allows `'self'`, so a
+                    // future service worker needs no change here.)
+                    manifestSrc: ["'self'"],
                     scriptSrc: ["'self'", frontEndUrl, "'unsafe-inline'"],
                     styleSrc: ["'self'", "'unsafe-inline'"],
+                    // Login/register use Google Fonts. Scope this exception to
+                    // stylesheet elements and that one stylesheet origin, so
+                    // inline style attributes and arbitrary third-party CSS
+                    // remain covered by the tighter style-src policy above.
+                    "style-src-elem": ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
                     frameSrc: ["'self'", "data:", "blob:"],
                     // Book covers are either our own uploads (data: URIs) or fetched
                     // from these two ISBN metadata providers - kept in sync with the
@@ -184,6 +267,30 @@ export class AppService {
                 },
             },
         }));
+
+        /*
+         * The PWA install surface - see PUBLIC_PWA_FILES above for why these
+         * eight files sit outside the session gate.
+         *
+         * After helmet so they still carry `X-Content-Type-Options: nosniff`,
+         * and before the rate limiter so that minting a WebAPK (which fetches
+         * the manifest and every icon it names in a burst) cannot eat into a
+         * shared-IP household's request budget.
+         *
+         * No `maxAge`: the filenames are not content-hashed, so express.static's
+         * default of ETag revalidation is the right trade - a conditional GET
+         * per icon is a rounding error next to an icon that cannot be updated.
+         */
+        const pwaStatic = express.static(clientDistPath, {index: false, fallthrough: true});
+        this.m_app.use((req, res, next) => {
+            if (req.method !== "GET" && req.method !== "HEAD") return next();
+            const file = publicPwaFile(req.path);
+            if (!file) return next();
+            // express.static reads req.url, so rewrite the /app-prefixed
+            // spelling onto the one path that exists in the build output.
+            req.url = file;
+            return pwaStatic(req, res, next);
+        });
 
         // Rate limiting to prevent brute force attacks / DDoS
         const limiter = rateLimit({
