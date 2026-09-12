@@ -44,7 +44,7 @@ dashboard, leaving one lookup ready for a future locale hook.
 
 ## Commit
 
-Task commit: pending at report authoring time.
+Task commit: `c436369` (`feat(client): show dashboard stock status`).
 
 ## Concerns
 
