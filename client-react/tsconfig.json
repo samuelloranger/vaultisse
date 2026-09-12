@@ -1,0 +1,37 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "types": ["vite/client", "node", "@testing-library/jest-dom"],
+
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedSideEffectImports": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "useDefineForClassFields": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"],
+      // `@tamagui/lucide-icons` ships per-icon .d.ts files but its subpath
+      // exports have no "types" condition, so `moduleResolution: bundler`
+      // cannot find them and every deep icon import is an implicit any.
+      // Point TypeScript at them directly.
+      "@tamagui/lucide-icons/icons/*": [
+        "./node_modules/@tamagui/lucide-icons/types/icons/*"
+      ]
+    }
+  },
+  "include": ["src", "vite.config.ts", "vitest.config.ts"]
+}

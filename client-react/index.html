@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" href="/app/favicon.svg" type="image/svg+xml" />
+    <!--
+      `viewport-fit=cover` so `env(safe-area-inset-*)` resolves to real values on
+      a notched phone. No `maximum-scale` / `user-scalable=no`: suppressing zoom
+      is an accessibility failure, and the real fix for iOS Safari's zoom-on-
+      focus is the 16px input floor (see src/theme/tamagui.config.ts).
+    -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <!--
+      No Google Fonts <link> here, unlike client/index.html. The server's CSP is
+      `style-src 'self' 'unsafe-inline'` with no https:, so that stylesheet is
+      blocked and the old client's copy of it only ever produces a console
+      error. Fraunces / Inter / JetBrains Mono are still first in the stacks in
+      src/theme/palette.ts and render when installed locally; otherwise the
+      fallbacks (Georgia, system-ui, ui-monospace) take over. Serving the faces
+      from `self`, or widening style-src, is a server change and belongs there.
+    -->
+    <title>Vaultisse</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
