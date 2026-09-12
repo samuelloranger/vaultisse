@@ -1,5 +1,4 @@
 import express, {Express, Request} from "express"; // Express framework for building APIs
-import bodyParser from "body-parser"; // Middleware to parse incoming request bodies
 import http, {Server} from "http"; // Node HTTP module to create server
 import pg from 'pg'; // PostgreSQL client
 import {routes} from "./routes/Routes"; // Import all application routes
@@ -8,7 +7,6 @@ import AuthRoute from "./routes/AuthRoute"; // Auth-related routes
 import cors from "cors"; // Cross-Origin Resource Sharing middleware
 import cookieParser from "cookie-parser"; // Middleware to parse cookies
 import jwt from "jsonwebtoken"; // JSON Web Token library for authentication
-import dotenv from "dotenv"; // Load environment variables from .env
 import bcrypt from "bcrypt"; // Library for password hashing
 import helmet from "helmet"; // Middleware to set secure HTTP headers
 import rateLimit from "express-rate-limit";
@@ -104,8 +102,9 @@ export class AppService {
      * Initializes environment variables, database, middleware, and logging
      */
     public constructor() {
-        dotenv.config(); // Load environment variables from .env
-
+        // No dotenv call: Bun loads `.env` before any module runs, and - like
+        // dotenv did - never overrides a variable already set in the real
+        // environment, so Docker/CI keep winning over a stray local file.
         const frontEndUrl = String(process.env.FRONT_END_URL);
 
         this.m_port = Number(process.env.API_PORT); // API port
@@ -120,8 +119,8 @@ export class AppService {
             this.m_app.set("trust proxy", 1);
         }
 
-        this.m_app.use(bodyParser.json()); // Parse JSON request bodies
-        this.m_app.use(bodyParser.urlencoded({extended: true})); // Parse URL-encoded bodies
+        this.m_app.use(express.json()); // Parse JSON request bodies
+        this.m_app.use(express.urlencoded({extended: true})); // Parse URL-encoded bodies
         this.m_app.use(cookieParser()); // Parse cookies
 
         // Reject state-changing requests when DEMO_MODE=true - must run

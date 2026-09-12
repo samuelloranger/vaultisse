@@ -3,9 +3,9 @@
  * Express app, DB pool, CSP/CORS/rate-limit middleware), and `init()` then
  * registers every route and starts the HTTP listener on `API_PORT`.
  *
- * Run with `npm start` (or `node dist/index.js` after `npm run build`).
+ * Run with `bun start` (or `bun src/index.ts`). Bun reads `.env` itself
+ * before any of this executes, so there is no dotenv call anywhere.
  */
 import {appService} from "./AppService";
-import dotenv from 'dotenv';
 
 appService.init();

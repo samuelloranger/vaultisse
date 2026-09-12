@@ -19,9 +19,8 @@
  * ("added by Camille") and is never filtered on.
  */
 import {Router, Request, Response} from 'express';
+import crypto from "crypto";
 import {appService} from "../AppService";
-import axios, {AxiosError} from "axios";
-import {v4 as uuidv4} from 'uuid';
 import {requireAuth} from "../middlewares/AuthMiddleware";
 import multer from "multer";
 import {IBookAddMd} from "../types/book/IBookAddMd";
@@ -1057,7 +1056,7 @@ router.post(
         } catch (error: unknown) {
             console.error('Error fetching book details:', error);
 
-            if (axios.isAxiosError(error)) {
+            if (error instanceof ExternalHttpError) {
                 return res.status(502).send('External book service failed');
             }
 
@@ -1067,6 +1066,25 @@ router.post(
         }
     }
 );
+
+/**
+ * A non-2xx answer from an external metadata provider.
+ *
+ * `fetch` only rejects on a network-level failure - a 404 or a 429 resolves
+ * normally - so the handlers below raise this themselves to keep the two
+ * cases the callers have always distinguished: "this ISBN has no metadata"
+ * (a null result) versus "the lookup itself failed" (a throw, which the
+ * route turns into 502 and the retry logic inspects for 429).
+ */
+class ExternalHttpError extends Error {
+    public readonly status: number;
+
+    public constructor(status: number, provider: string) {
+        super(`${provider} responded with HTTP ${status}`);
+        this.name = "ExternalHttpError";
+        this.status = status;
+    }
+}
 
 /**
  * =========================================================
@@ -1086,25 +1104,31 @@ async function fetchBookData(isbn: string, retries = 3): Promise<any> {
             throw new Error("Missing GOOGLE_BOOKS_API_KEY");
         }
 
-        const { data } = await axios.get(
-            'https://www.googleapis.com/books/v1/volumes',
-            {
-                params: {
-                    q: `isbn:${isbn}`,
-                    key: apiKey
-                },
-                timeout: 9000,
-                headers: {
-                    'User-Agent': 'vaultisse-server/1.0',
-                },
+        const url = new URL('https://www.googleapis.com/books/v1/volumes');
+        url.searchParams.set('q', `isbn:${isbn}`);
+        url.searchParams.set('key', apiKey);
+
+        const response = await fetch(url, {
+            signal: AbortSignal.timeout(9000),
+            headers: {
+                'User-Agent': 'vaultisse-server/1.0',
             },
-        );
+        });
+
+        // `fetch` resolves on 4xx/5xx where axios rejected, so the status has
+        // to be turned back into a throw - the 429 retry below and the
+        // fallback in the catch both depend on it.
+        if (!response.ok) {
+            throw new ExternalHttpError(response.status, 'Google Books');
+        }
+
+        const data = await response.json() as any;
 
         return data?.items?.[0]?.volumeInfo ?? null;
     } catch (error: unknown) {
         if (
-            axios.isAxiosError(error) &&
-            error.response?.status === 429 &&
+            error instanceof ExternalHttpError &&
+            error.status === 429 &&
             retries > 0
         ) {
             const delay = (4 - retries) * 1000;
@@ -1126,10 +1150,18 @@ async function fetchBookData(isbn: string, retries = 3): Promise<any> {
  */
 async function __fetchOpenLibraryMetadata(isbn: string): Promise<any> {
     try {
-        const { data } = await axios.get(
+        const response = await fetch(
             `https://openlibrary.org/search.json?isbn=${encodeURIComponent(isbn)}`,
-            { timeout: 9000 }
+            {signal: AbortSignal.timeout(9000)}
         );
+
+        // A non-2xx is a failed lookup, not an empty one: axios rejected here,
+        // and the catch below already turns that into `null`.
+        if (!response.ok) {
+            throw new ExternalHttpError(response.status, 'Open Library');
+        }
+
+        const data = await response.json() as any;
 
         // The search endpoint returns matches under `docs`, not on the top-level object.
         const doc = data?.docs?.[0];
@@ -1164,14 +1196,15 @@ async function fetchOpenLibraryCover(isbn: string): Promise<string | null> {
     try {
         const url = `https://covers.openlibrary.org/b/isbn/${encodeURIComponent(isbn)}-M.jpg`;
 
-        const res = await axios.get(url, {
-            responseType: 'arraybuffer',
-            timeout: 3000,
-        });
+        // A missing cover answers 404 here, which `fetch` resolves rather
+        // than throwing - hence the explicit status check. The body is never
+        // read (only its existence and type matter), so it is cancelled.
+        const response = await fetch(url, {signal: AbortSignal.timeout(3000)});
+        await response.body?.cancel();
 
-        const contentType = String(res.headers['content-type'] ?? '');
+        const contentType = String(response.headers.get('content-type') ?? '');
 
-        if (res.status === 200 && contentType.startsWith('image/')) {
+        if (response.status === 200 && contentType.startsWith('image/')) {
             return url;
         }
 
@@ -1805,7 +1838,7 @@ async function generateBookStockCode(): Promise<string> {
 
     while (!isUnique) {
         // Generate a random 10-character code
-        code = uuidv4().replace(/-/g, '').substring(0, 10);
+        code = crypto.randomUUID().replace(/-/g, '').substring(0, 10);
 
         // Check if the code already exists
         const {rowCount} = await pool.query(

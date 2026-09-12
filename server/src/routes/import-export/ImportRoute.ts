@@ -20,7 +20,6 @@
  */
 import {Router, Request, Response, NextFunction, ErrorRequestHandler, RequestHandler} from 'express';
 import multer from "multer";
-import axios from "axios";
 import {appService} from "../../AppService";
 import {requireAuth} from "../../middlewares/AuthMiddleware";
 import {handleUploadError} from "../../middlewares/UploadErrorMiddleware";
@@ -300,13 +299,15 @@ async function __fetchOpenLibraryCover(isbn: string): Promise<string | null> {
     try {
         const url = `https://covers.openlibrary.org/b/isbn/${encodeURIComponent(isbn)}-M.jpg`;
 
-        const res = await axios.get(url, {
-            responseType: "arraybuffer",
-            timeout: 3000,
-        });
+        // A missing cover answers 404, which `fetch` resolves instead of
+        // throwing - so the status is checked explicitly. The body is never
+        // read (only its existence and content type matter), so it is
+        // cancelled rather than buffered.
+        const response = await fetch(url, {signal: AbortSignal.timeout(3000)});
+        await response.body?.cancel();
 
-        const contentType = String(res.headers["content-type"] ?? "");
-        return res.status === 200 && contentType.startsWith("image/") ? url : null;
+        const contentType = String(response.headers.get("content-type") ?? "");
+        return response.status === 200 && contentType.startsWith("image/") ? url : null;
     } catch {
         return null;
     }

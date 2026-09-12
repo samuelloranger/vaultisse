@@ -1,16 +1,17 @@
-import {mockedAxiosGet} from "../helpers/axiosMock";
+import {imageResponse, jsonResponse, mockedFetch, useMockedFetch} from "../helpers/fetchMock";
 import {setupTestApp} from "../helpers/testApp";
 import {createAuthenticatedUser, ITestUser} from "../helpers/auth";
 import {appService} from "../../src/AppService";
 
 
 const app = setupTestApp();
+useMockedFetch();
 
 let user: ITestUser;
 
 beforeEach(async () => {
     user = await createAuthenticatedUser(app);
-    mockedAxiosGet.mockReset();
+    mockedFetch.mockReset();
 });
 
 /**
@@ -254,26 +255,25 @@ describe("POST /book/isbn/:isbn (external metadata lookup)", () => {
      * intentionally isn't what would run in production.
      */
     function mockOpenLibraryMetadata(overrides: {title?: string; authorName?: string[]; pages?: number} = {}) {
-        mockedAxiosGet.mockImplementation((url: string) => {
+        mockedFetch.mockImplementation((input: string | URL) => {
+            const url = String(input);
             if (url.includes("openlibrary.org/search.json")) {
-                return Promise.resolve({
-                    data: {
-                        docs: [{
-                            title: overrides.title ?? "Mocked Book Title",
-                            author_name: overrides.authorName ?? ["Mock Author"],
-                            subject: ["Fiction"],
-                            publisher: ["Mock Publisher"],
-                            first_publish_year: 1999,
-                            number_of_pages_median: overrides.pages ?? 123,
-                            language: ["eng"],
-                        }],
-                    },
-                });
+                return Promise.resolve(jsonResponse({
+                    docs: [{
+                        title: overrides.title ?? "Mocked Book Title",
+                        author_name: overrides.authorName ?? ["Mock Author"],
+                        subject: ["Fiction"],
+                        publisher: ["Mock Publisher"],
+                        first_publish_year: 1999,
+                        number_of_pages_median: overrides.pages ?? 123,
+                        language: ["eng"],
+                    }],
+                }));
             }
             if (url.includes("covers.openlibrary.org")) {
-                return Promise.resolve({status: 200, headers: {"content-type": "image/jpeg"}});
+                return Promise.resolve(imageResponse());
             }
-            return Promise.resolve({data: {}});
+            return Promise.resolve(jsonResponse({}));
         });
     }
 
@@ -320,7 +320,7 @@ describe("POST /book/isbn/:isbn (external metadata lookup)", () => {
     });
 
     it("404s when no metadata is found anywhere", async () => {
-        mockedAxiosGet.mockResolvedValue({data: {}}); // No `docs` in the Open Library response.
+        mockedFetch.mockResolvedValue(jsonResponse({})); // No `docs` in the Open Library response.
         const res = await user.agent.post(`/api/rest/book/isbn/${freshIsbn()}`);
         expect(res.status).toBe(404);
     });
