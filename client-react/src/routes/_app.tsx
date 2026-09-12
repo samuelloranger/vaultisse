@@ -2,7 +2,8 @@ import { createFileRoute, Outlet } from '@tanstack/react-router'
 import { Suspense } from 'react'
 import { AppShell } from '@/components/AppShell'
 import { ScreenLoading } from '@/components/ScreenState'
-import { policyQueryOptions } from '@/queries/app'
+import { LocaleProvider } from '@/locale/LocaleProvider'
+import { policyQueryOptions, usePolicy } from '@/queries/app'
 
 /**
  * The authenticated layout. Pathless (`_app`), so it wraps every screen without
@@ -31,12 +32,20 @@ export const Route = createFileRoute('/_app')({
 })
 
 function AppLayout() {
+  const { data: policy } = usePolicy()
+
   return (
-    <AppShell>
-      {/* Screens below may suspend on their own data; the shell stays up. */}
-      <Suspense fallback={<ScreenLoading />}>
-        <Outlet />
-      </Suspense>
-    </AppShell>
+    <LocaleProvider
+      language={policy.user.language}
+      region={policy.user.region}
+      labels={policy.labels}
+    >
+      <AppShell>
+        {/* Screens below may suspend on their own data; the shell stays up. */}
+        <Suspense fallback={<ScreenLoading />}>
+          <Outlet />
+        </Suspense>
+      </AppShell>
+    </LocaleProvider>
   )
 }

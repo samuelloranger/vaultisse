@@ -29,14 +29,9 @@ export type TrendWindow = {
   months: number
   /** "Now", injectable so the tests are not a function of the wall clock. */
   now?: Date
+  /** Stored user locale, supplied by the locale seam. */
+  locale?: string
 }
-
-const SHORT = new Intl.DateTimeFormat('en-US', { month: 'short', timeZone: 'UTC' })
-const LONG = new Intl.DateTimeFormat('en-US', {
-  month: 'long',
-  year: 'numeric',
-  timeZone: 'UTC',
-})
 
 /**
  * `2026-09`, in UTC.
@@ -86,7 +81,7 @@ function addMonths(date: Date, delta: number): Date {
  */
 export function buildTrendSeries(
   booksInTime: BooksInMonth[],
-  { months, now = new Date() }: TrendWindow
+  { months, now = new Date(), locale = 'en-US' }: TrendWindow
 ): TrendPoint[] {
   if (booksInTime.length === 0 || months < 1) return []
 
@@ -113,12 +108,18 @@ export function buildTrendSeries(
   const start = windowStart > earliest ? windowStart : earliest
 
   const series: TrendPoint[] = []
+  const short = new Intl.DateTimeFormat(locale, { month: 'short', timeZone: 'UTC' })
+  const long = new Intl.DateTimeFormat(locale, {
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  })
   for (let cursor = start; cursor <= end; cursor = addMonths(cursor, 1)) {
     const key = monthKey(cursor)
     series.push({
       key,
-      label: SHORT.format(cursor),
-      fullLabel: LONG.format(cursor),
+      label: short.format(cursor),
+      fullLabel: long.format(cursor),
       count: counts.get(key) ?? 0,
     })
   }

@@ -5,6 +5,7 @@ import type { Policy } from '@/api/types'
 import { Card, DisplayText, Eyebrow } from '@/components/Card'
 import { Field } from '@/components/Field'
 import { errorMessage } from '@/components/ScreenState'
+import { useLocale } from '@/locale/LocaleProvider'
 import { useUpdateBook } from '@/queries/book'
 import { AuthorPicker } from './AuthorPicker'
 import { DateField, SelectField, TextAreaField } from './BookFields'
@@ -40,12 +41,6 @@ const EMPTY = '—'
 /** The server hands back a timestamp for a `date` column; `<input type="date">` wants `YYYY-MM-DD`. */
 function toDateInput(iso: string | null): string {
   return iso ? iso.slice(0, 10) : ''
-}
-
-function formatDate(iso: string | null): string | null {
-  if (!iso) return null
-  const date = new Date(iso)
-  return Number.isNaN(date.getTime()) ? null : date.toLocaleDateString()
 }
 
 type Draft = {
@@ -106,6 +101,7 @@ function FieldRow({ label, value }: { label: string; value: string | null }) {
 }
 
 export function BookMetaCard({ book, policy }: { book: BookDetail; policy: Policy }) {
+  const { formatDate } = useLocale()
   const [draft, setDraft] = useState<Draft | null>(null)
   const update = useUpdateBook(book.id)
 
@@ -324,7 +320,10 @@ export function BookMetaCard({ book, policy }: { book: BookDetail; policy: Polic
               value={book.pages === null ? null : String(book.pages)}
             />
             <FieldRow label="Publisher" value={book.publisher} />
-            <FieldRow label="Published" value={formatDate(book.published_date)} />
+            <FieldRow
+              label="Published"
+              value={book.published_date ? formatDate(book.published_date) : null}
+            />
           </XStack>
 
           <YStack gap="$1">

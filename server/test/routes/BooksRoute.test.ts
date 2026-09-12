@@ -298,6 +298,41 @@ describe("POST /book/isbn/:isbn (external metadata lookup)", () => {
         });
     }
 
+    it("passes the caller's region to Google Books", async () => {
+        await user.agent.put("/api/rest/user").send({
+            name: "Region User",
+            email: user.email,
+            language: "en",
+            region: "CA",
+        });
+        await withGoogleApiKey("a-test-key", async () => {
+            mockedFetch.mockImplementation((input: string | URL) =>
+                String(input).includes("googleapis.com")
+                    ? Promise.resolve(jsonResponse({items: [{volumeInfo: googleCompleteForRoute()}]}))
+                    : Promise.resolve(jsonResponse({}))
+            );
+            const res = await user.agent.post(`/api/rest/book/isbn/${freshIsbn()}`);
+            expect(res.status).toBe(200);
+            const googleUrl = mockedFetch.mock.calls
+                .map((call: unknown[]) => String(call[0]))
+                .find(url => url.includes("googleapis.com"));
+            expect(googleUrl).toContain("country=CA");
+        });
+    });
+
+    function googleCompleteForRoute() {
+        return {
+            title: "A complete Google book",
+            authors: ["A Google author"],
+            publisher: "A publisher",
+            publishedDate: "2020",
+            description: "A description",
+            categories: ["Fiction"],
+            pageCount: 100,
+            language: "en",
+        };
+    }
+
     it("creates a book from a mocked Open Library response", async () => {
         mockOpenLibraryMetadata();
 

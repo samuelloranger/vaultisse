@@ -2,6 +2,7 @@ import { Text, XStack, YStack } from 'tamagui'
 import { MutedText } from '@/components/Card'
 import { AlertTriangle } from '@/components/icons'
 import { ScreenError } from '@/components/ScreenState'
+import { useLocale } from '@/locale/LocaleProvider'
 import { useActivity } from '@/queries/user'
 import { describeActivity, formatWhen, isActivityAlarming } from './deviceInfo'
 import { SettingsSection } from './SettingsControls'
@@ -23,6 +24,7 @@ import { SettingsSection } from './SettingsControls'
  * than "2 hours ago", and the IP spelled out.
  */
 export function ActivityCard() {
+  const { locale } = useLocale()
   const activity = useActivity()
 
   return (
@@ -67,7 +69,7 @@ export function ActivityCard() {
                   {describeActivity(entry)}
                 </Text>
                 <MutedText fontSize={13}>
-                  {formatWhen(entry.createdDate)}
+                  {formatWhen(entry.createdDate, locale)}
                   {entry.metadata?.ip ? ` · ${entry.metadata.ip}` : ''}
                 </MutedText>
               </XStack>

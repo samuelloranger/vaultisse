@@ -21,6 +21,18 @@ describe("PUT /user", () => {
         const policyRes = await user.agent.get("/api/rest/app/policy");
         expect(policyRes.body.user).toMatchObject({name: "Updated Name", language: "es"});
     });
+
+    it("rejects a region outside the profile selector", async () => {
+        const user = await createAuthenticatedUser(app);
+        const res = await user.agent.put("/api/rest/user").send({
+            name: "Updated Name",
+            email: user.email,
+            language: "en",
+            region: "ZZ",
+        });
+        expect(res.status).toBe(400);
+        expect(res.body).toMatchObject({error: "Invalid region"});
+    });
 });
 
 describe("PATCH /user/theme", () => {

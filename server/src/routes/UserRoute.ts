@@ -22,6 +22,7 @@ import {
 } from "../utils/TwoFactorAuth";
 import {recordActivity, ActivityAction, AUTH_ACTIVITY_ACTIONS} from "../utils/ActivityLog";
 import {handleUploadError} from "../middlewares/UploadErrorMiddleware";
+import {isValidRegion} from "../utils/Regions";
 
 const router = Router();
 
@@ -148,6 +149,10 @@ router.put("", requireAuth, async (req: Request, res: Response) => {
     try {
         // Body params
         const {name, email, language, region} = req.body;
+
+        if (!isValidRegion(region)) {
+            return res.status(400).json({error: "Invalid region"});
+        }
 
         await client.query(`
                     UPDATE users

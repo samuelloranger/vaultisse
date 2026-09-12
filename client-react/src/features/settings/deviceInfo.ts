@@ -47,10 +47,10 @@ export function describeDevice(userAgent: string | null | undefined): string {
 }
 
 /** A session's second line: where it signed in from and when it was last seen. */
-export function describeSession(session: UserSession): string {
+export function describeSession(session: UserSession, locale = 'en-US'): string {
   const parts = [
     session.ipAddress ?? 'unknown address',
-    formatWhen(session.lastSeenDate),
+    formatWhen(session.lastSeenDate, locale),
   ]
   return parts.join(' · ')
 }
@@ -62,13 +62,13 @@ export function describeSession(session: UserSession): string {
  * audit: "was that me?" is answered by a clock time, and a login three hours
  * ago reads identically whether it happened at 2pm or at 3am.
  */
-export function formatWhen(iso: string): string {
+export function formatWhen(iso: string, locale = 'en-US'): string {
   const date = new Date(iso)
   if (Number.isNaN(date.getTime())) return iso
-  return date.toLocaleString(undefined, {
+  return new Intl.DateTimeFormat(locale, {
     dateStyle: 'medium',
     timeStyle: 'short',
-  })
+  }).format(date)
 }
 
 /** Human wording for an `activity_log.action`. */

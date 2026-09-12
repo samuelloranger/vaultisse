@@ -50,6 +50,7 @@ import {ActivityAction, recordActivity} from "../utils/ActivityLog";
 import {isValidEpub, isValidMobi, isValidPdf} from "../utils/FileSignature";
 import {recordLoan, recordReturn} from "../utils/LoanHistory";
 import {handleUploadError} from "../middlewares/UploadErrorMiddleware";
+import {validatedRegion} from "../utils/Regions";
 // @ts-ignore
 const router: Router = Router();
 
@@ -950,7 +951,8 @@ router.post(
              * FETCH BOOK (Google + BnF + OpenLibrary, merged)
              * =========================
              */
-            const lookup = await lookupBookMetadata(isbnCode, appService.getGoogleApiKey());
+            const region = await __requestingUserRegion(userId);
+            const lookup = await lookupBookMetadata(isbnCode, appService.getGoogleApiKey(), region);
             const metadata = lookup.metadata;
 
             // books.name is NOT NULL - without a title there's nothing to insert.
@@ -1195,7 +1197,7 @@ router.post('/:id/refresh', requireAuth, async (req: Request, res: Response) => 
     let outcome: IRefreshOutcome;
 
     try {
-        outcome = await __refreshBookMetadata(id, mode, userId);
+        outcome = await __refreshBookMetadata(id, mode, userId, await __requestingUserRegion(userId));
     } catch (error) {
         console.error('Error refreshing book metadata:', error);
         return res.status(500).send('Error refreshing book metadata');
@@ -1311,6 +1313,7 @@ router.post('/refresh', requireAdmin, async (req: Request, res: Response) => {
     const ids = [...new Set<number>(raw)];
     const mode: RefreshMode = req.body?.overwrite === true ? 'overwrite' : 'fill';
     const userId = appService.getSessionUser(req);
+    const region = await __requestingUserRegion(userId);
 
     const results: {
         bookId: number;
@@ -1329,7 +1332,7 @@ router.post('/refresh', requireAdmin, async (req: Request, res: Response) => {
             let outcome: IRefreshOutcome;
 
             try {
-                outcome = await __refreshBookMetadata(id, mode, userId);
+                outcome = await __refreshBookMetadata(id, mode, userId, region);
             } catch (error) {
                 console.error(`Error refreshing book ${id}:`, error);
                 results.push({bookId: id, name: null, status: 'error', changed: [], stillMissing: []});
@@ -1393,7 +1396,8 @@ type IRefreshOutcome =
 async function __refreshBookMetadata(
     bookId: number,
     mode: RefreshMode,
-    userId: number
+    userId: number,
+    region: string
 ): Promise<IRefreshOutcome> {
     const pool = appService.getDatabasePool();
 
@@ -1430,7 +1434,7 @@ async function __refreshBookMetadata(
         return {status: "no_isbn", name: book.name};
     }
 
-    const lookup = await lookupBookMetadata(isbnCode, appService.getGoogleApiKey());
+    const lookup = await lookupBookMetadata(isbnCode, appService.getGoogleApiKey(), region);
 
     // The cover of last resort costs a round trip, so it is only worth asking
     // for when the book has no cover *and* no provider handed one back. A
@@ -1580,6 +1584,15 @@ function __snapshotFromMetadata(metadata: IBookMetadata, imageUrl: string | null
         languageCode: normalizeLanguageCode(metadata.language),
         authors: (metadata.authors ?? []).map(author => truncate(author, 100) ?? author),
     };
+}
+
+/** Read the caller's validated two-letter country for Google Books. */
+async function __requestingUserRegion(userId: number): Promise<string> {
+    const result = await appService.getDatabasePool().query(
+        'SELECT region FROM users WHERE id = $1',
+        [userId]
+    );
+    return validatedRegion(result.rows[0]?.region);
 }
 
 /**

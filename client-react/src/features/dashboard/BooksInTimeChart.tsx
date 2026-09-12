@@ -11,6 +11,7 @@ import { Bar } from 'react-chartjs-2'
 import { useMedia, useTheme, useThemeName, View } from 'tamagui'
 import type { BooksInMonth } from '@/api/types'
 import { Card, Eyebrow, MutedText } from '@/components/Card'
+import { useLocale } from '@/locale/LocaleProvider'
 import { buildTrendSeries, describeTrend, trendCaption } from './booksInTime'
 
 /**
@@ -123,6 +124,7 @@ function useReducedMotion(): boolean {
 }
 
 export function BooksInTimeChart({ booksInTime }: { booksInTime: BooksInMonth[] }) {
+  const { locale } = useLocale()
   const theme = useTheme()
   const themeName = useThemeName()
   const media = useMedia()
@@ -142,8 +144,8 @@ export function BooksInTimeChart({ booksInTime }: { booksInTime: BooksInMonth[] 
   const months = media.sm ? MONTHS_DESKTOP : MONTHS_MOBILE
 
   const series = useMemo(
-    () => buildTrendSeries(booksInTime, { months }),
-    [booksInTime, months]
+    () => buildTrendSeries(booksInTime, { months, locale }),
+    [booksInTime, months, locale]
   )
   const summary = describeTrend(series)
   const caption = trendCaption(series)

@@ -6,6 +6,7 @@ import { MutedText } from '@/components/Card'
 import { ResponsiveDialog } from '@/components/ResponsiveDialog'
 import { errorMessage } from '@/components/ScreenState'
 import { NativeDateField, NativeSelect } from '@/features/customers/CustomerControls'
+import { useLocale } from '@/locale/LocaleProvider'
 import { useLoanReport } from '@/queries/loans'
 import { formatLoanDate } from './formatLoanDate'
 
@@ -196,6 +197,7 @@ function LoanReportResult({
   rows: LoanReportRow[]
   filters: LoanReportFilters
 }) {
+  const { locale } = useLocale()
   if (rows.length === 0) {
     return (
       <YStack testID="loan-report-empty" gap="$1" paddingTop="$2">
@@ -221,7 +223,7 @@ function LoanReportResult({
         <Text fontSize={15} color="$color">
           {rows.length === 1 ? '1 loan' : `${rows.length} loans`}
         </Text>
-        <DownloadCsvButton rows={rows} filters={filters} />
+        <DownloadCsvButton rows={rows} filters={filters} locale={locale} />
       </XStack>
 
       <YStack gap="$2">
@@ -243,8 +245,10 @@ function LoanReportResult({
               {row.groupName ? ` · ${row.groupName}` : ''}
             </MutedText>
             <MutedText fontFamily="$mono" fontSize={12}>
-              {row.stockCode} · out {formatLoanDate(row.loanedAt)} ·{' '}
-              {row.returnedAt ? `back ${formatLoanDate(row.returnedAt)}` : 'still out'}
+              {row.stockCode} · out {formatLoanDate(row.loanedAt, locale)} ·{' '}
+              {row.returnedAt
+                ? `back ${formatLoanDate(row.returnedAt, locale)}`
+                : 'still out'}
             </MutedText>
           </YStack>
         ))}
@@ -263,12 +267,14 @@ function LoanReportResult({
 function DownloadCsvButton({
   rows,
   filters,
+  locale,
 }: {
   rows: LoanReportRow[]
   filters: LoanReportFilters
+  locale: string
 }) {
   function download() {
-    const csv = toCsv(rows)
+    const csv = toCsv(rows, locale)
     // A BOM so Excel opens UTF-8 correctly; without it accented borrower names
     // arrive mojibaked, which is most of them in this library.
     const blob = new Blob([`﻿${csv}`], { type: 'text/csv;charset=utf-8' })
@@ -311,7 +317,7 @@ function csvCell(value: string): string {
   return `"${value.replace(/"/g, '""')}"`
 }
 
-export function toCsv(rows: LoanReportRow[]): string {
+export function toCsv(rows: LoanReportRow[], locale = 'en-US'): string {
   const lines = [CSV_HEADERS.map(csvCell).join(',')]
   for (const row of rows) {
     lines.push(
@@ -320,8 +326,8 @@ export function toCsv(rows: LoanReportRow[]): string {
         row.stockCode,
         row.customerName,
         row.groupName ?? '',
-        formatLoanDate(row.loanedAt),
-        row.returnedAt ? formatLoanDate(row.returnedAt) : 'Still on loan',
+        formatLoanDate(row.loanedAt, locale),
+        row.returnedAt ? formatLoanDate(row.returnedAt, locale) : 'Still on loan',
       ]
         .map(csvCell)
         .join(',')

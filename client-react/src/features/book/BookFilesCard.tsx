@@ -4,6 +4,7 @@ import { type BookFile, bookFileDownloadUrl } from '@/api/book'
 import { Card, Eyebrow, MutedText } from '@/components/Card'
 import { ResponsiveDialog } from '@/components/ResponsiveDialog'
 import { errorMessage } from '@/components/ScreenState'
+import { useLocale } from '@/locale/LocaleProvider'
 import { useDeleteBookFile, useUploadBookFile } from '@/queries/book'
 
 /**
@@ -40,11 +41,6 @@ function formatSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-function formatDate(iso: string): string {
-  const date = new Date(iso)
-  return Number.isNaN(date.getTime()) ? '' : date.toLocaleDateString()
-}
-
 export function BookFilesCard({
   bookId,
   files,
@@ -54,6 +50,7 @@ export function BookFilesCard({
   files: BookFile[]
   maxFileSizeMb?: number
 }) {
+  const { formatDate } = useLocale()
   const upload = useUploadBookFile(bookId)
   const remove = useDeleteBookFile(bookId)
   const fileInput = useRef<HTMLInputElement>(null)

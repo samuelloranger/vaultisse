@@ -10,6 +10,7 @@ import {
   ScreenLoading,
 } from '@/components/ScreenState'
 import { ReturnBooksDialog } from '@/features/dashboard/ReturnBooksDialog'
+import { useLocale } from '@/locale/LocaleProvider'
 import { useReturnBooks } from '@/queries/book'
 import { useCustomerGroups, useCustomers } from '@/queries/customer'
 import { useLoans } from '@/queries/loans'
@@ -257,6 +258,7 @@ function LoanCard({
   onReturn: () => void
   isReturning: boolean
 }) {
+  const { locale } = useLocale()
   return (
     <Card testID="loan-row" spine="left" padding="$3" gap="$2">
       <XStack alignItems="center" gap="$3" flexWrap="wrap">
@@ -284,7 +286,7 @@ function LoanCard({
             {loan.groupName ? ` · ${loan.groupName}` : ''}
           </MutedText>
           <MutedText fontFamily="$mono" fontSize={12}>
-            {loan.stockCode} · out {formatLoanDate(loan.loanedAt)}
+            {loan.stockCode} · out {formatLoanDate(loan.loanedAt, locale)}
           </MutedText>
         </YStack>
 

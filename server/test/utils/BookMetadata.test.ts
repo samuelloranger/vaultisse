@@ -183,6 +183,15 @@ describe("isBookMetadataComplete", () => {
 });
 
 describe("lookupBookMetadata - chain order and thrift", () => {
+    it("passes the requesting region to Google Books", async () => {
+        mockedFetch.mockImplementation(() => Promise.resolve(jsonResponse(googleComplete())));
+
+        await lookupBookMetadata(ENGLISH_ISBN, "a-key", "CA");
+
+        const googleUrl = requestedUrls().find(url => url.includes("googleapis.com"));
+        expect(googleUrl).toContain("country=CA");
+    });
+
     it("stops after Google when Google has everything", () => {
         mockedFetch.mockImplementation(() => Promise.resolve(jsonResponse(googleComplete())));
 

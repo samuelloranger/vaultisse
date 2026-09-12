@@ -52,6 +52,7 @@
 import {IBookMetadata, emptyBookMetadata} from "../types/book/IBookMetadata";
 import {ExternalHttpError} from "./ExternalHttpError";
 import {fetchBnfMetadata} from "./BnfUnimarc";
+import {validatedRegion} from "./Regions";
 
 export type MetadataSourceId = "google-books" | "open-library" | "bnf";
 
@@ -231,7 +232,8 @@ export function isBookMetadataComplete(metadata: IBookMetadata): boolean {
  * Never throws: a provider that fails is recorded in `failed` and the others
  * carry on. `metadata` is null only when no provider had the book.
  */
-export async function lookupBookMetadata(isbn: string, googleApiKey: string | undefined): Promise<IBookLookupResult> {
+export async function lookupBookMetadata(isbn: string, googleApiKey: string | undefined, region = "US"): Promise<IBookLookupResult> {
+    const country = validatedRegion(region);
     const french = isFrenchLanguageIsbn(isbn);
     const order: MetadataSourceId[] = french
         ? ["google-books", "bnf", "open-library"]
@@ -267,7 +269,7 @@ export async function lookupBookMetadata(isbn: string, googleApiKey: string | un
         let answer: IBookMetadata | null;
 
         try {
-            answer = await __callProvider(source, isbn, googleApiKey);
+            answer = await __callProvider(source, isbn, googleApiKey, country);
         } catch (error) {
             console.warn(`Metadata provider ${source} failed:`, error);
             result.failed.push(source);
@@ -300,11 +302,12 @@ export async function lookupBookMetadata(isbn: string, googleApiKey: string | un
 function __callProvider(
     source: MetadataSourceId,
     isbn: string,
-    googleApiKey: string | undefined
+    googleApiKey: string | undefined,
+    region: string
 ): Promise<IBookMetadata | null> {
     switch (source) {
         case "google-books":
-            return __fetchGoogleBooks(isbn, String(googleApiKey));
+            return __fetchGoogleBooks(isbn, String(googleApiKey), 3, region);
         case "open-library":
             return __fetchOpenLibrary(isbn);
         case "bnf":
@@ -351,11 +354,12 @@ function __fieldsFilled(before: IBookMetadata, after: IBookMetadata): (keyof IBo
  * because the quota needs time to refill; a 5xx backs off in 300ms steps
  * because it does not, and Scan mode is waiting.
  */
-async function __fetchGoogleBooks(isbn: string, apiKey: string, retries = 3): Promise<IBookMetadata | null> {
+async function __fetchGoogleBooks(isbn: string, apiKey: string, retries = 3, region = "US"): Promise<IBookMetadata | null> {
     try {
         const url = new URL("https://www.googleapis.com/books/v1/volumes");
         url.searchParams.set("q", `isbn:${isbn}`);
         url.searchParams.set("key", apiKey);
+        url.searchParams.set("country", region);
 
         const response = await fetch(url, {
             signal: AbortSignal.timeout(9000),
@@ -382,7 +386,7 @@ async function __fetchGoogleBooks(isbn: string, apiKey: string, retries = 3): Pr
 
             await new Promise(r => setTimeout(r, delay));
 
-            return __fetchGoogleBooks(isbn, apiKey, retries - 1);
+            return __fetchGoogleBooks(isbn, apiKey, retries - 1, region);
         }
 
         throw error;

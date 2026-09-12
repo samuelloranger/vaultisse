@@ -4,6 +4,7 @@ import type { UserSession } from '@/api/user'
 import { MutedText } from '@/components/Card'
 import { ResponsiveDialog } from '@/components/ResponsiveDialog'
 import { errorMessage, ScreenError } from '@/components/ScreenState'
+import { useLocale } from '@/locale/LocaleProvider'
 import { useRevokeSession, useSessions } from '@/queries/user'
 import { describeDevice, describeSession, formatWhen } from './deviceInfo'
 import { SettingsSection } from './SettingsControls'
@@ -38,6 +39,7 @@ function SessionRow({
   onRevoke: () => void
   pending: boolean
 }) {
+  const { locale } = useLocale()
   return (
     <XStack
       testID="session-row"
@@ -66,7 +68,7 @@ function SessionRow({
             </Text>
           ) : null}
         </XStack>
-        <MutedText fontSize={13}>{describeSession(session)}</MutedText>
+        <MutedText fontSize={13}>{describeSession(session, locale)}</MutedText>
       </YStack>
       <Button
         testID={`session-revoke-${session.id}`}
@@ -91,6 +93,7 @@ function SessionRow({
 }
 
 export function SessionsCard() {
+  const { locale } = useLocale()
   const sessions = useSessions()
   const revoke = useRevokeSession()
   const [confirming, setConfirming] = useState<UserSession | null>(null)
@@ -183,7 +186,7 @@ export function SessionsCard() {
         >
           <YStack gap="$2">
             <MutedText fontSize={14}>
-              Signed in {formatWhen(confirming.createdDate)} from{' '}
+              Signed in {formatWhen(confirming.createdDate, locale)} from{' '}
               {confirming.ipAddress ?? 'an unknown address'}.
             </MutedText>
             {revoke.isError ? (

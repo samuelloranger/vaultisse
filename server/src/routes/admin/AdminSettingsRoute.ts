@@ -34,6 +34,7 @@ import {Router, Request, Response} from "express";
 import {appService} from "../../AppService";
 import {requireAdmin} from "../../middlewares/AdminMiddleware";
 import {recordActivity, ActivityAction} from "../../utils/ActivityLog";
+import {isValidRegion} from "../../utils/Regions";
 
 const router = Router();
 
@@ -43,8 +44,6 @@ const ENTITY_TYPE = "app_settings";
 const SETTINGS_ID = 1;
 
 const VALID_THEMES = ["beige", "library"];
-/** `users.region` is a bare CHAR(2) with no lookup table to validate against. */
-const REGION_PATTERN = /^[A-Z]{2}$/;
 
 /**
  * The settings as the admin panel reads them. `registration_requires_approval`
@@ -192,7 +191,7 @@ router.patch("/", requireAdmin, async (req: Request, res: Response) => {
     }
 
     if (defaultRegion !== undefined) {
-        if (typeof defaultRegion !== "string" || !REGION_PATTERN.test(defaultRegion)) {
+        if (!isValidRegion(defaultRegion)) {
             return res.status(400).json({message: "Invalid defaultRegion"});
         }
         set("default_region", "defaultRegion", defaultRegion);

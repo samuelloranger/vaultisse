@@ -231,7 +231,7 @@ export function ProfileCard({ user }: { user: PolicyUser }) {
         </Button>
         {saved && unchanged ? (
           <Text testID="profile-saved" fontSize={14} color="$colorMuted" role="status">
-            Saved. The interface language changes on your next sign-in.
+            Saved. The interface language and region are active now.
           </Text>
         ) : null}
       </XStack>
