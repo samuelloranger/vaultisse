@@ -24,7 +24,7 @@ const NATIVE_CONTROL_STYLE = {
   boxSizing: 'border-box' as const,
   padding: '0 10px',
   borderRadius: 8,
-  border: '1px solid var(--borderColor)',
+  border: '1px solid var(--borderControl)',
   background: 'var(--surface)',
   color: 'var(--color)',
 }

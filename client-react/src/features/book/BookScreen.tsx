@@ -140,7 +140,7 @@ export function BookScreen({
               fontSize={16}
               borderRadius="$control"
               backgroundColor="$red10"
-              color="#fff"
+              color="$onDanger"
             >
               {remove.isPending ? 'Deleting…' : 'Delete'}
             </Button>

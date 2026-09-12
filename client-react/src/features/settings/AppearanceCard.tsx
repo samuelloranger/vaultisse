@@ -15,12 +15,18 @@ import { ChoiceRow, SettingsSection } from './SettingsControls'
  * starting out default. The local value wins when they disagree, which is the
  * rule `ThemeProvider` already documents.
  *
- * ## The names line up exactly
+ * ## The column's names are legacy, and stay legacy
  *
- * `users.theme` is `'beige' | 'library'`, the old client's two named themes, and
- * `theme/palette.ts` ported both: `beige` *is* this client's light theme and
- * `library` *is* its dark theme. So the mapping below is an identity, not an
- * approximation.
+ * `users.theme` is a `CHECK`-constrained `'beige' | 'library'` — the old
+ * client's two *separately-chosen* named skins, picked from a dropdown rather
+ * than a light/dark pair. This client has one identity in two lighting
+ * conditions (see `theme/palette.ts`), so the column now carries a light/dark
+ * flag under two historical spellings: `'beige'` means light, `'library'`
+ * means dark. The navy "library" design those names came from is gone.
+ *
+ * The spellings are not renamed here because the constraint lives in the
+ * database; widening it is a server migration, and the client gains nothing
+ * from it beyond tidier strings.
  *
  * `'system'` has no server-side equivalent and deliberately does not invent
  * one: it persists whichever of the two is currently resolved, so another device

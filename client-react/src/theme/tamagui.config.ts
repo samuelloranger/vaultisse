@@ -3,7 +3,7 @@ import { createFont, createTamagui } from 'tamagui'
 import {
   beige,
   fontStacks,
-  library,
+  nocturne,
   type ReadingRoomPalette,
   radius,
   shadow,
@@ -17,9 +17,15 @@ import {
  * so Tamagui's own components (Button, Sheet, Dialog, Input, …) keep the
  * semantic theme keys they expect. What we change:
  *
- *  - `themes.light` / `themes.dark` get the ported "Reading Room" palette
- *    (see `./palette.ts`) layered on top of the defaults, plus the extra
+ *  - `themes.light` / `themes.dark` get the "Reading Room" palette (see
+ *    `./palette.ts`) layered on top of the defaults, plus the extra
  *    product-specific keys (`$navBg`, `$accentSoft`, …) the app shell needs.
+ *    Two of the defaults are *overwritten* rather than extended — `$red10` and
+ *    `$green10`. They are Radix hues tuned against a neutral grey scale, they
+ *    are already spelled that way at ~30 call sites, and on a cream or espresso
+ *    ground they read as a different design system. Pointing them at the
+ *    palette's `danger` / `success` fixes every one of those call sites without
+ *    a rename, and `$danger` / `$success` exist for new code.
  *  - Fonts get the product's own stacks: a literary serif for display, Inter
  *    for body, JetBrains Mono for the eyebrow/code style.
  *  - `onlyAllowShorthands` is turned **off**. The v4 preset enables it, which
@@ -71,9 +77,11 @@ function readingRoomTheme(p: ReadingRoomPalette, boxShadow: string) {
   return {
     // --- keys Tamagui components read -------------------------------------
     background: p.bg,
-    backgroundHover: p.bgAlt,
-    backgroundPress: p.bgAlt,
-    backgroundFocus: p.bgAlt,
+    // `bgHover`, not `bgAlt`: a hovered row and a recessed row are different
+    // states, and in the dark theme they move in opposite directions.
+    backgroundHover: p.bgHover,
+    backgroundPress: p.bgHover,
+    backgroundFocus: p.bgHover,
     backgroundStrong: p.surface,
     backgroundTransparent: 'rgba(0,0,0,0)',
     color: p.text,
@@ -88,6 +96,9 @@ function readingRoomTheme(p: ReadingRoomPalette, boxShadow: string) {
     placeholderColor: p.textMuted,
     outlineColor: p.accent,
     shadowColor: p.borderStrong,
+    // Overwritten, not extended — see this file's header.
+    red10: p.danger,
+    green10: p.success,
 
     // --- product keys ------------------------------------------------------
     /** Card / sheet surface sitting on top of `$background`. */
@@ -99,11 +110,16 @@ function readingRoomTheme(p: ReadingRoomPalette, boxShadow: string) {
     /** Secondary copy, counts, captions. */
     colorMuted: p.textMuted,
     borderColorStrong: p.borderStrong,
+    /** The outline that identifies a control. 3:1 against `$surface`. */
+    borderControl: p.borderControl,
     primary: p.primary,
     onPrimary: p.onPrimary,
     secondary: p.secondary,
     accent: p.accent,
     accentSoft: p.accentSoft,
+    danger: p.danger,
+    onDanger: p.onDanger,
+    success: p.success,
     navBg: p.navBg,
     navBgAlt: p.navBgAlt,
     navText: p.navText,
@@ -123,7 +139,7 @@ const light = {
 }
 const dark = {
   ...defaultConfig.themes.dark,
-  ...readingRoomTheme(library, shadow.library),
+  ...readingRoomTheme(nocturne, shadow.nocturne),
 }
 
 export const config = createTamagui({

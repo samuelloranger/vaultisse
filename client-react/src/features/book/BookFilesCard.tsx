@@ -220,7 +220,7 @@ export function BookFilesCard({
               fontSize={16}
               borderRadius="$control"
               backgroundColor="$red10"
-              color="#fff"
+              color="$onDanger"
             >
               {remove.isPending ? 'Removing…' : 'Remove'}
             </Button>

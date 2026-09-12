@@ -92,7 +92,7 @@ export function AuthorPicker({
             boxSizing: 'border-box',
             padding: '0 10px',
             borderRadius: 8,
-            border: '1px solid var(--borderColor)',
+            border: '1px solid var(--borderControl)',
             background: 'var(--surface)',
             color: 'var(--color)',
           }}

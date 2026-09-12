@@ -80,7 +80,7 @@ export function Field({
         minHeight={44}
         borderRadius="$control"
         backgroundColor="$surface"
-        borderColor={error ? '$red10' : '$borderColor'}
+        borderColor={error ? '$danger' : '$borderControl'}
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? errorId : undefined}
       />
