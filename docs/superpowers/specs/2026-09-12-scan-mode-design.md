@@ -1,9 +1,13 @@
 # Scan mode
 
 A continuous barcode-scanning mode for adding physical books. The camera stays
-open, each recognised ISBN is added to the shared library automatically, a small
-toast confirms what landed, and scanning continues — so a stack of books is a
-sweep of the phone rather than twenty round trips through a dialog.
+open, each recognised ISBN that is new to the shared library is added
+automatically, a small toast confirms what landed, and scanning continues — so a
+stack of books is a sweep of the phone rather than twenty round trips through a
+dialog.
+
+The single exception is a book the library already has, which stops and asks
+before writing anything.
 
 ## Contents
 
@@ -60,10 +64,14 @@ replacement** — the same rule the existing dialog's doc comment already states
      read in badly-lit rooms),
    - **Done**, which closes the view and returns to the library.
 
-4. Each successful decode fires the add pipeline and raises a **toast**: the
-   cover thumbnail, the title, whether it was a new book or another copy, and an
-   **Undo**. The camera never stops. Toasts stack to at most three and
-   auto-dismiss.
+4. Each successful decode fires the add pipeline. A book **not already in the
+   library** is added with no interruption and raises a **toast**: the cover
+   thumbnail, the title, and an **Undo**. The camera never stops. Toasts stack
+   to at most three and auto-dismiss.
+
+   A book that **is** already in the library stops and asks — see
+   [Duplicates](#duplicates). That is the one interruption in the flow, and it
+   is deliberate.
 
 5. **Done** closes the view and shows a session summary — what was added, in
    order, each still undoable. Landing back in the library with no record of
@@ -119,33 +127,84 @@ second and the lookup behind each one is rate-limited, so:
    `DELAY_BETWEEN_LOOKUPS_MS = 1500` courtesy `AddBookIsbnDialog` already
    applies to Google Books / Open Library. The camera keeps decoding while the
    queue drains; scanning is never blocked on the network.
-3. **`POST /book/isbn/:isbn`** with the chosen location. Returns the book id.
-4. **`GET /book/:id`** for the title and cover the toast needs. The create
+3. **Check the library first.** `GET /book/search?query=<isbn>`, then
+   **exact-compare** `book.isbn === code` on the results — the server matches
+   with `ILIKE '%…%'`, so a partial match is possible and the raw result set
+   cannot be trusted as "this exact book". This is a local database query with
+   no external lookup behind it, so it is cheap enough to run before every add.
+   - **No match** → step 4.
+   - **Match** → pause scanning and raise the duplicate confirmation. See
+     [Duplicates](#duplicates). Nothing is written until the user answers.
+4. **`POST /book/isbn/:isbn`** with the chosen location. Returns the book id.
+5. **`GET /book/:id`** for the title and cover the toast needs. The create
    endpoint returns only an id, so this second call is what makes the toast
    possible. It is small and cached by TanStack Query.
-5. **Invalidate** the same keys `useCreateBookFromIsbn` already invalidates — a
+6. **Invalidate** the same keys `useCreateBookFromIsbn` already invalidates — a
    book created from an ISBN also creates authors, a category and a stock, so
    the search, counters, policy, author, category and location keys are all
    affected. Reuse the existing mutation rather than writing a second pipeline
    with its own idea of what to invalidate.
 
+The check in step 3 puts one extra round trip in front of the common path. It is
+a single indexed lookup against the local Postgres, it happens while the camera
+keeps decoding, and it is what makes the duplicate question answerable *before*
+a copy is written rather than after.
+
 ## Duplicates
 
 The server's `POST /book/isbn/:isbn` is **find-or-create on the book** and then
-**always adds a stock**. That is the right behaviour for cataloguing — a second
-physical copy of a book you already own is a real thing to record — and it is
-also exactly what makes an un-debounced scanner dangerous: holding the phone
-steady for two seconds would record eight copies.
+**always adds a stock**. So the endpoint has no "already have this" outcome to
+report: it either adds a first copy or silently adds a second, and the caller
+cannot tell which from the id it gets back. That is why the library check in
+step 3 of the pipeline exists — it is the only place the difference is knowable
+*before* something is written.
 
-So:
+**A scanned book already in the library raises a confirmation, and nothing is
+written until it is answered.**
 
-- The same ISBN is ignored for a **cooldown of 5 seconds** after a successful
-  add. Long enough that a steady hand cannot double-add; short enough that
-  deliberately scanning a genuine second copy still works.
-- The toast distinguishes the two cases — **"Added"** versus **"Second copy
-  added"** (third, fourth, …) — read from the book's stock count after the add.
-  Silently recording a copy the user did not mean to add is the failure mode
-  this feature is most likely to produce, and naming it is most of the fix.
+The confirmation is a `ResponsiveDialog` (Sheet on phones, Dialog on desktop —
+the pattern the client already uses), showing:
+
+- the existing book's cover and title,
+- **how many copies are already recorded**, and where they are shelved,
+- two actions: **Add another copy** and **Skip**.
+
+`Skip` is the default-weighted action. The premise of the whole mode is fast
+unattended adding, and the one thing it must not do unattended is quietly
+duplicate a book someone already catalogued.
+
+The copy count needs the book's stock list, which the search endpoint does not
+return — fetch `GET /book/:id` for the matched id. It is a second local query on
+the duplicate path only, which is the rare one.
+
+### Scanning pauses while the dialog is open
+
+The decoder is stopped, not merely ignored, for as long as the confirmation is
+up. A camera that keeps decoding behind a modal stacks a second question behind
+the first, and the user answers one dialog while a queue of them builds
+invisibly. Scanning resumes on either answer.
+
+### Cooldown
+
+Independently of the dialog, a code that has been **handled** — added, or
+skipped — is ignored for **5 seconds**. The camera fires many times a second and
+the book stays in frame after it is dealt with; without this, putting a book
+down slowly would re-raise the question that was just answered.
+
+Five seconds, not forever, because a deliberate re-scan is how someone records a
+genuine third copy. Re-asking after the cooldown costs one tap and writes
+nothing on its own — the dialog is the gate, so the conservative choice here is
+to ask again rather than to silently refuse.
+
+### Toast copy
+
+- First copy of a new book: **"Added"**.
+- A copy added through the confirmation: **"Second copy added"** (third, fourth,
+  …), from the stock count after the add.
+
+Silently recording a copy the user did not mean to add is the failure mode this
+feature is most likely to produce. The confirmation prevents it; the toast
+wording makes it visible when it does happen.
 
 ## Undo
 
@@ -173,6 +232,8 @@ Each one keeps the camera running. Nothing here stops a scan session.
 
 | Condition | Behaviour |
 |---|---|
+| Book already in the library | Not a failure — the confirmation in [Duplicates](#duplicates). Scanning pauses; nothing is written until answered. |
+| The library check itself fails | Treat it as "unknown", not as "not present". Raise the confirmation with the title unknown and the count unstated rather than silently adding a copy on the strength of a failed query. |
 | Camera permission denied | Leave scan mode, explain plainly, offer the typed ISBN dialog. Do not retry `getUserMedia` in a loop — the browser will not re-prompt and the result is an invisible hang. |
 | No camera / `getUserMedia` missing | The Scan control is never rendered. |
 | Decode fails the ISBN checksum | Ignored silently. |
@@ -186,11 +247,13 @@ Each one keeps the camera running. Nothing here stops a scan session.
 ```
 client-react/src/
   features/scan/
-    ScanScreen.tsx        the full-screen view, camera lifecycle, overlay
-    useBarcodeScanner.ts  BarcodeDetector / zxing behind one hook
-    useScanQueue.ts       debounce, serial queue, add pipeline, undo records
-    ScanToast.tsx         the per-add toast
-    ScanSummary.tsx       the on-exit session summary
+    ScanScreen.tsx          the full-screen view, camera lifecycle, overlay
+    useBarcodeScanner.ts    BarcodeDetector / zxing behind one hook
+    useScanQueue.ts         debounce, serial queue, library check, add
+                            pipeline, undo records
+    ScanDuplicateDialog.tsx the "already in the library — add anyway?" confirm
+    ScanToast.tsx           the per-add toast
+    ScanSummary.tsx         the on-exit session summary
   components/
     Toast.tsx             a shared toast host — there is none today
 ```
@@ -214,11 +277,14 @@ The camera cannot be driven in jsdom, so the seam is the decoder interface:
 - `useBarcodeScanner` is tested against a **fake decoder** that emits a
   scripted sequence of codes. Both real implementations sit behind the same
   interface so the queue logic is tested once.
-- `useScanQueue` gets the cases that matter and are invisible by eye: the same
-  code twice inside the cooldown adds once; the same code after the cooldown
-  adds a second copy; a checksum failure adds nothing; a `404` does not stop the
-  queue; undo of a created book deletes the book, undo of an added copy deletes
-  only the stock.
+- `useScanQueue` gets the cases that matter and are invisible by eye: a code
+  not in the library is added with no dialog; a code already in the library
+  raises the dialog and **writes nothing** until it is answered; `Skip` writes
+  nothing at all; `Add another copy` writes exactly one stock; the same code
+  twice inside the cooldown asks once; a search result that merely *contains*
+  the code as a substring is not treated as a match; a checksum failure adds
+  nothing; a `404` does not stop the queue; undo of a created book deletes the
+  book, undo of an added copy deletes only the stock.
 - Playwright drives the real view at a 390px viewport with a fake camera
   (`--use-fake-device-for-media-stream --use-file-for-fake-video-capture=…`) to
   prove the view mounts, the overlay lays out, and the tracks are released on
