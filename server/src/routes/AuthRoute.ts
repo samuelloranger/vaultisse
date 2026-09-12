@@ -367,11 +367,23 @@ router.get("/register", (req: Request, res: Response) => {
  *                                    // a digit and a special character
  *  }
  *
- * `REGISTRATION_REQUIRES_APPROVAL=true` (.env, default false) creates the
- * account with `disabled = TRUE` instead of the normal `FALSE`: it exists in
- * the DB but can't log in (see the `disabled = FALSE` clause everywhere
- * AuthRoute/AuthMiddleware look up a user) until an admin enables it from the
- * admin panel (PATCH /api/rest/admin/users/:id).
+ * Requiring approval creates the account with `disabled = TRUE` instead of the
+ * normal `FALSE`: it exists in the DB but can't log in (see the
+ * `disabled = FALSE` clause everywhere AuthRoute/AuthMiddleware look up a user)
+ * until an admin enables it from the admin panel
+ * (PATCH /api/rest/admin/users/:id).
+ *
+ * That is now an instance setting - `app_settings.registration_requires_approval`,
+ * set from Admin > New accounts (PATCH /api/rest/admin/settings) - so turning it
+ * on no longer means editing .env and restarting the container.
+ * `REGISTRATION_REQUIRES_APPROVAL=true` (.env, default false) is still read, but
+ * only as the fallback for an instance where no admin has ever touched the
+ * toggle; the first write from the panel takes over for good.
+ *
+ * The account's starting language, region and theme come from the same row
+ * (`default_language` / `default_region` / `default_theme`), which is how a
+ * francophone or Spanish-speaking instance stops handing every new member the
+ * `en`/`US` column defaults.
  *
  * The FIRST account to register on an instance is created as `role = 'admin'`
  * and enabled regardless of that setting - see the comment on the insert
@@ -412,6 +424,8 @@ router.post("/register", authLimiter, async (req: Request, res: Response) => {
         // Hash the password securely
         const hashedPassword = await appService.hashPassword(password);
 
+        // Only the fallback. `app_settings.registration_requires_approval` is
+        // the authority whenever it is not NULL - see the INSERT below.
         const requiresApproval = process.env.REGISTRATION_REQUIRES_APPROVAL === "true";
 
         // FIRST-ACCOUNT BOOTSTRAP.
@@ -434,11 +448,14 @@ router.post("/register", authLimiter, async (req: Request, res: Response) => {
         // snapshot, i.e. before this INSERT's row is visible - so the very
         // first registration sees an empty table and takes the 'admin' branch.
         //
-        // REGISTRATION_REQUIRES_APPROVAL is also ignored for that first
-        // account, on purpose: approval means "an admin has to enable you",
-        // and when there is no admin yet that leaves an instance nobody can
-        // ever log into, with no in-app way out. Every account after the
-        // first is gated normally.
+        // The approval setting is also ignored for that first account, on
+        // purpose - whether it comes from `app_settings` or from the .env
+        // fallback: approval means "an admin has to enable you", and when
+        // there is no admin yet that leaves an instance nobody can ever log
+        // into, with no in-app way out. Every account after the first is gated
+        // normally. That is what the `AND EXISTS (SELECT 1 FROM users)` on the
+        // `disabled` expression buys, and it must survive any change to where
+        // the flag is read from.
         const client = await pool.connect();
         let created: { id: number; role: string; disabled: boolean };
 
@@ -446,11 +463,25 @@ router.post("/register", authLimiter, async (req: Request, res: Response) => {
             await client.query("BEGIN");
             await client.query("SELECT pg_advisory_xact_lock($1)", [AdvisoryLock.REGISTRATION_BOOTSTRAP]);
 
+            // The language, region, theme and approval flag come from
+            // `app_settings` - the instance's own answer to "what does a new
+            // account here start out as", set from Admin > New accounts. The
+            // CROSS-JOINed row always exists (its id is pinned to 1 by a
+            // CHECK), so this is still one statement and still one snapshot.
+            //
+            // COALESCE, because `registration_requires_approval` is nullable
+            // and NULL means "no admin has decided, keep obeying
+            // REGISTRATION_REQUIRES_APPROVAL" - which is what every instance
+            // upgraded from before that column existed is still running on.
+            // See assets/db/upgrade/1.2.0/3.sql.
             const insertResult = await client.query(
-                `INSERT INTO users (name, code, email, password, disabled, role)
+                `INSERT INTO users (name, code, email, password, disabled, role, language, region, theme)
                  SELECT $1, $2, $3, $4,
-                        $5::boolean AND EXISTS (SELECT 1 FROM users),
-                        CASE WHEN EXISTS (SELECT 1 FROM users) THEN 'user' ELSE 'admin' END
+                        COALESCE(s.registration_requires_approval, $5::boolean)
+                            AND EXISTS (SELECT 1 FROM users),
+                        CASE WHEN EXISTS (SELECT 1 FROM users) THEN 'user' ELSE 'admin' END,
+                        s.default_language, s.default_region, s.default_theme
+                 FROM app_settings s
                  RETURNING id, role, disabled`,
                 [name, userName, email, hashedPassword, requiresApproval]
             );

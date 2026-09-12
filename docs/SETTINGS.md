@@ -80,6 +80,37 @@ fields they changed.
 | Field | Meaning |
 |---|---|
 | `leasingEnabled` | Whether the Loans and Customers pages (and their nav items) exist. Off by default: plenty of households just track a collection and never lend books to anyone. |
+| `registrationRequiresApproval` | Whether a new account is created `disabled` and has to be enabled by an admin before it can log in. |
+| `defaultLanguage` | `users.language` for the next account to register. Must be a row in `app_languages`. |
+| `defaultRegion` | `users.region` for the next account to register. Two uppercase letters. |
+| `defaultTheme` | `users.theme` for the next account to register - `beige` (light) or `library` (dark). |
+
+The last four describe **the next account to register** and nothing else.
+Changing a default never rewrites an account that already exists: somebody who
+picked their own language six months ago must not have it changed underneath
+them because an admin set a different default today.
+
+### `registrationRequiresApproval` used to be an environment variable
+
+It was `REGISTRATION_REQUIRES_APPROVAL` in `.env`, so turning it on meant
+editing a file and restarting the container, and there was no UI for it at all.
+It is now `app_settings.registration_requires_approval`.
+
+That column is **nullable**, and the NULL is load-bearing: it means "no admin
+has decided yet, keep obeying the env var". `POST /register` reads
+`COALESCE(registration_requires_approval, <env var>)`, so an instance upgraded
+from before the column existed keeps behaving exactly as it did - a migration
+that silently switched approval *off* on every such instance would be a
+security regression shipped by a schema change. Writing the toggle from the
+panel always writes a concrete boolean, and from that moment the database is
+the only authority. `GET /admin/settings` reports
+`registrationApprovalFromEnv: true` while the value is still inherited, so the
+panel can say so rather than quietly showing a value it does not own.
+
+The first account on an instance is exempt from approval either way, and is
+always created as an enabled `admin`. Approval means "an admin has to enable
+you", and when there is no admin yet that leaves an instance nobody can ever
+log into. See `POST /register` in `AuthRoute.ts`.
 
 ### The leasing toggle was a user setting, and should not have been
 

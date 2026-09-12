@@ -5,8 +5,8 @@
  * Mounted at `/api/rest/admin/settings`. The single-row `app_settings` table,
  * read and written by an admin.
  *
- * WHY THIS FILE EXISTS AT ALL. The one setting it starts with - lending - used
- * to be `PATCH /user/leasing` behind `requireAuth`. It was never a user
+ * WHY THIS FILE EXISTS AT ALL. The one setting it started with - lending - used
+ * to be `PATCH /user/leasing`, behind `requireAuth`. It was never a user
  * setting: it is `app_settings.leasing_enabled`, one row for the whole
  * instance, and flipping it adds or removes the Loans and Customers nav entries
  * for *every* account. Any member could change the app for everybody else, and
@@ -42,16 +42,57 @@ const ENTITY_TYPE = "app_settings";
 /** `app_settings` has exactly one row and its id is pinned to 1 by a CHECK. */
 const SETTINGS_ID = 1;
 
-/** The settings as the admin panel reads them. */
+const VALID_THEMES = ["beige", "library"];
+/** `users.region` is a bare CHAR(2) with no lookup table to validate against. */
+const REGION_PATTERN = /^[A-Z]{2}$/;
+
+/**
+ * The settings as the admin panel reads them. `registration_requires_approval`
+ * is the only column that is nullable, and it is resolved here rather than
+ * handed to the client raw - see {@link readSettings}.
+ */
 const SETTINGS_COLUMNS = `
-    leasing_enabled AS "leasingEnabled"
+    leasing_enabled                AS "leasingEnabled",
+    registration_requires_approval AS "registrationRequiresApproval",
+    default_language               AS "defaultLanguage",
+    default_region                 AS "defaultRegion",
+    default_theme                  AS "defaultTheme"
 `;
 
+/**
+ * Whether registration is gated when nobody has set the column - the legacy
+ * `.env` flag, which is what every instance upgraded from before this table
+ * had these columns is still running on.
+ */
+export function registrationApprovalFromEnv(): boolean {
+    return process.env.REGISTRATION_REQUIRES_APPROVAL === "true";
+}
+
+/**
+ * Reads the row and resolves the one tri-state into the boolean the client
+ * needs, plus a flag saying where that boolean came from.
+ *
+ * `registration_requires_approval IS NULL` means "no admin has decided yet,
+ * keep obeying REGISTRATION_REQUIRES_APPROVAL". The panel needs to be able to
+ * say so out loud: an admin looking at a toggle that reads "on" deserves to
+ * know whether turning it off will survive the next container restart, and on
+ * an instance still inheriting from the env var the honest answer is "yes,
+ * from the moment you touch it". Reporting only the effective boolean would
+ * hide a value the operator set somewhere this screen cannot see.
+ */
 async function readSettings(): Promise<Record<string, any>> {
     const pool = appService.getDatabasePool();
     const result = await pool.query(`SELECT ${SETTINGS_COLUMNS} FROM app_settings`);
+    const row = result.rows[0];
+    const inherited = row.registrationRequiresApproval === null;
 
-    return result.rows[0];
+    return {
+        ...row,
+        registrationRequiresApproval: inherited
+            ? registrationApprovalFromEnv()
+            : row.registrationRequiresApproval,
+        registrationApprovalFromEnv: inherited,
+    };
 }
 
 /**
@@ -61,7 +102,13 @@ async function readSettings(): Promise<Record<string, any>> {
  *
  * Auth: admin required.
  *
- * Example response (200): { "leasingEnabled": false }
+ * Example response (200):
+ *  { "leasingEnabled": false, "registrationRequiresApproval": false,
+ *    "registrationApprovalFromEnv": true, "defaultLanguage": "en",
+ *    "defaultRegion": "US", "defaultTheme": "beige" }
+ *
+ * `registrationApprovalFromEnv` is true while no admin has ever set the
+ * toggle and `REGISTRATION_REQUIRES_APPROVAL` is still deciding.
  */
 router.get("/", requireAdmin, async (_req: Request, res: Response) => {
     try {
@@ -79,17 +126,33 @@ router.get("/", requireAdmin, async (_req: Request, res: Response) => {
  * must be present. Anything not sent is left alone.
  *
  * Auth: admin required.
- * Body: { "leasingEnabled": true }  // Loans + Customers, for everyone
+ * Body: any subset of
+ *  { "leasingEnabled": true,               // Loans + Customers, for everyone
+ *    "registrationRequiresApproval": true, // new accounts start disabled
+ *    "defaultLanguage": "es",              // must exist in app_languages
+ *    "defaultRegion": "CA",                // two uppercase letters
+ *    "defaultTheme": "library" }           // 'beige' | 'library'
  *
  * Example response (200): the settings, same shape as GET.
  *
  * Responses: 400 empty body or an invalid value | 401/403 see requireAdmin |
  *            500 server error.
+ *
+ * The four registration fields only ever describe the NEXT account to
+ * register. Nothing here rewrites an existing account: someone who picked
+ * their own language six months ago must not have it changed underneath them
+ * because an admin set a different default today.
  */
 router.patch("/", requireAdmin, async (req: Request, res: Response) => {
     const pool = appService.getDatabasePool();
     const callerId = appService.getSessionUser(req);
-    const {leasingEnabled} = req.body;
+    const {
+        leasingEnabled,
+        registrationRequiresApproval,
+        defaultLanguage,
+        defaultRegion,
+        defaultTheme,
+    } = req.body;
 
     const updates: string[] = [];
     const values: any[] = [];
@@ -107,6 +170,39 @@ router.patch("/", requireAdmin, async (req: Request, res: Response) => {
             return res.status(400).json({message: "Invalid leasingEnabled"});
         }
         set("leasing_enabled", "leasingEnabled", leasingEnabled);
+    }
+
+    if (registrationRequiresApproval !== undefined) {
+        if (typeof registrationRequiresApproval !== "boolean") {
+            return res.status(400).json({message: "Invalid registrationRequiresApproval"});
+        }
+        // Always a concrete boolean, never back to NULL: once an admin has
+        // made this decision in the app, the .env flag stops being consulted
+        // for good. Handing the instance back to an environment variable
+        // nobody can see from here would be a setting that silently un-sets
+        // itself on the next deploy.
+        set("registration_requires_approval", "registrationRequiresApproval", registrationRequiresApproval);
+    }
+
+    if (defaultLanguage !== undefined) {
+        if (typeof defaultLanguage !== "string" || !(await isKnownLanguage(defaultLanguage))) {
+            return res.status(400).json({message: "Invalid defaultLanguage"});
+        }
+        set("default_language", "defaultLanguage", defaultLanguage);
+    }
+
+    if (defaultRegion !== undefined) {
+        if (typeof defaultRegion !== "string" || !REGION_PATTERN.test(defaultRegion)) {
+            return res.status(400).json({message: "Invalid defaultRegion"});
+        }
+        set("default_region", "defaultRegion", defaultRegion);
+    }
+
+    if (defaultTheme !== undefined) {
+        if (typeof defaultTheme !== "string" || !VALID_THEMES.includes(defaultTheme)) {
+            return res.status(400).json({message: "Invalid defaultTheme"});
+        }
+        set("default_theme", "defaultTheme", defaultTheme);
     }
 
     if (updates.length === 0) {
@@ -144,5 +240,18 @@ router.patch("/", requireAdmin, async (req: Request, res: Response) => {
         client.release();
     }
 });
+
+/**
+ * Whether `code` is a row in `app_languages`. Checked against the table rather
+ * than a list in this file: the column carries a foreign key to it, so a value
+ * this function accepted but the table did not would surface as a 500 from a
+ * constraint violation instead of the 400 it is.
+ */
+async function isKnownLanguage(code: string): Promise<boolean> {
+    const pool = appService.getDatabasePool();
+    const result = await pool.query("SELECT 1 FROM app_languages WHERE code = $1", [code]);
+
+    return result.rows.length > 0;
+}
 
 export default router;

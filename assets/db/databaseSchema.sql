@@ -1231,7 +1231,42 @@ CREATE TABLE app_settings
     -- Whether the public-institution security-measures notice is shown after
     -- login (see SecurityNoticeDialog.vue and
     -- user_security_notice_acknowledgements below).
-    is_public_institution BOOLEAN NOT NULL DEFAULT FALSE
+    --
+    -- There is deliberately no endpoint to set this one and no control for it
+    -- in the admin panel: the React client has no security-notice dialog, so a
+    -- toggle here could only turn on a screen that never renders. It stays as
+    -- a column, read by GET /app/policy, until the dialog is ported.
+    is_public_institution BOOLEAN NOT NULL DEFAULT FALSE,
+
+    -- ----------------------------------------------------------------------
+    -- What the NEXT account to register gets. Set from Admin > New accounts
+    -- (see PATCH /api/rest/admin/settings), read by POST /register.
+    -- ----------------------------------------------------------------------
+
+    -- Whether a new account is created disabled and has to be enabled by an
+    -- admin before it can log in.
+    --
+    -- NULLABLE, and the NULL is load-bearing: it means "no admin has decided
+    -- yet, keep obeying the REGISTRATION_REQUIRES_APPROVAL env var", which is
+    -- how this setting used to be configured and still is on any instance
+    -- upgraded from before it existed. POST /register reads
+    -- `COALESCE(registration_requires_approval, <env var>)`. Writing it from
+    -- the admin panel always writes a concrete boolean, and from then on the
+    -- database is the only authority.
+    --
+    -- Ignored for the very first account on an instance either way: approval
+    -- means "an admin has to enable you", and there is no admin yet. See the
+    -- INSERT in AuthRoute.ts.
+    registration_requires_approval BOOLEAN,
+    -- FK with no ON DELETE clause, i.e. RESTRICT: `users.language` can afford
+    -- ON DELETE SET NULL because a user with no language falls back at read
+    -- time, but this column is NOT NULL and is the fallback. Deleting the
+    -- language the instance hands to new accounts has to be refused.
+    default_language      CHAR(2)     NOT NULL DEFAULT 'en' REFERENCES app_languages (code),
+    default_region        CHAR(2)     NOT NULL DEFAULT 'US',
+    -- Same spellings and the same CHECK as users.theme above: 'beige' is the
+    -- light theme, 'library' the dark one.
+    default_theme         VARCHAR(10) NOT NULL DEFAULT 'beige' CHECK (default_theme IN ('beige', 'library'))
 );
 
 INSERT INTO app_settings (id) VALUES (1);
