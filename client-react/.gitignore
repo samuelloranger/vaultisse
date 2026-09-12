@@ -11,3 +11,4 @@ dist/
 # purpose: the typed route tree is what makes `to="/..."` typecheck, and
 # `tsc --noEmit` has to work on a fresh clone without a build step first.
 !src/routeTree.gen.ts
+.tanstack/

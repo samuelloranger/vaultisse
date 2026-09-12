@@ -11,9 +11,13 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
+import { Route as AppAdminRouteImport } from './routes/_app/admin'
 import { Route as AppAuthorsRouteImport } from './routes/_app/authors'
 import { Route as AppCategoriesRouteImport } from './routes/_app/categories'
+import { Route as AppCustomersRouteImport } from './routes/_app/customers'
+import { Route as AppLoansRouteImport } from './routes/_app/loans'
 import { Route as AppLocationsRouteImport } from './routes/_app/locations'
+import { Route as AppSettingsRouteImport } from './routes/_app/settings'
 import { Route as AppBookBook_idRouteImport } from './routes/_app/book.$book_id'
 import { Route as AppLibrarySearchRouteImport } from './routes/_app/library.search'
 
@@ -26,6 +30,11 @@ const AppIndexRoute = AppIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppRoute,
 } as any)
+const AppAdminRoute = AppAdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppAuthorsRoute = AppAuthorsRouteImport.update({
   id: '/authors',
   path: '/authors',
@@ -36,9 +45,24 @@ const AppCategoriesRoute = AppCategoriesRouteImport.update({
   path: '/categories',
   getParentRoute: () => AppRoute,
 } as any)
+const AppCustomersRoute = AppCustomersRouteImport.update({
+  id: '/customers',
+  path: '/customers',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppLoansRoute = AppLoansRouteImport.update({
+  id: '/loans',
+  path: '/loans',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppLocationsRoute = AppLocationsRouteImport.update({
   id: '/locations',
   path: '/locations',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppSettingsRoute = AppSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
   getParentRoute: () => AppRoute,
 } as any)
 const AppBookBook_idRoute = AppBookBook_idRouteImport.update({
@@ -54,16 +78,24 @@ const AppLibrarySearchRoute = AppLibrarySearchRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
+  '/admin': typeof AppAdminRoute
   '/authors': typeof AppAuthorsRoute
   '/categories': typeof AppCategoriesRoute
+  '/customers': typeof AppCustomersRoute
+  '/loans': typeof AppLoansRoute
   '/locations': typeof AppLocationsRoute
+  '/settings': typeof AppSettingsRoute
   '/book/$book_id': typeof AppBookBook_idRoute
   '/library/search': typeof AppLibrarySearchRoute
 }
 export interface FileRoutesByTo {
+  '/admin': typeof AppAdminRoute
   '/authors': typeof AppAuthorsRoute
   '/categories': typeof AppCategoriesRoute
+  '/customers': typeof AppCustomersRoute
+  '/loans': typeof AppLoansRoute
   '/locations': typeof AppLocationsRoute
+  '/settings': typeof AppSettingsRoute
   '/': typeof AppIndexRoute
   '/book/$book_id': typeof AppBookBook_idRoute
   '/library/search': typeof AppLibrarySearchRoute
@@ -71,9 +103,13 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_app': typeof AppRouteWithChildren
+  '/_app/admin': typeof AppAdminRoute
   '/_app/authors': typeof AppAuthorsRoute
   '/_app/categories': typeof AppCategoriesRoute
+  '/_app/customers': typeof AppCustomersRoute
+  '/_app/loans': typeof AppLoansRoute
   '/_app/locations': typeof AppLocationsRoute
+  '/_app/settings': typeof AppSettingsRoute
   '/_app/': typeof AppIndexRoute
   '/_app/book/$book_id': typeof AppBookBook_idRoute
   '/_app/library/search': typeof AppLibrarySearchRoute
@@ -82,25 +118,37 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/admin'
     | '/authors'
     | '/categories'
+    | '/customers'
+    | '/loans'
     | '/locations'
+    | '/settings'
     | '/book/$book_id'
     | '/library/search'
   fileRoutesByTo: FileRoutesByTo
   to:
+    | '/admin'
     | '/authors'
     | '/categories'
+    | '/customers'
+    | '/loans'
     | '/locations'
+    | '/settings'
     | '/'
     | '/book/$book_id'
     | '/library/search'
   id:
     | '__root__'
     | '/_app'
+    | '/_app/admin'
     | '/_app/authors'
     | '/_app/categories'
+    | '/_app/customers'
+    | '/_app/loans'
     | '/_app/locations'
+    | '/_app/settings'
     | '/_app/'
     | '/_app/book/$book_id'
     | '/_app/library/search'
@@ -126,6 +174,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/admin': {
+      id: '/_app/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AppAdminRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/authors': {
       id: '/_app/authors'
       path: '/authors'
@@ -140,11 +195,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppCategoriesRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/customers': {
+      id: '/_app/customers'
+      path: '/customers'
+      fullPath: '/customers'
+      preLoaderRoute: typeof AppCustomersRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/loans': {
+      id: '/_app/loans'
+      path: '/loans'
+      fullPath: '/loans'
+      preLoaderRoute: typeof AppLoansRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/locations': {
       id: '/_app/locations'
       path: '/locations'
       fullPath: '/locations'
       preLoaderRoute: typeof AppLocationsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/settings': {
+      id: '/_app/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof AppSettingsRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/book/$book_id': {
@@ -165,18 +241,26 @@ declare module '@tanstack/react-router' {
 }
 
 interface AppRouteChildren {
+  AppAdminRoute: typeof AppAdminRoute
   AppAuthorsRoute: typeof AppAuthorsRoute
   AppCategoriesRoute: typeof AppCategoriesRoute
+  AppCustomersRoute: typeof AppCustomersRoute
+  AppLoansRoute: typeof AppLoansRoute
   AppLocationsRoute: typeof AppLocationsRoute
+  AppSettingsRoute: typeof AppSettingsRoute
   AppIndexRoute: typeof AppIndexRoute
   AppBookBook_idRoute: typeof AppBookBook_idRoute
   AppLibrarySearchRoute: typeof AppLibrarySearchRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppAdminRoute: AppAdminRoute,
   AppAuthorsRoute: AppAuthorsRoute,
   AppCategoriesRoute: AppCategoriesRoute,
+  AppCustomersRoute: AppCustomersRoute,
+  AppLoansRoute: AppLoansRoute,
   AppLocationsRoute: AppLocationsRoute,
+  AppSettingsRoute: AppSettingsRoute,
   AppIndexRoute: AppIndexRoute,
   AppBookBook_idRoute: AppBookBook_idRoute,
   AppLibrarySearchRoute: AppLibrarySearchRoute,

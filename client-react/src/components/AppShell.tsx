@@ -1,6 +1,7 @@
 import { Link } from '@tanstack/react-router'
 import { useState } from 'react'
 import { Button, Sheet, Text, useMedia, XStack, YStack } from 'tamagui'
+import { usePolicy } from '@/queries/app'
 import { useColorScheme } from '@/theme/ThemeProvider'
 import { DisplayText } from './Card'
 import {
@@ -11,6 +12,8 @@ import {
   Menu,
   Moon,
   Search,
+  Settings,
+  Shield,
   Sun,
   Tag,
   UserPen,
@@ -35,13 +38,18 @@ type NavItem = {
   label: string
   to: string
   icon: AppIcon
+  /** Rendered only for an administrator. See `adminOnly` handling in NavList. */
+  adminOnly?: boolean
 }
 
 /**
- * Only the dashboard is a real route so far. The rest are listed because the
- * nav is part of the shell being verified at 390px, and they become live as
- * their screens land — deliberately rendered as disabled rows rather than dead
- * links that 404.
+ * Every screen in the app. A route that has not landed yet renders as a
+ * disabled row rather than a dead link that 404s.
+ *
+ * Admin is not merely disabled for a non-administrator - it is absent. The
+ * server refuses the endpoints either way (403, and the query is never even
+ * enabled), so showing a greyed-out Admin row would advertise a door that is
+ * not theirs rather than describe one that is coming.
  */
 const NAV_ITEMS: NavItem[] = [
   { label: 'Dashboard', to: '/', icon: LayoutDashboard },
@@ -51,6 +59,8 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Authors', to: '/authors', icon: UserPen },
   { label: 'Loans', to: '/loans', icon: BookOpen },
   { label: 'Customers', to: '/customers', icon: Users },
+  { label: 'Settings', to: '/settings', icon: Settings },
+  { label: 'Admin', to: '/admin', icon: Shield, adminOnly: true },
 ]
 
 const IMPLEMENTED_ROUTES = new Set([
@@ -61,12 +71,18 @@ const IMPLEMENTED_ROUTES = new Set([
   '/authors',
   '/customers',
   '/loans',
+  '/settings',
+  '/admin',
 ])
 
 function NavList({ onNavigate }: { onNavigate?: () => void }) {
+  // A cache hit, not a fetch: the _app route's loader already awaited this.
+  const { data: policy } = usePolicy()
+  const isAdmin = policy.user.isAdmin === true
+
   return (
     <YStack gap="$1" padding="$3" role="navigation" aria-label="Main">
-      {NAV_ITEMS.map((item) => {
+      {NAV_ITEMS.filter((item) => !item.adminOnly || isAdmin).map((item) => {
         const live = IMPLEMENTED_ROUTES.has(item.to)
         const Icon = item.icon
         const content = (
