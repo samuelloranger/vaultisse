@@ -59,7 +59,7 @@ dashboard, leaving one shared lookup ready for a future locale hook.
 ## Commit
 
 Task commit: `c436369` (`feat(client): show dashboard stock status`); round-1
-fix commit pending.
+fix: `1673c36` (`fix(client): let stock labels wrap`).
 
 ## Concerns
 
