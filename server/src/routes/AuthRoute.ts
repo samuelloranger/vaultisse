@@ -112,7 +112,7 @@ router.get('/app', requireAuthPage, async (req: Request, res: Response) => {
  * resolve to the SPA shell on a hard refresh. Auth: required (see the
  * `requireAuthPage` note on `GET /app` just above).
  */
-router.get('/app/*', requireAuthPage, async (req: Request, res: Response) => {
+router.get('/app/*splat', requireAuthPage, async (req: Request, res: Response) => {
     const appPath = path.join(clientDistPath, "index.html");
 
     appService.getLogger().debug(`serving /app/* index: ${appPath}`);

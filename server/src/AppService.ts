@@ -121,6 +121,26 @@ export class AppService {
 
         this.m_app.use(express.json()); // Parse JSON request bodies
         this.m_app.use(express.urlencoded({extended: true})); // Parse URL-encoded bodies
+
+        /*
+         * Express 5 leaves `req.body` undefined when nothing parsed a body -
+         * Express 4 defaulted it to `{}`. Forty-five call sites read
+         * `req.body.<field>` directly, and under Express 5 a request with no
+         * body at all makes every one of them throw a TypeError, which the
+         * async handlers then surface as a 500 instead of the 400/404 they
+         * were written to return.
+         *
+         * Restoring the old default here is one line against forty-five
+         * guards, and it keeps "absent body" and "empty body" behaving the
+         * same way, which is what every handler already assumes.
+         */
+        this.m_app.use((req, _res, next) => {
+            if (req.body === undefined) {
+                req.body = {};
+            }
+            next();
+        });
+
         this.m_app.use(cookieParser()); // Parse cookies
 
         // Reject state-changing requests when DEMO_MODE=true - must run
