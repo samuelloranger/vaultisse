@@ -142,7 +142,13 @@ export function AddBookManuallyDialog({
             minHeight={88}
             borderRadius="$control"
             backgroundColor="$surface"
-            borderColor="$borderColor"
+            // `$borderControl`, not `$borderColor`: this is a field the user
+            // types into, and its outline is the only thing that says so, so it
+            // is held to WCAG 1.4.11's 3:1. `$borderColor` is the decorative
+            // divider token and is nowhere near it. Same call as
+            // `components/Field.tsx`, which is what the Title and ISBN inputs
+            // above and below this one already use.
+            borderColor="$borderControl"
           />
         </YStack>
 
