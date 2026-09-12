@@ -118,6 +118,7 @@ export function AdminRegistrationTab() {
           label="Language"
           value={current.defaultLanguage}
           options={UI_LANGUAGES}
+          disabled={update.isPending}
           onChange={(next) => save({ defaultLanguage: next })}
         />
         <SelectField
@@ -125,6 +126,7 @@ export function AdminRegistrationTab() {
           label="Region"
           value={current.defaultRegion}
           options={REGIONS}
+          disabled={update.isPending}
           onChange={(next) => save({ defaultRegion: next })}
         />
         <ChoiceRow
@@ -132,6 +134,7 @@ export function AdminRegistrationTab() {
           label="Theme"
           value={current.defaultTheme}
           options={THEMES}
+          disabled={update.isPending}
           onChange={(next) => save({ defaultTheme: next })}
         />
       </SettingsSection>

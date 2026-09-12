@@ -268,6 +268,24 @@ describe('AdminScreen', () => {
     expect(await screen.findByTestId('admin-library')).toBeInTheDocument()
   })
 
+  it('moves focus back with ArrowLeft without changing the open panel', async () => {
+    const user = userEvent.setup()
+    renderAdmin()
+    await screen.findByTestId('admin-screen')
+
+    const tabs = screen.getAllByRole('tab')
+    tabs[1].focus()
+    await user.keyboard('{ArrowLeft}')
+
+    // Direction changes keyboard focus only in manual mode. Accounts remains
+    // open until a deliberate activation, so no settings request is made.
+    expect(tabs[0]).toHaveFocus()
+    expect(tabs[0]).toHaveAttribute('tabindex', '0')
+    expect(tabs[0]).toHaveAttribute('aria-selected', 'true')
+    expect(tabs[1]).toHaveAttribute('aria-selected', 'false')
+    expect(getInstanceSettingsMock).not.toHaveBeenCalled()
+  })
+
   it('keeps the focused tab as the only tab stop while manual navigation is pending', async () => {
     const user = userEvent.setup()
     renderAdmin()
@@ -357,6 +375,39 @@ describe('AdminScreen', () => {
       expect(updateInstanceSettingsMock).toHaveBeenCalledWith({
         registrationRequiresApproval: true,
       })
+    })
+  })
+
+  it('locks every new-account control while a settings write is pending', async () => {
+    const user = userEvent.setup()
+    let resolveWrite: ((settings: InstanceSettings) => void) | undefined
+    updateInstanceSettingsMock.mockImplementation(
+      () =>
+        new Promise<InstanceSettings>((resolve) => {
+          resolveWrite = resolve
+        })
+    )
+    renderAdmin()
+    await screen.findByTestId('admin-screen')
+
+    await user.click(screen.getByTestId('admin-tabs-tab-new-accounts'))
+    await screen.findByTestId('admin-registration')
+    await user.selectOptions(screen.getByTestId('default-language'), 'es')
+    await waitFor(() => {
+      expect(updateInstanceSettingsMock).toHaveBeenCalledWith({ defaultLanguage: 'es' })
+    })
+
+    // A PATCH response is a complete settings record. Allowing another change
+    // before it settles means an older response can replace a newer cache value.
+    expect(screen.getByTestId('approval-toggle')).toBeDisabled()
+    expect(screen.getByTestId('default-language')).toBeDisabled()
+    expect(screen.getByTestId('default-region')).toBeDisabled()
+    expect(screen.getByTestId('default-theme-beige')).toBeDisabled()
+    expect(screen.getByTestId('default-theme-library')).toBeDisabled()
+
+    resolveWrite?.(makeSettings({ defaultLanguage: 'es' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('default-language')).not.toBeDisabled()
     })
   })
 

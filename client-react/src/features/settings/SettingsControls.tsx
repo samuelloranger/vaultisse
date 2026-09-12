@@ -174,12 +174,14 @@ export function SelectField({
   value,
   options,
   onChange,
+  disabled,
   testID,
 }: {
   label: string
   value: string
   options: { value: string; label: string }[]
   onChange: (next: string) => void
+  disabled?: boolean
   testID?: string
 }) {
   const id = useId()
@@ -192,8 +194,13 @@ export function SelectField({
         id={id}
         data-testid={testID}
         value={value}
+        disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
-        style={NATIVE_CONTROL_STYLE}
+        style={{
+          ...NATIVE_CONTROL_STYLE,
+          opacity: disabled ? 0.6 : 1,
+          cursor: disabled ? 'default' : 'pointer',
+        }}
       >
         {options.map((option) => (
           <option key={option.value} value={option.value}>
@@ -359,12 +366,14 @@ export function ChoiceRow<T extends string>({
   value,
   options,
   onChange,
+  disabled,
   testID,
 }: {
   label: string
   value: T
   options: { value: T; label: string }[]
   onChange: (next: T) => void
+  disabled?: boolean
   testID: string
 }) {
   return (
@@ -381,6 +390,7 @@ export function ChoiceRow<T extends string>({
               type="button"
               data-testid={`${testID}-${option.value}`}
               aria-pressed={selected}
+              disabled={disabled}
               onClick={() => onChange(option.value)}
               style={{
                 fontFamily: 'inherit',
@@ -388,7 +398,8 @@ export function ChoiceRow<T extends string>({
                 minHeight: 44,
                 padding: '0 16px',
                 borderRadius: 8,
-                cursor: 'pointer',
+                cursor: disabled ? 'default' : 'pointer',
+                opacity: disabled ? 0.6 : 1,
                 // `--borderColor` here on purpose, not `--borderControl`.
                 // These are buttons, not fields: selection is carried by the
                 // terracotta fill, the label weight and `aria-pressed`, and
