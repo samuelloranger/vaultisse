@@ -32,7 +32,7 @@ Source arrays are treated as untrusted response data. Copy names only the non-em
 
 ## Commit
 
-`4ec6335` — `fix(client): distinguish ISBN metadata failures`
+`8064bd2` — `fix(client): distinguish ISBN metadata failures`
 
 ## Concerns
 
