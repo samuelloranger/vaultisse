@@ -205,7 +205,44 @@ export function SelectField({
  * The whole row is the label (`<label htmlFor>`), so the text is part of the
  * target rather than decoration next to a 20px thumb — and the switch itself is
  * given 44px of height regardless of the track's visual size.
+ *
+ * ## Why the track is drawn by hand
+ *
+ * It used to be a plain `<Switch height={44} minWidth={64}>` with a default
+ * `Switch.Thumb`, and on a dark phone it rendered as a dark crescent rather
+ * than a switch. Three things were wrong at once:
+ *
+ *  1. **Unchecked, the track was `$borderColor`** — `rgba(255,255,255,0.09)`
+ *     in the dark theme, which on a `$surface` card is not a visible shape.
+ *  2. **Checked, the colour prop never landed at all.** `createSwitch` spreads
+ *     `backgroundColor: '$backgroundActive'` onto the frame *after* the
+ *     caller's props whenever `checked` is true and no `activeStyle` was
+ *     given, so `'$primary'` was silently dropped. Worse, a Tamagui component
+ *     renders inside its own sub-theme, and this config keeps
+ *     `@tamagui/config`'s stock `dark_Switch` untouched — so
+ *     `$backgroundActive` was `#1a1a1a`, a neutral near-black on a navy card.
+ *     Hence `activeStyle` below: it is the only way to stop that override.
+ *  3. **The thumb was `$surface`**, i.e. *exactly* the card behind it, 29px
+ *     tall inside a 44px pill. A card-coloured circle punched out of an
+ *     almost-invisible pill is the crescent.
+ *
+ * So every colour here is stated explicitly, from this app's palette, on both
+ * sides of `checked`. The geometry is stated too: a **32px track centred in a
+ * 44px hit area**, because the finger needs 44 and the eye wants a switch. The
+ * track is absolutely positioned so its box is independent of the thumb's
+ * travel box — Tamagui computes that travel as `frameWidth - thumbWidth`, so
+ * an inset has to come off the frame's padding, not off a track the thumb
+ * would have to live inside.
  */
+
+/** The switch's hit area. The visual track is {@link TRACK_HEIGHT} inside it. */
+const SWITCH_WIDTH = 56
+const SWITCH_HEIGHT = 44
+const TRACK_HEIGHT = 32
+const THUMB_SIZE = 28
+/** Gap between the thumb and the track's edge, on all four sides. */
+const THUMB_INSET = 2
+
 export function ToggleRow({
   label,
   description,
@@ -240,15 +277,54 @@ export function ToggleRow({
         checked={checked}
         disabled={disabled}
         onCheckedChange={(next) => onCheckedChange(Boolean(next))}
-        // The track is 44 tall even though the thumb is smaller: the target is
-        // what the finger has to hit, not what the eye sees.
-        height={44}
-        minWidth={64}
+        // The pressable box is 44 tall; the track drawn inside it is 32. The
+        // target is what the finger has to hit, not what the eye sees.
+        width={SWITCH_WIDTH}
+        height={SWITCH_HEIGHT}
+        flexShrink={0}
+        // The thumb travels `frameWidth - thumbWidth`, and `frameWidth` is the
+        // frame's *content* box — so this padding is what holds the thumb off
+        // the ends of the track.
+        paddingHorizontal={THUMB_INSET}
+        backgroundColor="transparent"
+        // Not decoration: without an `activeStyle`, `createSwitch` paints the
+        // frame `$backgroundActive` whenever `checked`. See the note above.
+        activeStyle={{ backgroundColor: 'transparent' }}
+        borderWidth={0}
+        borderRadius={1000}
         opacity={disabled ? 0.6 : 1}
-        backgroundColor={checked ? '$primary' : '$borderColor'}
-        borderColor="$borderColor"
+        cursor={disabled ? 'default' : 'pointer'}
+        focusVisibleStyle={{
+          outlineColor: '$outlineColor',
+          outlineStyle: 'solid',
+          outlineWidth: 2,
+        }}
       >
-        <Switch.Thumb backgroundColor="$surface" transition="quick" />
+        {/* The visible track. `$colorMuted` for "off" rather than a border
+            token: it is the only mid grey in the palette that clears both
+            surfaces, and an off switch has to be legible, not tasteful. A
+            dedicated track token belongs in the theme — see this task's
+            report. */}
+        <YStack
+          position="absolute"
+          top={(SWITCH_HEIGHT - TRACK_HEIGHT) / 2}
+          bottom={(SWITCH_HEIGHT - TRACK_HEIGHT) / 2}
+          left={-THUMB_INSET}
+          right={-THUMB_INSET}
+          zIndex={0}
+          borderRadius={1000}
+          backgroundColor={checked ? '$primary' : '$colorMuted'}
+          transition="quick"
+        />
+        <Switch.Thumb
+          width={THUMB_SIZE}
+          height={THUMB_SIZE}
+          marginVertical={(SWITCH_HEIGHT - THUMB_SIZE) / 2}
+          zIndex={1}
+          borderRadius={1000}
+          backgroundColor="$onPrimary"
+          transition="quick"
+        />
       </Switch>
     </XStack>
   )
