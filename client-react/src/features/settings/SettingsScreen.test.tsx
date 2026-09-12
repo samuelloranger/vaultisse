@@ -196,7 +196,7 @@ describe('SettingsScreen', () => {
   /**
    * The lending toggle used to be here, between Appearance and Password. It is
    * an instance setting - `app_settings.leasing_enabled`, which moves the Loans
-   * and Customers nav for every account - so it moved to the admin panel's
+   * and Borrowers nav for every account - so it moved to the admin panel's
    * Library tab along with the endpoint behind it, and its test moved with it
    * (see `features/admin/AdminScreen.test.tsx`). This is what stays: proof that
    * nothing instance-wide is left on a screen called "Your account".

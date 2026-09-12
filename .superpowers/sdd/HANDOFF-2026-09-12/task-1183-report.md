@@ -52,3 +52,14 @@ The successful build continues to emit existing Tamagui static-extraction
 diagnostics (`fileExists` / `Must provide components`), and Vitest emits jsdom
 `scrollTo`/canvas notices. Neither failed its command. No server/API/database
 or route-identifier renames were made.
+
+## Fix round 1
+
+- Corrected `docs/CUSTOMERS.md` to document the landed **Admin > Library**
+  control, `PATCH /admin/settings`, the hidden Borrowers/Loans navigation, and
+  `/customers`/`/loans` redirects while retaining the retired
+  `PATCH /user/leasing` compatibility identifier as documentation only.
+- Replaced the remaining human-domain “Loans and Customers” test comments with
+  “Loans and Borrowers” in Admin, Settings, and Dashboard tests.
+- Verification: scoped prose scan found no stale `Customers` wording in the
+  four reviewed client/docs files; `bun --cwd client-react lint` passed.

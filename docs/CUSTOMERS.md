@@ -87,23 +87,22 @@ see [LOANS.md](LOANS.md) for why that table exists separately from
 ## Leasing is opt-in
 
 Lending is off by default - plenty of households just track a collection and
-never lend anything out. It's toggled in **Settings > Lending**
-([`LendingCard.tsx`](../client-react/src/features/settings/LendingCard.tsx),
-`PATCH /user/leasing`).
+never lend anything out. An administrator toggles it in **Admin > Library**
+([`AdminLibraryTab.tsx`](../client-react/src/features/admin/AdminLibraryTab.tsx))
+through `PATCH /admin/settings` with `leasingEnabled`.
 
 This is an *instance* setting, not a per-account one: with one shared library, a
 member who turned lending off while another had it on would just be hiding
-shared loan data from themselves. Despite the `/user` path it persists to
-`app_settings.leasing_enabled` (see [SETTINGS.md](SETTINGS.md#the-leasing-toggle))
-and applies to everyone.
+shared loan data from themselves. It persists to `app_settings.leasing_enabled`
+(see [SETTINGS.md](SETTINGS.md#the-leasing-toggle)) and applies to everyone.
+`PATCH /user/leasing` is the retired compatibility name; the React client does
+not expose it.
 
 The flag was never an authorization boundary - the loan endpoints stay reachable
-to any authenticated account regardless of it - and in the React client it is not
-a navigation boundary either. The old client hid the "Borrowers" and "Loans" nav
-items and had a `Router.ts` guard redirecting those paths to the dashboard; the
-rewrite has neither, so both screens are always in the nav and always reachable.
-What `leasingEnabled` still controls on screen is the borrower shown against a
-copy on the book detail page
+to any authenticated account regardless of it. In the React client it is a
+navigation boundary: it hides the **Borrowers** and **Loans** nav items and the
+`/customers` and `/loans` routes redirect to the dashboard while lending is off.
+It also controls whether a borrower is shown against a copy on the book detail page
 ([`BookStocksCard.tsx`](../client-react/src/features/book/BookStocksCard.tsx)).
 
 ## Where this lives in code
@@ -117,4 +116,4 @@ copy on the book detail page
 | Client: query hooks + cache keys | `client-react/src/queries/customer.ts` |
 | Client: borrowers route | `client-react/src/routes/_app/customers.tsx` |
 | Client: borrowers page UI | `client-react/src/features/customers/CustomersScreen.tsx`, `CustomerControls.tsx`, `CustomerBooksPanel.tsx`, `CustomerGroupMembersPanel.tsx`, `CustomerLendBooksDialog.tsx`, `CustomerMoveToGroupDialog.tsx` |
-| Client: leasing feature toggle | `client-react/src/features/settings/LendingCard.tsx`, `client-react/src/api/user.ts` |
+| Client: leasing feature toggle | `client-react/src/features/admin/AdminLibraryTab.tsx`, `client-react/src/api/admin.ts` |

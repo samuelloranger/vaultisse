@@ -332,7 +332,7 @@ describe('AdminScreen', () => {
    * Moved here from `features/settings/SettingsScreen.test.tsx` along with the
    * card. Invalidating the policy is the whole mutation, not a tidy-up after
    * it: `AppShell` reads `leasingEnabled` off the policy to decide whether the
-   * Loans and Customers nav entries exist, so a toggle that did not invalidate
+   * Loans and Borrowers nav entries exist, so a toggle that did not invalidate
    * would move the switch and leave the nav behind.
    */
   it('flips the instance-wide lending toggle and invalidates the policy', async () => {

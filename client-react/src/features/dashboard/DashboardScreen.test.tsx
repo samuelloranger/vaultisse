@@ -114,7 +114,7 @@ describe('DashboardScreen', () => {
 
 /**
  * The dashboard's lending surface follows the same instance-wide switch as the
- * Loans and Customers nav rows. Leaving "Return copies" and the on-loan list on
+ * Loans and Borrowers nav rows. Leaving "Return copies" and the on-loan list on
  * the first screen of the app while the sections they belong to are gone from
  * the nav would make the toggle look half-applied.
  */
