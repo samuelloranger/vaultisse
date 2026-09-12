@@ -111,6 +111,29 @@ export function hasActiveFilters(params: SearchScreenParams): boolean {
   )
 }
 
+/**
+ * How many narrowing choices are set — the number on the "Filters" button.
+ *
+ * This is the honesty tax on putting the filters behind a drawer: a control
+ * that hides state has to say how much state it is hiding, or it is worse than
+ * the inline version it replaced.
+ *
+ * `q` is excluded deliberately, even though {@link hasActiveFilters} counts it:
+ * the text box stays on the screen, so a badge for it would be reporting
+ * something the reader is already looking at. `sort` and `group` are excluded
+ * for the same reason {@link clearedFilters} keeps them — they change the order
+ * and the shape of the results, never which books are in them.
+ */
+export function countActiveFilters(params: SearchScreenParams): number {
+  return [
+    params.categoryId,
+    params.stock,
+    params.recent,
+    params.from,
+    params.to,
+  ].filter(Boolean).length
+}
+
 /** The params with every narrowing cleared, keeping the display-only choices. */
 export function clearedFilters(params: SearchScreenParams): SearchScreenParams {
   return { sort: params.sort, group: params.group }

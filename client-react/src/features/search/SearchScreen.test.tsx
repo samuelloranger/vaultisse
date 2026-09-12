@@ -7,6 +7,7 @@ import type { Policy } from '@/api/types'
 import { policyKeys } from '@/queries/keys'
 import { createTestQueryClient, renderWithProviders } from '@/test/renderWithProviders'
 import { SearchScreen } from './SearchScreen'
+import type { SearchScreenParams } from './searchParams'
 
 /**
  * The four tests every screen gets, copied from
@@ -128,7 +129,7 @@ function makeResults(overrides: Partial<SearchResponse> = {}): SearchResponse {
   }
 }
 
-function renderSearch(params = {}) {
+function renderSearch(params: SearchScreenParams = {}) {
   const queryClient = createTestQueryClient()
   // What the `_app` route's loader does before this screen ever mounts.
   queryClient.setQueryData(policyKeys.current(), makePolicy())
@@ -170,11 +171,81 @@ describe('SearchScreen', () => {
     const { onParamsChange } = renderSearch()
     await screen.findByTestId('search-screen')
 
-    await user.click(screen.getByTestId('stock-ON_LOAN'))
+    await user.click(screen.getByTestId('open-filters'))
+
+    await user.click(await screen.findByTestId('stock-ON_LOAN'))
     expect(onParamsChange).toHaveBeenCalledWith({ stock: 'ON_LOAN' })
 
     await user.click(screen.getByTestId('category-2'))
     expect(onParamsChange).toHaveBeenLastCalledWith({ categoryId: 2 })
+  })
+
+  it('keeps the search box out of the drawer and the drawer out of the URL', async () => {
+    const user = userEvent.setup()
+    const { onParamsChange } = renderSearch()
+    await screen.findByTestId('search-screen')
+
+    // The primary action is on the page whether or not the drawer is open.
+    expect(screen.getByTestId('search-query')).toBeInTheDocument()
+    expect(screen.queryByTestId('category-all')).not.toBeInTheDocument()
+
+    await user.click(screen.getByTestId('open-filters'))
+    expect(await screen.findByTestId('category-all')).toBeInTheDocument()
+    expect(screen.getByTestId('search-query')).toBeInTheDocument()
+
+    // Opening a drawer is not a navigation.
+    expect(onParamsChange).not.toHaveBeenCalled()
+
+    await user.click(screen.getByTestId('filters-done'))
+    await waitFor(() => {
+      expect(screen.queryByTestId('category-all')).not.toBeInTheDocument()
+    })
+    expect(onParamsChange).not.toHaveBeenCalled()
+  })
+
+  it('counts the filters the drawer is hiding', async () => {
+    const plain = renderSearch()
+    await screen.findByTestId('search-screen')
+
+    // Nothing narrowing set: no badge at all, rather than a zero.
+    expect(screen.queryByTestId('filters-count')).not.toBeInTheDocument()
+    plain.unmount()
+
+    // The text box is on the page and sort/group do not narrow anything, so
+    // none of these three counts.
+    const display = renderSearch({ q: 'dune', sort: 'DATE_NEWEST', group: true })
+    await screen.findByTestId('search-screen')
+    expect(screen.queryByTestId('filters-count')).not.toBeInTheDocument()
+    display.unmount()
+
+    renderSearch({ categoryId: 2, stock: 'ON_LOAN', recent: true, from: '2026-01-01' })
+    await screen.findByTestId('search-screen')
+    expect(screen.getByTestId('filters-count')).toHaveTextContent('4')
+  })
+
+  it('clears every filter, from the page and from the drawer', async () => {
+    const user = userEvent.setup()
+    const { onParamsChange } = renderSearch({
+      q: 'dune',
+      categoryId: 2,
+      stock: 'ON_LOAN',
+      sort: 'DATE_NEWEST',
+    })
+    await screen.findByTestId('search-screen')
+
+    // The display-only choices survive; everything narrowing goes.
+    await user.click(screen.getByTestId('clear-filters'))
+    expect(onParamsChange).toHaveBeenLastCalledWith({
+      sort: 'DATE_NEWEST',
+      group: undefined,
+    })
+
+    await user.click(screen.getByTestId('open-filters'))
+    await user.click(await screen.findByTestId('filters-clear'))
+    expect(onParamsChange).toHaveBeenLastCalledWith({
+      sort: 'DATE_NEWEST',
+      group: undefined,
+    })
   })
 
   it('fires the ISBN mutation and invalidates the search', async () => {

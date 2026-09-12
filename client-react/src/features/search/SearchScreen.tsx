@@ -9,9 +9,10 @@ import { useSearchBooks } from '@/queries/search'
 import { AddBookIsbnDialog } from './AddBookIsbnDialog'
 import { AddBookManuallyDialog } from './AddBookManuallyDialog'
 import { BookGrid, BookGroup } from './BookGrid'
-import { DateField, FilterChip } from './SearchControls'
+import { SearchFiltersDialog } from './SearchFiltersDialog'
 import {
   clearedFilters,
+  countActiveFilters,
   hasActiveFilters,
   type SearchScreenParams,
   toSearchCriteria,
@@ -30,15 +31,24 @@ import {
  *
  * ## What changed from the Vue implementation
  *
- * - **The filter controls are on the screen.** The old client moved them into a
- *   menu docked in the global app bar's search box, reachable only through a
- *   module-level `activeSearchController` ref that the app bar wrote into on
- *   mount. The library screen was left rendering removable chips for filters it
- *   had no control to set.
+ * - **The filter controls belong to this screen.** The old client moved them
+ *   into a menu docked in the global app bar's search box, reachable only
+ *   through a module-level `activeSearchController` ref that the app bar wrote
+ *   into on mount. The library screen was left rendering removable chips for
+ *   filters it had no control to set. They are in a drawer now (see
+ *   `SearchFiltersDialog.tsx`), but it is *this screen's* drawer, opened by a
+ *   control sitting next to the search box.
  * - **"Group by category" is a labelled control.** It was an icon button whose
  *   only label was a `v-tooltip`, and tooltips never open on touch.
  * - **Paging is a button.** See `queries/search.ts` for why the scroll sentinel
  *   is gone.
+ *
+ * ## What stays on the page
+ *
+ * The text box and its Search button. It is the primary way anyone reaches a
+ * book, and a drawer for the thing people came to do would be the same mistake
+ * the app bar menu was. Everything that *narrows* an already-visible list goes
+ * behind "Filters", which carries the count of what it is hiding.
  */
 
 const SORT_OPTIONS = [
@@ -96,6 +106,10 @@ export function SearchScreen({
 
   const [isbnOpen, setIsbnOpen] = useState(false)
   const [manualOpen, setManualOpen] = useState(false)
+  // Local, not a search param: opening a drawer is not somewhere you navigated
+  // to, and putting it in the URL would put it in the history stack and in
+  // every link anyone shares.
+  const [filtersOpen, setFiltersOpen] = useState(false)
 
   // The text box is local and applied on submit rather than bound straight to
   // the URL: a navigation and a refetch per keystroke is three requests for
@@ -113,6 +127,13 @@ export function SearchScreen({
   const books = results.data?.pages.flatMap((page) => page.books) ?? []
   const total = results.data?.pages[0]?.total ?? 0
   const filtered = hasActiveFilters(params)
+  const activeCount = countActiveFilters(params)
+  // What the drawer says about itself while it is covering the results.
+  const resultSummary = results.isSuccess
+    ? total === 1
+      ? '1 book matches'
+      : `${total} books match`
+    : 'Searching the library…'
 
   return (
     <YStack gap="$4" testID="search-screen">
@@ -167,7 +188,7 @@ export function SearchScreen({
           autoComplete="off"
           inputMode="search"
         />
-        <XStack>
+        <XStack flexWrap="wrap" gap="$2">
           <Button
             testID="search-submit"
             onPress={() => update({ q: text.trim() || undefined })}
@@ -179,118 +200,44 @@ export function SearchScreen({
           >
             Search
           </Button>
-        </XStack>
-
-        <YStack gap="$2">
-          <Text fontSize={14} color="$colorMuted">
-            Category
-          </Text>
-          <XStack flexWrap="wrap" gap="$2">
-            <FilterChip
-              testID="category-all"
-              label="All"
-              selected={params.categoryId === undefined}
-              onPress={() => update({ categoryId: undefined })}
-            />
-            {policy.categories.map((category) => (
-              <FilterChip
-                key={category.id}
-                testID={`category-${category.id}`}
-                label={category.name}
-                selected={params.categoryId === category.id}
-                onPress={() =>
-                  update({
-                    categoryId:
-                      params.categoryId === category.id ? undefined : category.id,
-                  })
-                }
-              />
-            ))}
-          </XStack>
-        </YStack>
-
-        <YStack gap="$2">
-          <Text fontSize={14} color="$colorMuted">
-            Copies
-          </Text>
-          <XStack flexWrap="wrap" gap="$2">
-            <FilterChip
-              testID="stock-any"
-              label="Any"
-              selected={params.stock === undefined}
-              onPress={() => update({ stock: undefined })}
-            />
-            {STOCK_OPTIONS.map((option) => (
-              <FilterChip
-                key={option.value}
-                testID={`stock-${option.value}`}
-                label={option.label}
-                selected={params.stock === option.value}
-                onPress={() =>
-                  update({
-                    stock: params.stock === option.value ? undefined : option.value,
-                  })
-                }
-              />
-            ))}
-            <FilterChip
-              testID="filter-recent"
-              label="Added recently"
-              selected={params.recent === true}
-              onPress={() => update({ recent: params.recent ? undefined : true })}
-            />
-          </XStack>
-        </YStack>
-
-        <YStack gap="$2">
-          <Text fontSize={14} color="$colorMuted">
-            Added between
-          </Text>
-          <XStack flexWrap="wrap" gap="$3">
-            <YStack flexGrow={1} flexBasis={150} minWidth={0}>
-              <DateField
-                testID="date-from"
-                label="From"
-                value={params.from ?? ''}
-                onChange={(next) => update({ from: next || undefined })}
-              />
-            </YStack>
-            <YStack flexGrow={1} flexBasis={150} minWidth={0}>
-              <DateField
-                testID="date-to"
-                label="To"
-                value={params.to ?? ''}
-                onChange={(next) => update({ to: next || undefined })}
-              />
-            </YStack>
-          </XStack>
-        </YStack>
-
-        <YStack gap="$2">
-          <Text fontSize={14} color="$colorMuted">
-            Sort
-          </Text>
-          <XStack flexWrap="wrap" gap="$2">
-            {SORT_OPTIONS.map((option) => (
-              <FilterChip
-                key={option.value}
-                testID={`sort-${option.value}`}
-                label={option.label}
-                selected={(params.sort ?? 'NAME_ASC') === option.value}
-                onPress={() => update({ sort: option.value })}
-              />
-            ))}
-          </XStack>
-        </YStack>
-
-        <XStack flexWrap="wrap" gap="$2">
-          {/* A named control, not an icon with a tooltip. */}
-          <FilterChip
-            testID="toggle-group"
-            label="Group by category"
-            selected={params.group === true}
-            onPress={() => update({ group: params.group ? undefined : true })}
-          />
+          <Button
+            testID="open-filters"
+            onPress={() => setFiltersOpen(true)}
+            aria-label={
+              activeCount === 1 ? 'Filters, 1 active' : `Filters, ${activeCount} active`
+            }
+            minHeight={44}
+            paddingHorizontal="$3"
+            borderRadius="$control"
+            backgroundColor="transparent"
+            borderColor={activeCount > 0 ? '$primary' : '$borderColor'}
+          >
+            {/* An explicit row rather than bare children: `Button` wraps a lone
+                string in its own text node, and mixing that with an element is
+                the one thing it does not promise to lay out. */}
+            <XStack alignItems="center" gap="$2">
+              <Text fontSize={16} color="$color">
+                Filters
+              </Text>
+              {activeCount > 0 ? (
+                <Text
+                  testID="filters-count"
+                  minWidth={22}
+                  height={22}
+                  lineHeight={22}
+                  textAlign="center"
+                  paddingHorizontal={6}
+                  borderRadius={1000}
+                  fontSize={13}
+                  fontWeight="600"
+                  backgroundColor="$primary"
+                  color="$onPrimary"
+                >
+                  {activeCount}
+                </Text>
+              ) : null}
+            </XStack>
+          </Button>
           {filtered ? (
             <Button
               testID="clear-filters"
@@ -307,6 +254,17 @@ export function SearchScreen({
           ) : null}
         </XStack>
       </Card>
+
+      <SearchFiltersDialog
+        open={filtersOpen}
+        onOpenChange={setFiltersOpen}
+        params={params}
+        onParamsChange={onParamsChange}
+        categories={policy.categories}
+        resultSummary={resultSummary}
+        sortOptions={SORT_OPTIONS}
+        stockOptions={STOCK_OPTIONS}
+      />
 
       {results.isPending ? <ScreenLoading label="Searching the library…" /> : null}
 
