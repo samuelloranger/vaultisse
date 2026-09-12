@@ -3,7 +3,20 @@ import { useState } from 'react'
 import { Button, Sheet, Text, useMedia, XStack, YStack } from 'tamagui'
 import { useColorScheme } from '@/theme/ThemeProvider'
 import { DisplayText } from './Card'
-import { BookOpen, LayoutDashboard, MapPin, Menu, Moon, Search, Sun, Tag, UserPen, Users, X, type AppIcon } from './icons'
+import {
+  type AppIcon,
+  BookOpen,
+  LayoutDashboard,
+  MapPin,
+  Menu,
+  Moon,
+  Search,
+  Sun,
+  Tag,
+  UserPen,
+  Users,
+  X,
+} from './icons'
 
 /**
  * The app frame: the dark "shelf" nav, and the scrolling content column.
@@ -46,6 +59,8 @@ const IMPLEMENTED_ROUTES = new Set([
   '/locations',
   '/categories',
   '/authors',
+  '/customers',
+  '/loans',
 ])
 
 function NavList({ onNavigate }: { onNavigate?: () => void }) {

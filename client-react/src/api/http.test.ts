@@ -140,7 +140,8 @@ describe('request() with FormData', () => {
 
     await request<number>('/book', { method: 'POST', body: form })
 
-    const [, init] = (globalThis.fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[0]
+    const [, init] = (globalThis.fetch as unknown as ReturnType<typeof vi.fn>).mock
+      .calls[0]
     expect(init.body).toBe(form)
     expect(typeof init.body).not.toBe('string')
   })
@@ -150,7 +151,8 @@ describe('request() with FormData', () => {
 
     await request<number>('/book', { method: 'POST', body: new FormData() })
 
-    const [, init] = (globalThis.fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[0]
+    const [, init] = (globalThis.fetch as unknown as ReturnType<typeof vi.fn>).mock
+      .calls[0]
     expect(init.headers['Content-Type']).toBeUndefined()
   })
 
@@ -159,7 +161,8 @@ describe('request() with FormData', () => {
 
     await request('/book/1', { method: 'PUT', body: { name: 'x' } })
 
-    const [, init] = (globalThis.fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[0]
+    const [, init] = (globalThis.fetch as unknown as ReturnType<typeof vi.fn>).mock
+      .calls[0]
     expect(init.headers['Content-Type']).toBe('application/json')
     expect(init.body).toBe('{"name":"x"}')
   })

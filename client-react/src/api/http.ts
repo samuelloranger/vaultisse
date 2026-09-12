@@ -161,9 +161,13 @@ export async function request<T>(
     signal,
     headers: {
       Accept: 'application/json',
-      ...(body === undefined || isFormData ? {} : { 'Content-Type': 'application/json' }),
+      ...(body === undefined || isFormData
+        ? {}
+        : { 'Content-Type': 'application/json' }),
     },
-    ...(body === undefined ? {} : { body: isFormData ? (body as FormData) : JSON.stringify(body) }),
+    ...(body === undefined
+      ? {}
+      : { body: isFormData ? (body as FormData) : JSON.stringify(body) }),
   })
 
   // No cookie at all: the server 302s to /login. See the note above.
