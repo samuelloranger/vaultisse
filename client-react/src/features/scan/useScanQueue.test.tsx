@@ -296,6 +296,48 @@ describe('useScanQueue', () => {
     })
   })
 
+  it('reports an unconfigured metadata source instead of calling it no metadata', async () => {
+    createFromIsbnMock.mockRejectedValue(
+      new ApiError(404, {
+        error: 'source_not_configured',
+        sourcesTried: [],
+        unconfiguredSources: ['google-books'],
+        failedSources: [],
+      })
+    )
+    const { result } = renderQueue()
+
+    act(() => result.current.submit(scan(NEW_ISBN)))
+
+    await waitFor(() => expect(result.current.entries).toHaveLength(1))
+    expect(result.current.entries[0]).toMatchObject({
+      status: 'notFound',
+      message:
+        'Metadata source unavailable: google-books is not configured on this server. Ask an administrator to configure it, or add the book manually.',
+    })
+  })
+
+  it('reports a catalogue data gap after the ISBN was checked', async () => {
+    createFromIsbnMock.mockRejectedValue(
+      new ApiError(404, {
+        error: 'no_metadata',
+        sourcesTried: ['google-books', 'bnf'],
+        unconfiguredSources: [],
+        failedSources: [],
+      })
+    )
+    const { result } = renderQueue()
+
+    act(() => result.current.submit(scan(NEW_ISBN)))
+
+    await waitFor(() => expect(result.current.entries).toHaveLength(1))
+    expect(result.current.entries[0]).toMatchObject({
+      status: 'notFound',
+      message:
+        'This ISBN was checked, but no catalogue returned metadata. Add it manually instead.',
+    })
+  })
+
   it('asks rather than assuming when the library check itself fails', async () => {
     searchBooksMock.mockRejectedValue(new ApiError(500, 'nope'))
     const { result } = renderQueue()

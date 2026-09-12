@@ -34,7 +34,7 @@ function statusLine(entry: ScanEntry): string {
     case 'skipped':
       return 'Skipped — already in the library'
     case 'notFound':
-      return 'No metadata found for this ISBN'
+      return entry.message ?? 'No metadata found for this ISBN'
     default:
       return entry.message ?? 'Not added'
   }

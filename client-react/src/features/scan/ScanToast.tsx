@@ -1,4 +1,5 @@
 import type { ToastItem } from '@/components/Toast'
+import { metadataLookupFailureTitle } from '../search/metadataLookupError'
 import type { ScanEntry } from './useScanQueue'
 
 /**
@@ -44,8 +45,8 @@ export function addedTitle(copies: number | null): string {
  * Turn a session entry into a toast.
  *
  * @param onUndo Offered only where there is something to undo.
- * @param onAddManually Offered on a 404 — the common case for older and
- *   self-published books, which must not read as an error.
+ * @param onAddManually Offered on a metadata 404 — either a catalogue gap or
+ *   a source configuration problem — so the user has a manual recovery path.
  */
 export function scanEntryToast(
   entry: ScanEntry,
@@ -84,8 +85,8 @@ export function scanEntryToast(
 
     case 'notFound':
       return {
-        title: 'No metadata for this ISBN',
-        description: entry.isbn,
+        title: metadataLookupFailureTitle(entry.metadataError),
+        description: entry.message ?? entry.isbn,
         tone: 'neutral',
         action: {
           label: 'Add manually',

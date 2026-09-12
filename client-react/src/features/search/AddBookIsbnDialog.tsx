@@ -1,11 +1,14 @@
 import { useState } from 'react'
 import { Button, Text, XStack, YStack } from 'tamagui'
-import { ApiError } from '@/api/http'
 import { Field } from '@/components/Field'
 import { ResponsiveDialog } from '@/components/ResponsiveDialog'
 import { usePolicy } from '@/queries/app'
 import { useCreateBookFromIsbn } from '@/queries/book'
 import { isValidIsbn, normaliseIsbn } from './isbn'
+import {
+  metadataLookupFailure,
+  metadataLookupFailureMessage,
+} from './metadataLookupError'
 import { FilterChip } from './SearchControls'
 
 /**
@@ -30,6 +33,7 @@ import { FilterChip } from './SearchControls'
  */
 
 type Outcome = 'queued' | 'working' | 'created' | 'notFound' | 'failed'
+type QueueEntry = { isbn: string; outcome: Outcome; message: string | null }
 
 const OUTCOME_TEXT: Record<Outcome, string | null> = {
   queued: null,
@@ -61,7 +65,7 @@ export function AddBookIsbnDialog({
 
   const [isbn, setIsbn] = useState('')
   const [entryError, setEntryError] = useState<string | null>(null)
-  const [queue, setQueue] = useState<{ isbn: string; outcome: Outcome }[]>([])
+  const [queue, setQueue] = useState<QueueEntry[]>([])
   const [locationId, setLocationId] = useState<number | null>(null)
   const [running, setRunning] = useState(false)
 
@@ -89,14 +93,19 @@ export function AddBookIsbnDialog({
       setEntryError('That ISBN is already in the list.')
       return
     }
-    setQueue((current) => [...current, { isbn: code, outcome: 'queued' }])
+    setQueue((current) => [
+      ...current,
+      { isbn: code, outcome: 'queued', message: null },
+    ])
     setIsbn('')
     setEntryError(null)
   }
 
-  function mark(code: string, outcome: Outcome) {
+  function mark(code: string, outcome: Outcome, message: string | null = null) {
     setQueue((current) =>
-      current.map((entry) => (entry.isbn === code ? { ...entry, outcome } : entry))
+      current.map((entry) =>
+        entry.isbn === code ? { ...entry, outcome, message } : entry
+      )
     )
   }
 
@@ -114,12 +123,17 @@ export function AddBookIsbnDialog({
         created.push(id)
         mark(code, 'created')
       } catch (error) {
-        // 404 is the server's "no metadata match", which is a different thing
-        // from the lookup itself failing — and a different thing to tell
-        // someone, because only one of the two is worth retrying.
+        // A structured 404 distinguishes a catalogue data gap from a source
+        // that was never configured. Other failures keep their retry advice.
+        const failure = metadataLookupFailure(error)
         mark(
           code,
-          error instanceof ApiError && error.status === 404 ? 'notFound' : 'failed'
+          failure?.kind === 'source_not_configured' || failure?.kind === 'no_metadata'
+            ? 'notFound'
+            : 'failed',
+          failure?.kind === 'source_not_configured' || failure?.kind === 'no_metadata'
+            ? metadataLookupFailureMessage(failure)
+            : null
         )
       }
       if (code !== codes[codes.length - 1]) await delay(DELAY_BETWEEN_LOOKUPS_MS)
@@ -231,7 +245,7 @@ export function AddBookIsbnDialog({
         {queue.length > 0 ? (
           <YStack gap="$2" testID="isbn-queue">
             {queue.map((entry) => {
-              const status = OUTCOME_TEXT[entry.outcome]
+              const status = entry.message ?? OUTCOME_TEXT[entry.outcome]
               return (
                 <YStack
                   key={entry.isbn}

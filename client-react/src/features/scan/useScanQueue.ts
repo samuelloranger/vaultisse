@@ -10,6 +10,11 @@ import {
   useDeleteBookStockById,
 } from '@/queries/book'
 import { isValidIsbn, normaliseIsbn } from '../search/isbn'
+import {
+  type MetadataLookupFailureKind,
+  metadataLookupFailure,
+  metadataLookupFailureMessage,
+} from '../search/metadataLookupError'
 import type { Decode } from './useBarcodeScanner'
 
 /**
@@ -90,7 +95,7 @@ export type ScanEntryStatus =
   | 'skipped'
   /** Was added, then undone. */
   | 'undone'
-  /** The server found no metadata for this ISBN (404). */
+  /** The metadata lookup did not produce a book (structured or bare 404). */
   | 'notFound'
   /** The add failed and is not being retried. */
   | 'failed'
@@ -110,6 +115,8 @@ export type ScanEntry = {
   undo: ScanUndo | null
   /** A sentence for the toast, when the status alone does not say enough. */
   message: string | null
+  /** Structured metadata failure kind, when the server supplied one. */
+  metadataError?: MetadataLookupFailureKind
 }
 
 /** The state behind the "already in the library" confirmation. */
@@ -358,6 +365,9 @@ export function useScanQueue({
         const status = cause instanceof ApiError ? cause.status : 0
 
         if (status === 404) {
+          const failure = metadataLookupFailure(cause)
+          const isMetadataFailure =
+            failure?.kind === 'source_not_configured' || failure?.kind === 'no_metadata'
           record({
             isbn: code,
             status: 'notFound',
@@ -365,7 +375,10 @@ export function useScanQueue({
             imageUrl: null,
             copies: null,
             undo: null,
-            message: 'No metadata found for this ISBN.',
+            message: isMetadataFailure
+              ? metadataLookupFailureMessage(failure)
+              : 'No metadata found for this ISBN.',
+            ...(isMetadataFailure ? { metadataError: failure.kind } : {}),
           })
           return true
         }
