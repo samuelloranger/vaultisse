@@ -27,6 +27,7 @@ import { searchQueryOptions } from '@/queries/search'
  * change would start its fetch from the component instead.
  */
 export const Route = createFileRoute('/_app/library/search')({
+  staticData: { title: 'Library' },
   validateSearch: (raw: Record<string, unknown>): SearchScreenParams =>
     parseSearchParams(raw),
   loaderDeps: ({ search }) => ({ search }),

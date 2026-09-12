@@ -17,6 +17,7 @@ import { activityQueryOptions, sessionsQueryOptions } from '@/queries/user'
  * for the sake of two rows near the bottom of it.
  */
 export const Route = createFileRoute('/_app/profile')({
+  staticData: { title: 'Profile' },
   loader: ({ context }) => {
     void context.queryClient.prefetchQuery(sessionsQueryOptions)
     void context.queryClient.prefetchQuery(activityQueryOptions)

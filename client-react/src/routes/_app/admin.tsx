@@ -21,6 +21,7 @@ import { policyQueryOptions } from '@/queries/app'
  * hit, not a second request.
  */
 export const Route = createFileRoute('/_app/admin')({
+  staticData: { title: 'Admin' },
   loader: async ({ context }) => {
     const policy = await context.queryClient.ensureQueryData(policyQueryOptions)
     if (!policy.user.isAdmin) return

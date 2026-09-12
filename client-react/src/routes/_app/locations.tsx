@@ -16,6 +16,7 @@ import { locationsQueryOptions } from '@/queries/location'
  * when a row is expanded.
  */
 export const Route = createFileRoute('/_app/locations')({
+  staticData: { title: 'Locations' },
   loader: ({ context }) => {
     void context.queryClient.prefetchQuery(locationsQueryOptions)
   },

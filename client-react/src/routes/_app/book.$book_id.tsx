@@ -14,6 +14,7 @@ import { bookQueryOptions } from '@/queries/book'
  * key and the API module all take a number.
  */
 export const Route = createFileRoute('/_app/book/$book_id')({
+  staticData: { title: 'Book' },
   loader: ({ context, params }) => {
     const id = Number(params.book_id)
     if (Number.isInteger(id)) {

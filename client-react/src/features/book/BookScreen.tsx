@@ -3,6 +3,7 @@ import { Button, Text, XStack, YStack } from 'tamagui'
 import { DisplayText, Eyebrow } from '@/components/Card'
 import { ResponsiveDialog } from '@/components/ResponsiveDialog'
 import { errorMessage, ScreenError, ScreenLoading } from '@/components/ScreenState'
+import { useDocumentTitle } from '@/lib/documentTitle'
 import { usePolicy } from '@/queries/app'
 import { useBook, useDeleteBook } from '@/queries/book'
 import { BookCover } from './BookCover'
@@ -38,6 +39,11 @@ export function BookScreen({
   const book = useBook(bookId)
   const remove = useDeleteBook(bookId)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
+
+  // "Book" is a useless tab title. Called before the early returns and with an
+  // `undefined` while loading, so the route's own title stands in for the beat
+  // before the name arrives rather than the previous book's name lingering.
+  useDocumentTitle(book.data?.name)
 
   if (book.isPending) {
     return <ScreenLoading label="Loading this book…" />

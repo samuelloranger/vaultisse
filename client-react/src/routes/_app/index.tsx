@@ -16,6 +16,7 @@ import { dashboardQueryOptions } from '@/queries/dashboard'
  * overlaps the render instead of following it.
  */
 export const Route = createFileRoute('/_app/')({
+  staticData: { title: 'Dashboard' },
   loader: ({ context }) => {
     void context.queryClient.prefetchQuery(dashboardQueryOptions)
     void context.queryClient.prefetchQuery(bookCountersQueryOptions)
