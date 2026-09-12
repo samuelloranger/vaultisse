@@ -36,7 +36,7 @@ export function StockStatusSummary({
               borderColor="$borderColor"
               borderRadius="$control"
             >
-              <MutedText numberOfLines={1}>{statusLabel(status)}</MutedText>
+              <MutedText>{statusLabel(status)}</MutedText>
               <DisplayText fontSize={24} lineHeight={29}>
                 {count}{' '}
                 <Text fontSize={13} color="$colorMuted">

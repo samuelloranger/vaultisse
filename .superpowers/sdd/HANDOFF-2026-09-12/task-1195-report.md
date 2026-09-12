@@ -12,8 +12,8 @@ The empty response keeps the card but renders the quiet message `No copies to
 classify yet.` and no status tiles. No zero-valued categories are synthesized.
 
 The existing stock-status label catalogue was extracted to
-`features/book/stockStatus.ts` and reused by the book stock surfaces and the
-dashboard, leaving one lookup ready for a future locale hook.
+`features/book/stockStatus.ts` and reused by the book stock dialog/card and the
+dashboard, leaving one shared lookup ready for a future locale hook.
 
 ## Edge cases
 
@@ -30,6 +30,17 @@ dashboard, leaving one lookup ready for a future locale hook.
 - GREEN: the same focused command passed with 2/2 tests after implementation.
 - Focused dashboard suite: 8/8 tests passed.
 
+### Round 1 fix
+
+- RED: the new label-wrapping regression test failed against the clamped
+  component because Tamagui emitted `_ox-hidden`, `_textOverflow-ellipsis`, and
+  `_ws-nowrap` for the status label.
+- GREEN: removed `numberOfLines={1}` so localized labels wrap naturally; the
+  focused `StockStatusSummary` suite passed 3/3 tests.
+- The round-1 wording correction keeps the shared-label claim scoped to the
+  dashboard and book stock dialog/card; `LocationBooksPanel` remains outside
+  this task.
+
 ## Verification
 
 - Impeccable detector (one manual pass over changed UI paths): no findings (`[]`).
@@ -41,10 +52,14 @@ dashboard, leaving one lookup ready for a future locale hook.
   (`Cannot read properties of undefined (reading 'fileExists')` / `Must provide
   components`) were emitted, but Vite completed the production build.
 - `git diff --check`: passed.
+- Round-1 focused verification: `bun run test --
+  src/features/dashboard/StockStatusSummary.test.tsx`, `bun run lint`, and
+  `bun run type-check` all passed.
 
 ## Commit
 
-Task commit: `c436369` (`feat(client): show dashboard stock status`).
+Task commit: `c436369` (`feat(client): show dashboard stock status`); round-1
+fix commit pending.
 
 ## Concerns
 

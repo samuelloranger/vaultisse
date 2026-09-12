@@ -38,4 +38,19 @@ describe('StockStatusSummary', () => {
     expect(screen.queryByTestId('stock-status-2')).not.toBeInTheDocument()
     expect(screen.queryByTestId('stock-status-3')).not.toBeInTheDocument()
   })
+
+  it('leaves status labels free to wrap for localized copy', () => {
+    renderWithProviders(
+      <StockStatusSummary
+        stockStatus={[{ status: BookStockStatus.Available, count: 1 }]}
+      />
+    )
+
+    const label = screen.getByText('Available')
+    // Tamagui's `numberOfLines={1}` maps to these truncation classes; a
+    // localized label must not be forced into that single-line treatment.
+    expect(label).not.toHaveClass('_ox-hidden')
+    expect(label).not.toHaveClass('_textOverflow-ellipsis')
+    expect(label).not.toHaveClass('_ws-nowrap')
+  })
 })
