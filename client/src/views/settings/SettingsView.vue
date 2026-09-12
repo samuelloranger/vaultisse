@@ -23,7 +23,7 @@
 						>
 							<img
 								v-if="controller.getUser().hasImage()"
-								:src="controller.getUser().getImage()"
+								:src="controller.getUser().getImage() ?? undefined"
 								style="width: 100%; height: 100%; object-fit: cover"
 							/>
 							<v-icon v-else dark size="30">mdi-account</v-icon>
@@ -208,6 +208,12 @@
 						</div>
 						<v-text-field
 							v-model="email"
+							type="email"
+							inputmode="email"
+							autocomplete="email"
+							autocapitalize="none"
+							autocorrect="off"
+							spellcheck="false"
 							density="compact"
 							variant="outlined"
 							hide-details

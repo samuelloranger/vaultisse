@@ -4,6 +4,7 @@
 		max-width="640"
 		persistent
 		scrollable
+		:fullscreen="smAndDown"
 	>
 		<v-card>
 			<v-card-title class="d-flex align-center ga-2">
@@ -50,6 +51,7 @@
  * acknowledgements` table) so it doesn't show again for this user, on this
  * device or any other.
  */
+import {useDisplay} from "vuetify";
 import {computed, ref} from "vue";
 import {useI18n} from "vue-i18n";
 import LegalContent from "@/components/legal/LegalContent.vue";
@@ -74,4 +76,8 @@ async function accept() {
 		accepting.value = false;
 	}
 }
+
+/** Phone-sized viewports get the dialog as a full-screen sheet - see the note in theme.scss. */
+const {smAndDown} = useDisplay();
+
 </script>

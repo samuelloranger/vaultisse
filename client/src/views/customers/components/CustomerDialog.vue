@@ -2,6 +2,7 @@
 	<v-dialog
 		v-model="dialog"
 		width="500"
+		:fullscreen="smAndDown"
 	>
 		<v-card>
 			<v-card-title>
@@ -78,6 +79,7 @@
  * it creates a new one. Group changes go through `applyGroupChange` so
  * each group's member count stays accurate without a full re-fetch.
  */
+import {useDisplay} from "vuetify";
 import {computed, Ref, ref} from 'vue'
 import CustomersController from "@/controller/customers/CustomersController";
 import {useI18n} from "vue-i18n";
@@ -190,4 +192,8 @@ function closeDialog() {
 	selectedGroupId.value = null;
 	dialog.value = false;
 }
+
+/** Phone-sized viewports get the dialog as a full-screen sheet - see the note in theme.scss. */
+const {smAndDown} = useDisplay();
+
 </script>

@@ -2,8 +2,15 @@
 	<v-dialog
 		v-model="dialog"
 		width="500"
+		:fullscreen="smAndDown"
 	>
-		<v-card height="600px">
+		<!--
+			No fixed height: at 600px this card was taller than a landscape
+			phone, so its action row sat off-screen and the dialog could not be
+			completed at all. It now sizes to its content, capped at the
+			viewport, with the scanned-code list taking the scroll.
+		-->
+		<v-card class="book-stock-codes-card">
 			<v-card-title class="d-flex">
 				{{title || t(AppLabels.ADD_BOOK)}}
 
@@ -84,6 +91,7 @@
  * `bookService.fetchBookAddMd` (rendered by `BookStockItem`); the parent
  * listens for `executeAction` with the final array of codes to submit.
  */
+import {useDisplay} from "vuetify";
 import {computed, ref, Ref} from "vue";
 import BarcodeScanner from "@/components/barcodeScanner/BarcodeScanner.vue";
 import {bookService} from "@/service/book/BookService";
@@ -176,4 +184,26 @@ async function fetchBook(book: string) {
 		loadingBooks.value.splice(loadingIndex, 1);
 	}
 }
+
+/** Phone-sized viewports get the dialog as a full-screen sheet - see the note in theme.scss. */
+const {smAndDown} = useDisplay();
+
 </script>
+
+<style scoped>
+.book-stock-codes-card {
+	display: flex;
+	flex-direction: column;
+	max-height: 100%;
+}
+
+/*
+ * The list of scanned codes is the only part that should grow; the header,
+ * the code field and the action row stay put so "Add" is always reachable.
+ */
+.book-stock-codes-card :deep(.v-card-text) {
+	flex: 1 1 auto;
+	min-height: 0;
+	overflow-y: auto;
+}
+</style>

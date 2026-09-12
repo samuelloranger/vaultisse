@@ -12,9 +12,18 @@
 				<v-img
 					cover
 					:aspect-ratio="2 / 3"
-					:src="showFallbackImage ? notFound : book.getImageUrl()"
+					:src="showFallbackImage ? notFound : (book.getImageUrl() ?? notFound)"
 					@error="showFallbackImage = true"
 				>
+					<!--
+						The whole overlay used to be `v-if="isHovering || loading"`.
+						There is no hover on touch, so on a phone nothing ever
+						indicated the cover was tappable at all - the click
+						handler worked, but only by accident of discovery.
+						Below `md` it renders persistently, as a compact badge
+						pinned to the corner rather than a full-bleed panel, so
+						it advertises the action without hiding the cover.
+					-->
 					<v-expand-transition>
 						<div
 							v-if="isHovering || loading"
@@ -33,6 +42,14 @@
 							</template>
 						</div>
 					</v-expand-transition>
+
+					<div
+						v-if="!mdAndUp && !loading"
+						class="book-image-touch-badge"
+					>
+						<v-icon size="18" class="mr-1">mdi-camera-plus-outline</v-icon>
+						<span>{{ t(AppLabels.EDIT) }}</span>
+					</div>
 				</v-img>
 				<!-- Hidden file input for click selection -->
 				<input
@@ -44,7 +61,11 @@
 				/>
 			</v-card>
 		</v-hover>
-		<div style="text-align: center; width: 100%; color: var(--pb-text-muted); font-size: 14px">{{t(AppLabels.BOOK_HOVER_INFO)}}</div>
+		<!-- "Hover to change..." is untrue on touch; the badge above says it instead. -->
+		<div
+			v-if="mdAndUp"
+			style="text-align: center; width: 100%; color: var(--pb-text-muted); font-size: 14px"
+		>{{t(AppLabels.BOOK_HOVER_INFO)}}</div>
 	</div>
 </template>
 
@@ -58,9 +79,12 @@ import Book from "@/model/book/Book";
 import notFound from "@/assets/images/notFound.jpg";
 import { ref, Ref } from "vue";
 import {useI18n} from "vue-i18n";
+import {useDisplay} from "vuetify";
 import {AppLabels} from "@/plugins/i18n/AppLabels";
 
 const {t} = useI18n();
+
+const {mdAndUp} = useDisplay();
 
 interface Props {
 	book: Book;
@@ -119,6 +143,27 @@ async function loadImage(file: File) {
 		max-width: none;
 		margin: 0;
 	}
+}
+
+/*
+ * The persistent touch affordance. Sits over the cover's bottom-left corner
+ * rather than replacing the whole image, so it's visible at a glance without
+ * costing the user sight of the cover they're about to change.
+ */
+.book-image-touch-badge {
+	position: absolute;
+	left: 8px;
+	bottom: 8px;
+	display: inline-flex;
+	align-items: center;
+	min-height: 36px;
+	padding: 0 12px;
+	border-radius: 999px;
+	font-size: 13px;
+	font-weight: 600;
+	color: #fff;
+	background: rgba(var(--v-theme-primary), 0.92);
+	pointer-events: none;
 }
 
 .book-image-hover {

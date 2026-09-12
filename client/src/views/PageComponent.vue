@@ -72,36 +72,55 @@ const props = defineProps<Props>()
 	min-height: 100%;
 }
 
+/*
+ * The toolbar sizes to its content, with 52px as a *floor* rather than a cap.
+ * A page's prepend/append slots (filters, sort selects, action buttons) can
+ * easily add up to more than a phone screen's width, so the row wraps to a
+ * second line - which only works if the box is allowed to grow with it. The
+ * old `height: 52px !important` (repeated on `.v-toolbar__content`) clipped
+ * exactly that, so a wrapped second row, or any single control taller than
+ * 52px, spilled out past the header's bottom border.
+ */
 .page-toolbar {
-	height: 52px !important;
+	height: auto !important;
+	min-height: 52px;
 	background: var(--pb-surface) !important;
 	border-bottom: 1px solid var(--pb-border);
-	padding-left: 24px;
-	padding-right: 24px;
-
-	:deep(.v-toolbar__content) {
-		height: 52px !important;
-		min-height: 52px !important;
-	}
 
 	/*
-	 * A page's prepend/append slots (filters, sort selects, action buttons)
-	 * can easily add up to more than a phone screen's width. Let the row wrap
-	 * to a second line and grow past the usual fixed 52px instead of clipping
-	 * or squeezing everything unreadably thin.
+	 * Gutter parity with the `v-container` below. That container is a plain
+	 * Vuetify one: 16px of padding, centred, and capped at a per-breakpoint
+	 * max-width (`$container-max-widths` = breakpoint * 0.9375). The toolbar
+	 * spans the full width of `v-main`, so its *content* has to repeat the
+	 * same box for the page title to start at the same x as the content
+	 * beneath it. Previously it used a flat 24px (12px on phones) against
+	 * the container's 16px and ignored the max-width entirely, so the title
+	 * and the first card were misaligned at every width.
 	 */
-	@media (max-width: 600px) {
+	:deep(.v-toolbar__content) {
 		height: auto !important;
-		padding-left: 12px;
-		padding-right: 12px;
+		min-height: 52px;
+		width: 100%;
+		margin-inline: auto;
+		flex-wrap: wrap;
+		row-gap: 8px;
+		padding: 8px 16px;
+	}
 
-		:deep(.v-toolbar__content) {
-			height: auto !important;
-			flex-wrap: wrap;
-			row-gap: 8px;
-			padding-top: 8px;
-			padding-bottom: 8px;
-		}
+	@media (min-width: 960px) {
+		:deep(.v-toolbar__content) { max-width: 900px; }
+	}
+
+	@media (min-width: 1280px) {
+		:deep(.v-toolbar__content) { max-width: 1200px; }
+	}
+
+	@media (min-width: 1920px) {
+		:deep(.v-toolbar__content) { max-width: 1800px; }
+	}
+
+	@media (min-width: 2560px) {
+		:deep(.v-toolbar__content) { max-width: 2400px; }
 	}
 
 	.page-toolbar-title {
@@ -113,18 +132,39 @@ const props = defineProps<Props>()
 		color: var(--pb-text);
 	}
 
-	:deep(.v-btn) {
-		height: 32px !important;
-		min-height: 32px !important;
-		font-size: 13px;
+	/*
+	 * The compact 32px toolbar button is a *pointer* affordance: it reads as
+	 * dense and precise with a mouse, and is well under the ~44px minimum a
+	 * fingertip needs. Applied at every width it was the single biggest
+	 * source of undersized touch targets in the app, because every page's
+	 * primary action ("Add", "Scan", the sort/group toggles) lives in this
+	 * toolbar. Above the `sm` breakpoint - i.e. where a pointer is the likely
+	 * input - keep it; on phones let Vuetify's own default height stand.
+	 */
+	@media (min-width: 601px) {
+		:deep(.v-btn) {
+			height: 32px !important;
+			min-height: 32px !important;
+			font-size: 13px;
 
-		&.v-btn--icon {
-			width: 32px !important;
+			&.v-btn--icon {
+				width: 32px !important;
+			}
+		}
+
+		:deep(.v-btn__content) {
+			font-size: 13px;
 		}
 	}
 
-	:deep(.v-btn__content) {
-		font-size: 13px;
+	@media (max-width: 600px) {
+		:deep(.v-btn) {
+			min-height: 44px;
+		}
+
+		:deep(.v-btn--icon) {
+			min-width: 44px;
+		}
 	}
 
 	:deep(.v-btn .v-icon) {

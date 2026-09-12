@@ -88,13 +88,31 @@ onMounted(async () => {
 </script>
 
 <style>
+/*
+ * `100dvh` (the *dynamic* viewport) is what's actually visible right now on a
+ * mobile browser; `100vh` is the *large* viewport - the height the page would
+ * have if the URL bar were fully retracted, i.e. 60-100px taller than the
+ * window for most of a session. Since the shell is also `overflow: hidden`,
+ * sizing it to `100vh` pushes that extra strip below the fold with no way to
+ * ever scroll it into view. The `100vh` line stays first purely as the
+ * fallback for engines that don't understand `dvh` (they ignore the second
+ * declaration); every current browser takes the `100dvh` one.
+ */
 html, body {
 	height: 100vh;
+	height: 100dvh;
 	overflow: hidden !important;
 }
 
+/*
+ * Same two-line fallback rather than `height: 100%`: `#app` is a child of
+ * `body`, so `100%` would resolve against body's height and inherit the fix -
+ * but only as long as nothing in between grows. Pinning it to the dynamic
+ * viewport directly keeps the app shell exactly one screen tall regardless.
+ */
 #app {
-	height: 100%;
+	height: 100vh;
+	height: 100dvh;
 	overflow: hidden;
 }
 

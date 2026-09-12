@@ -5,6 +5,7 @@
 		scrollable
 		persistent
 		:close-on-content-click="false"
+		:fullscreen="smAndDown"
 	>
 		<v-card>
 			<v-card-title class="d-flex" style="align-items: center">
@@ -66,6 +67,14 @@
 					style="max-height: 400px; overflow-y: auto; overflow-x: hidden "
 					slim
 				>
+					<!--
+						Why the reason is rendered as text rather than as a
+						tooltip on the status icon: a tooltip only opens on
+						hover, so on touch the failed rows were indistinguishable
+						from each other - a coloured glyph and no way to find out
+						what went wrong. This is the one place in the flow where
+						the user learns an ISBN didn't import.
+					-->
 					<v-list-item
 						v-for="(item, index) in isbnCodeList"
 						:key="index"
@@ -73,6 +82,7 @@
 						class="px-0"
 						prepend-icon="mdi-book"
 						:title="item"
+						:subtitle="statusTextFor(item)"
 						slim
 					>
 						<template v-slot:append>
@@ -83,35 +93,19 @@
 								color="primary"
 							></v-progress-circular>
 
-							<v-tooltip
+							<v-icon
 								v-else-if="notFoundIsbnCode.includes(item)"
-								:text="t(AppLabels.ISBN_BOOK_NOT_FOUND)"
-								location="top"
+								color="warning"
 							>
-								<template v-slot:activator="{ props: tooltipProps }">
-									<v-icon
-										v-bind="tooltipProps"
-										color="warning"
-									>
-										mdi-book-alert
-									</v-icon>
-								</template>
-							</v-tooltip>
+								mdi-book-alert
+							</v-icon>
 
-							<v-tooltip
+							<v-icon
 								v-else-if="errorIsbnCode.includes(item)"
-								:text="t(AppLabels.ISBN_ADD_ERROR)"
-								location="top"
+								color="error"
 							>
-								<template v-slot:activator="{ props: tooltipProps }">
-									<v-icon
-										v-bind="tooltipProps"
-										color="error"
-									>
-										mdi-alert-circle
-									</v-icon>
-								</template>
-							</v-tooltip>
+								mdi-alert-circle
+							</v-icon>
 
 							<v-icon
 								v-else-if="createdBooks.includes(item)"
@@ -129,7 +123,7 @@
 			<v-card-actions>
 				<v-spacer></v-spacer>
 				<v-btn
-					text
+					variant="text"
 					class="text-none"
 					@click="dialog = false"
 				>
@@ -169,6 +163,7 @@
  * reflects its outcome: loading, not found, error, or created. Navigates
  * straight to the book detail page when adding exactly one.
  */
+import {useDisplay} from "vuetify";
 import {computed, ref, Ref, watch} from "vue";
 import {validateIsbn10, validateIsbn13} from "@/utils/IsbnVerification";
 import {bookService} from "@/service/book/BookService";
@@ -235,6 +230,27 @@ const isbnCode: Ref<string> = ref("");
  */
 const isbnCodeList: Ref<string[]> = ref([]);
 const createdBooks: Ref<string[]> = ref([]);
+
+/**
+ * The per-row status line shown under each ISBN. Returns `undefined` for rows
+ * that are still queued or in flight - the spinner already says that - so the
+ * subtitle only appears once there is an outcome worth reading.
+ */
+function statusTextFor(isbn: string): string | undefined {
+	if (loadingIsbnCode.value.includes(isbn)) {
+		return undefined;
+	}
+
+	if (notFoundIsbnCode.value.includes(isbn)) {
+		return t(AppLabels.ISBN_BOOK_NOT_FOUND);
+	}
+
+	if (errorIsbnCode.value.includes(isbn)) {
+		return t(AppLabels.ISBN_ADD_ERROR);
+	}
+
+	return undefined;
+}
 
 /**
  *
@@ -358,4 +374,8 @@ watch(() => dialog.value, () => {
 		loadingIsbnCode.value = [];
 	}
 })
+
+/** Phone-sized viewports get the dialog as a full-screen sheet - see the note in theme.scss. */
+const {smAndDown} = useDisplay();
+
 </script>

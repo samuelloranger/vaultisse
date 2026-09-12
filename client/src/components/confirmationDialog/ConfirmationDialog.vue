@@ -3,6 +3,7 @@
 		v-model="model"
 		width="500"
 		persistent
+		:fullscreen="smAndDown"
 	>
 		<v-card>
 			<v-card-title>
@@ -50,6 +51,7 @@
  * whatever title/description/action `confirmationDialogController.showDialog()`
  * was last called with, and resolves/rejects its pending promise on accept/cancel.
  */
+import {useDisplay} from "vuetify";
 import {computed, ref, Ref} from 'vue'
 import {confirmationDialogController} from "@/components/confirmationDialog/ConfirmationDialogController"
 import {AppLabels} from "@/plugins/i18n/AppLabels";
@@ -87,4 +89,8 @@ async function cancel() {
 		cancelLoading.value = false;
 	}
 }
+
+/** Phone-sized viewports get the dialog as a full-screen sheet - see the note in theme.scss. */
+const {smAndDown} = useDisplay();
+
 </script>

@@ -132,3 +132,136 @@ body {
 .pb-card:hover {
 	border-color: var(--pb-border-strong);
 }
+
+/*
+ * ---------------------------------------------------------------------------
+ * Touch-input floors (phones only)
+ * ---------------------------------------------------------------------------
+ * iOS Safari zooms the entire viewport in whenever a form control smaller
+ * than 16px takes focus, and offers no way back out - so any sub-16px field
+ * leaves the user panning around a magnified page. Vuetify's `density`
+ * presets happily go below that, so the floor is enforced here rather than
+ * hunted down field by field.
+ *
+ * Scoped to `max-width: 600px` deliberately: above that the denser 13-14px
+ * fields are a pointer affordance and part of the visual design, and the
+ * zoom behaviour doesn't exist.
+ */
+@media (max-width: 600px) {
+	input,
+	select,
+	textarea,
+	.v-field__input,
+	.v-field input,
+	.v-field textarea,
+	.v-field__input input {
+		font-size: 16px !important;
+	}
+
+	/* ...and a field the finger can actually land on. */
+	.v-input:not(.v-input--density-compact) .v-field,
+	.v-field {
+		min-height: 44px;
+	}
+
+	.v-input--horizontal .v-selection-control,
+	.v-checkbox .v-selection-control__wrapper,
+	.v-radio .v-selection-control__wrapper {
+		min-height: 44px;
+		min-width: 44px;
+	}
+
+	/*
+	 * A 44px floor under every button, including the ones the app never
+	 * writes itself: Vuetify's data-table pagination arrows (36px), the
+	 * snackbar action the cookie banner uses (28px), and any `density`
+	 * preset a view reaches for. Doing it here rather than per-component is
+	 * what makes the rule hold for markup Vuetify generates internally.
+	 *
+	 * `!important` is needed because Vuetify sets the height through its own
+	 * `--v-btn-height` custom property, which resolves at the same
+	 * specificity this rule has.
+	 */
+	.v-btn {
+		min-height: 44px !important;
+	}
+
+	.v-btn--icon {
+		min-width: 44px !important;
+	}
+
+	/*
+	 * Density presets inside a v-field's affix slots (the app bar's filter
+	 * and scanner buttons) would otherwise stay at 28px inside an otherwise
+	 * 44px-tall field.
+	 */
+	.v-field__append-inner .v-btn,
+	.v-field__prepend-inner .v-btn {
+		min-width: 44px !important;
+		min-height: 44px !important;
+	}
+
+	/*
+	 * Text links sitting on their own in running text (the cookie banner's
+	 * "learn more") are 17px tall. Give them a real line box. They stay
+	 * short of 44px on purpose - a link inline in a sentence can't be 44px
+	 * tall without overlapping the lines around it, and WCAG 2.5.8 exempts
+	 * links inside a block of text for exactly that reason.
+	 */
+	.v-snackbar__content a {
+		display: inline-block;
+		padding: 8px 0;
+	}
+
+	/*
+	 * Menu and dropdown entries - including the row overflow menus that
+	 * replace per-row icon buttons on phones. Vuetify's compact density puts
+	 * these at 40px.
+	 */
+	/*
+	 * Primary navigation. The drawer's items are `density="compact"`, which
+	 * puts them at 32px - the app's most-used control, and the one most
+	 * likely to be tapped while walking around with a phone in one hand.
+	 */
+	.v-navigation-drawer .v-list-item {
+		min-height: 44px !important;
+	}
+
+	.v-overlay .v-list-item {
+		/* `!important` beats Vuetify's own `--density-compact` 40px rule,
+		   which carries the same specificity and may load after this file. */
+		min-height: 44px !important;
+	}
+}
+
+/*
+ * ---------------------------------------------------------------------------
+ * Full-screen dialogs (phones)
+ * ---------------------------------------------------------------------------
+ * Every dialog now passes `:fullscreen="smAndDown"`. Vuetify stretches the
+ * dialog itself, but not the card inside it, so a card whose content is
+ * taller than the screen would still push its action row past the bottom
+ * edge - the exact failure the fullscreen switch is meant to remove.
+ *
+ * Making the card a column flexbox, with only `.v-card-text` allowed to grow
+ * and scroll, pins the title and the action row to the top and bottom of the
+ * screen and leaves the body as the scrolling region.
+ */
+.v-dialog--fullscreen > .v-overlay__content > .v-card {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	border-radius: 0;
+}
+
+.v-dialog--fullscreen > .v-overlay__content > .v-card > .v-card-text {
+	flex: 1 1 auto;
+	min-height: 0;
+	overflow-y: auto;
+}
+
+.v-dialog--fullscreen > .v-overlay__content > .v-card > .v-card-actions {
+	flex: 0 0 auto;
+	/* Clear of the home-indicator strip on a notched phone. */
+	padding-bottom: max(8px, env(safe-area-inset-bottom));
+}

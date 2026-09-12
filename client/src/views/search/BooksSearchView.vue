@@ -12,6 +12,12 @@
 		</template>
 
 		<template v-slot:append>
+			<!--
+				The tooltip is a pointer-only affordance - it never opens on
+				touch - so it can't be the button's only label. `aria-label`
+				names it for assistive tech regardless of input, and the
+				tooltip stays as the mouse-user nicety it always was.
+			-->
 			<v-tooltip :text="t(AppLabels.GROUP_BY_CATEGORY)" location="bottom">
 				<template v-slot:activator="{ props }">
 					<v-btn
@@ -20,6 +26,7 @@
 						variant="text"
 						density="compact"
 						class="mr-2"
+						:aria-label="t(AppLabels.GROUP_BY_CATEGORY)"
 						:color="model.getGroupByCategory() ? 'primary' : undefined"
 						@click="model.setGroupByCategory(!model.getGroupByCategory())"
 					>
@@ -41,36 +48,43 @@
 				@update:model-value="model.setSort($event)"
 			/>
 
-			<v-menu>
-				<template v-slot:activator="{ props }">
-					<v-btn
-						color="primary"
-						variant="tonal"
-						class="text-none pr-1"
-						small
-						@click.stop.prevent="createBookIsbnDialog = true"
-					>
-						{{t(AppLabels.ADD_BOOK)}}
+			<!--
+				A split button built from two sibling buttons. It used to be a
+				`v-btn` nested *inside* another `v-btn` - invalid HTML (a button
+				can't contain interactive content), and in practice two
+				overlapping hit regions where a tap near the chevron could
+				resolve to either one.
+			-->
+			<div class="search-add-split">
+				<v-btn
+					color="primary"
+					variant="tonal"
+					class="text-none search-add-primary"
+					@click="createBookIsbnDialog = true"
+				>
+					{{t(AppLabels.ADD_BOOK)}}
+				</v-btn>
 
-						<v-divider vertical class="ml-2"/>
-
+				<v-menu>
+					<template v-slot:activator="{ props }">
 						<v-btn
 							v-bind="props"
-							icon
-							variant="text"
-							density="compact"
+							color="primary"
+							variant="tonal"
+							class="search-add-toggle"
+							:aria-label="t(AppLabels.ADD_BOOK_MANUALLY)"
 						>
 							<v-icon>mdi-chevron-down</v-icon>
 						</v-btn>
-					</v-btn>
-				</template>
+					</template>
 
-				<v-list density="compact">
-					<v-list-item @click="createBookManuallyDialog = true">
-						<v-list-item-title>{{t(AppLabels.ADD_BOOK_MANUALLY)}}</v-list-item-title>
-					</v-list-item>
-				</v-list>
-			</v-menu>
+					<v-list density="compact">
+						<v-list-item @click="createBookManuallyDialog = true">
+							<v-list-item-title>{{t(AppLabels.ADD_BOOK_MANUALLY)}}</v-list-item-title>
+						</v-list-item>
+					</v-list>
+				</v-menu>
+			</div>
 
 			<create-book-isbn-dialog
 				v-if="createBookIsbnDialog"
@@ -99,7 +113,6 @@
 					class="text-none"
 					color="primary"
 					variant="elevated"
-					small
 				>
 					{{t(AppLabels.ADD_BOOK)}}
 				</v-btn>
@@ -302,32 +315,61 @@ watch(() => model.getBooks(), () => {
 </script>
 
 <style scoped>
+/* Split button: two real buttons joined so they read as one control. */
+.search-add-split {
+	display: inline-flex;
+	align-items: stretch;
+}
+
+.search-add-primary {
+	border-top-right-radius: 0;
+	border-bottom-right-radius: 0;
+}
+
+.search-add-toggle {
+	min-width: 44px;
+	padding-inline: 0;
+	border-top-left-radius: 0;
+	border-bottom-left-radius: 0;
+	box-shadow: inset 1px 0 0 0 rgba(var(--v-theme-primary), 0.35);
+}
+
 .search-toolbar-sort {
 	max-width: 150px;
 	flex: 0 0 auto;
 }
 
 .search-toolbar-sort :deep(.v-field) {
-	height: 32px;
-	min-height: 32px;
-	font-size: 13px;
 	border-radius: 8px;
 }
 
-.search-toolbar-sort :deep(.v-field__input) {
-	min-height: 32px;
-	padding-top: 0;
-	padding-bottom: 0;
-}
+/*
+ * The 32px, 13px toolbar select is a pointer affordance. On a phone it is
+ * both under the 44px touch minimum and under the 16px font size that stops
+ * iOS Safari zooming the viewport in on focus, so it only applies above `sm`.
+ */
+@media (min-width: 601px) {
+	.search-toolbar-sort :deep(.v-field) {
+		height: 32px;
+		min-height: 32px;
+		font-size: 13px;
+	}
 
-.search-toolbar-sort :deep(.v-field__append-inner) {
-	padding-top: 0;
-	align-items: center;
-}
+	.search-toolbar-sort :deep(.v-field__input) {
+		min-height: 32px;
+		padding-top: 0;
+		padding-bottom: 0;
+	}
 
-.search-toolbar-sort :deep(.v-label) {
-	font-size: 12px;
-	top: 8px;
+	.search-toolbar-sort :deep(.v-field__append-inner) {
+		padding-top: 0;
+		align-items: center;
+	}
+
+	.search-toolbar-sort :deep(.v-label) {
+		font-size: 12px;
+		top: 8px;
+	}
 }
 
 .book-grid {

@@ -6,7 +6,6 @@
 				class="text-none"
 				color="primary"
 				variant="elevated"
-				small
 			>
 				{{t(AppLabels.ADD)}}
 			</v-btn>
@@ -25,7 +24,6 @@
 					class="text-none"
 					color="primary"
 					variant="elevated"
-					small
 				>
 					{{t(AppLabels.ADD)}}
 				</v-btn>

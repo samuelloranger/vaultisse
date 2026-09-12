@@ -1,7 +1,7 @@
 <template>
 	<div>
 		<p class="text-caption text-medium-emphasis mb-3">
-			{{ t(AppLabels.GROUPS_DRAG_DROP_HINT) }}
+			{{ assignmentHint }}
 		</p>
 
 		<v-table density="compact">
@@ -37,34 +37,33 @@
 						<td>{{ row.description }}</td>
 						<td><v-chip density="compact">{{ row.totalCustomers }}</v-chip></td>
 						<td class="text-right">
-							<template v-if="!row.isUnassigned">
-								<v-icon
-									@click="editGroup(row.id!)"
-									small
-									class="mx-1"
-								>
-									mdi-pencil
-								</v-icon>
-								<v-btn
-									icon
-									variant="text"
-									density="compact"
-									@click="deleteGroupRow(row.id!)"
-									:loading="deleteLoading.includes(row.id!)"
-									:disabled="deleteLoading.includes(row.id!)"
-									class="mx-1"
-								>
-									<v-icon small color="error">mdi-delete</v-icon>
-								</v-btn>
-							</template>
+							<row-actions-menu
+								v-if="!row.isUnassigned"
+								class="d-inline-flex"
+								:actions="groupActionsFor(row.id!)"
+								:menu-label="t(AppLabels.ACTIONS)"
+								@action="onGroupAction(row.id!, $event)"
+							/>
 						</td>
 					</tr>
 
 					<tr v-if="expandedKeys.has(row.key)">
 						<td :colspan="5" class="pa-0">
 							<v-sheet class="pa-3" style="background: var(--pb-surface-alt)">
-								<div v-if="(selectedByGroup[row.key] || []).length > 0" class="d-flex align-center mb-3">
-									<span class="mr-3"><b>{{ (selectedByGroup[row.key] || []).length }}</b> {{ t(AppLabels.SELECTED) }}</span>
+								<!--
+									On touch this IS the assignment mechanism, so it
+									stays visible whenever a group is expanded rather
+									than only appearing once something is selected -
+									otherwise there is nothing on screen to suggest
+									that moving a customer is possible at all.
+								-->
+								<div
+									v-if="smAndDown || (selectedByGroup[row.key] || []).length > 0"
+									class="group-move-bar mb-3"
+								>
+									<span class="group-move-count">
+										<b>{{ (selectedByGroup[row.key] || []).length }}</b> {{ t(AppLabels.SELECTED) }}
+									</span>
 									<v-select
 										v-model="moveTargetByGroup[row.key]"
 										:items="moveTargetItems(row.key)"
@@ -74,15 +73,13 @@
 										density="compact"
 										variant="outlined"
 										hide-details
-										style="max-width: 240px"
-										class="mr-2"
+										class="group-move-select"
 									></v-select>
 									<v-btn
-										size="small"
 										color="primary"
 										variant="elevated"
 										class="text-none"
-										:disabled="moveTargetByGroup[row.key] === undefined"
+										:disabled="moveTargetByGroup[row.key] === undefined || (selectedByGroup[row.key] || []).length === 0"
 										:loading="batchMoveLoading"
 										@click="batchMove(row)"
 									>
@@ -102,7 +99,7 @@
 													@update:model-value="toggleSelectAll(row, $event)"
 												></v-checkbox>
 											</th>
-											<th style="width: 30px"></th>
+											<th v-if="!smAndDown" style="width: 30px"></th>
 											<th>{{t(AppLabels.NAME)}}</th>
 											<th class="text-right">{{t(AppLabels.ACTIONS)}}</th>
 										</tr>
@@ -111,7 +108,7 @@
 										<tr
 											v-for="member in membersOf(row)"
 											:key="member.getCustomerId()"
-											draggable="true"
+											:draggable="!smAndDown"
 											@dragstart="onDragStart($event, row, member)"
 										>
 											<td>
@@ -122,25 +119,34 @@
 													@update:model-value="toggleSelect(row.key, member.getCustomerId(), $event)"
 												></v-checkbox>
 											</td>
-											<td><v-icon size="small" class="text-medium-emphasis">mdi-drag</v-icon></td>
+											<!--
+												HTML5 drag-and-drop fires no events at all
+												on touch, so the grab handle is a promise the
+												phone can't keep. Hidden there; the checkbox +
+												"Move to group" row above is the path instead.
+											-->
+											<td v-if="!smAndDown"><v-icon size="small" class="text-medium-emphasis">mdi-drag</v-icon></td>
 											<td>{{ member.getCustomerName() }}</td>
 											<td class="text-right">
 												<v-btn
 													v-if="!row.isUnassigned"
 													icon
 													variant="text"
-													density="compact"
+													density="comfortable"
+													size="small"
+													class="group-member-remove"
+													:aria-label="t(AppLabels.DELETE)"
 													:loading="removeLoading.includes(member.getCustomerId())"
 													:disabled="removeLoading.includes(member.getCustomerId())"
 													@click="removeMember(row, member)"
 												>
-													<v-icon small color="error">mdi-close</v-icon>
+													<v-icon size="small">mdi-close</v-icon>
 												</v-btn>
 											</td>
 										</tr>
 
 										<tr v-if="membersOf(row).length === 0">
-											<td colspan="4" class="text-medium-emphasis">{{ t(AppLabels.NO_MEMBERS) }}</td>
+											<td :colspan="smAndDown ? 3 : 4" class="text-medium-emphasis">{{ t(AppLabels.NO_MEMBERS) }}</td>
 										</tr>
 									</tbody>
 								</v-table>
@@ -180,6 +186,9 @@ import CustomerGroup from "@/model/customer/CustomerGroup";
 import CustomerDetail from "@/model/customer/CustomerDetail";
 import CustomerGroupDialog from "@/views/customers/components/CustomerGroupDialog.vue";
 import {confirmationDialogController} from "@/components/confirmationDialog/ConfirmationDialogController";
+import {useDisplay} from "vuetify";
+import RowActionsMenu from "@/components/entityList/RowActionsMenu.vue";
+import {RowAction} from "@/components/entityList/RowAction";
 
 interface Props {
 	groupsController: CustomerGroupsController,
@@ -205,6 +214,33 @@ const UNASSIGNED_KEY = "unassigned";
 const props = defineProps<Props>();
 
 const {t} = useI18n();
+
+const {smAndDown} = useDisplay();
+
+/**
+ * The shipped hint describes two ways to reassign a customer - drag-and-drop
+ * first, then the checkbox/"Move to group" pair - but only the second works on
+ * touch. Every translation of it is a two-clause sentence split on a comma, so
+ * on phones we render just the clause that is actually true there rather than
+ * telling the user to drag something that will never respond. (The labels are
+ * database rows, not client strings, so a dedicated touch hint can't simply be
+ * added here.)
+ */
+const assignmentHint = computed(() => {
+	const hint = t(AppLabels.GROUPS_DRAG_DROP_HINT);
+
+	if (!smAndDown.value) {
+		return hint;
+	}
+
+	const separator = hint.indexOf(",");
+	if (separator === -1) {
+		return hint;
+	}
+
+	const clause = hint.slice(separator + 1).trim();
+	return clause.charAt(0).toUpperCase() + clause.slice(1);
+});
 
 /**
  *
@@ -285,6 +321,32 @@ const groupRows = computed<GroupRow[]>(() => {
 
 	return rows;
 })
+
+/**
+ * Edit / delete for one group row - one overflow button on phones, inline
+ * icon buttons above `sm` (see `RowActionsMenu`).
+ */
+function groupActionsFor(id: number): RowAction[] {
+	return [
+		{key: "edit", label: t(AppLabels.EDIT), icon: "mdi-pencil"},
+		{
+			key: "delete",
+			label: t(AppLabels.DELETE),
+			icon: "mdi-delete",
+			destructive: true,
+			loading: deleteLoading.value.includes(id),
+			disabled: deleteLoading.value.includes(id),
+		},
+	];
+}
+
+function onGroupAction(id: number, key: string) {
+	if (key === "edit") {
+		editGroup(id);
+	} else if (key === "delete") {
+		deleteGroupRow(id);
+	}
+}
 
 /**
  *
@@ -545,5 +607,32 @@ defineExpose({createGroup});
 <style scoped>
 .drop-target {
 	background-color: rgba(33, 150, 243, 0.12);
+}
+
+.group-move-bar {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+}
+
+.group-move-select {
+	max-width: 240px;
+}
+
+/* Neutral at rest; the confirmation dialog carries the warning. */
+.group-member-remove {
+	color: var(--pb-text-muted);
+}
+
+/* Three controls side by side don't fit a 390px row - stack them. */
+@media (max-width: 600px) {
+	.group-move-bar {
+		flex-direction: column;
+		align-items: stretch;
+	}
+
+	.group-move-select {
+		max-width: none;
+	}
 }
 </style>

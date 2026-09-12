@@ -2,6 +2,7 @@
 	<v-dialog
 		v-model="dialog"
 		width="500"
+		:fullscreen="smAndDown"
 	>
 		<v-card>
 			<v-card-title>
@@ -57,8 +58,7 @@
 			<v-card-actions>
 				<v-spacer></v-spacer>
 				<v-btn
-					text
-					small
+					variant="text"
 					@click="closeDialog()"
 					class="text-none"
 				>
@@ -66,7 +66,6 @@
 				</v-btn>
 				<v-btn
 					color="primary"
-					small
 					:disabled="selectedStatus === null || selectedLocation == null || loading"
 					:loading="loading"
 					@click="addStock()"
@@ -79,7 +78,6 @@
 					v-if="!stock"
 					color="primary"
 					variant="elevated"
-					small
 					:disabled="selectedStatus === null || selectedLocation == null || loading"
 					:loading="loading"
 					@click="addStock(true)"
@@ -99,6 +97,7 @@
  * existing `stock` prop switches it to edit mode; omitting it creates a
  * new one, optionally printing a barcode label immediately ("Add & Print").
  */
+import {useDisplay} from "vuetify";
 import {computed, Ref, ref, watch} from 'vue'
 import Book from "@/model/book/Book";
 import {BookStockStatusEnum} from "@/types/book/IBookStock";
@@ -213,4 +212,8 @@ watch(() => selectedStatus.value, () => {
 		selectedCustomer.value = null;
 	}
 })
+
+/** Phone-sized viewports get the dialog as a full-screen sheet - see the note in theme.scss. */
+const {smAndDown} = useDisplay();
+
 </script>

@@ -146,6 +146,20 @@
 				density="compact"
 				class="mx-2 app-menu-item"
 			/>
+
+			<!--
+				On phones the legal links live here instead of in the
+				`app`-positioned footer, which is hidden below `sm`. They are
+				the definition of "needed once, never mid-task", so parking
+				them behind the drawer buys back ~90px of every screen.
+			-->
+			<template v-if="smAndDown && !rail">
+				<v-divider class="app-menu-divider my-2"></v-divider>
+
+				<app-footer-links stacked class="mx-4"/>
+
+				<div class="app-menu-copyright mx-4 mt-1">© {{ year }} {{ legalLabels.footerCopyright }}</div>
+			</template>
 		</div>
 	</v-navigation-drawer>
 </template>
@@ -179,14 +193,21 @@ import PrintDialog from "@/components/printDialog/PrintDialog.vue"
 import {SearchFilter} from "@/types/search/SearchFilter";
 import {IBookCounters} from "@/types/search/IBookCounters";
 import {searchService} from "@/service/search/SearchService";
+import AppFooterLinks from "@/components/app/AppFooterLinks.vue";
+import {legalUiLabels, normalizeLegalLocale} from "@/views/legal/legalData";
 
 const route = useRoute()
 
 const theme = useTheme();
 
-const {t} = useI18n();
+const {t, locale} = useI18n();
 
 const {smAndDown} = useDisplay();
+
+/** Copyright line shown under the legal links in the drawer's phone-only bottom block. */
+const year = new Date().getFullYear();
+
+const legalLabels = computed(() => legalUiLabels[normalizeLegalLocale(locale.value)]);
 
 /**
  *
@@ -362,6 +383,12 @@ watch(() => route.path, (path) => {
 
 .app-menu-divider {
 	border-color: var(--pb-nav-border) !important;
+}
+
+.app-menu-copyright {
+	font-size: 11.5px;
+	color: var(--pb-nav-text-muted);
+	opacity: 0.75;
 }
 
 .app-menu :deep(.v-list-item--active) {

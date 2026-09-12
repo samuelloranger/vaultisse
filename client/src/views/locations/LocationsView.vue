@@ -5,7 +5,6 @@
 				@click="createLocation()"
 				class="text-none"
 				color="primary"
-				small
 				variant="elevated"
 			>
 				{{t(AppLabels.ADD)}}
@@ -24,7 +23,6 @@
 					@click="createLocation()"
 					class="text-none"
 					color="primary"
-					small
 					variant="elevated"
 				>
 					{{t(AppLabels.ADD)}}
@@ -37,38 +35,41 @@
 					:key="location.id"
 					class="pb-card entity-card"
 				>
+					<!--
+						Title-first and full-width, with the count and description
+						demoted to a second metadata line. Laid out horizontally,
+						a wrapped 3-line location name had to share a 390px row
+						with a count chip and three buttons.
+					-->
 					<div class="entity-card-header" @click="toggleExpand(location.id)">
-						<v-icon color="primary" size="20">mdi-map-marker-outline</v-icon>
+						<v-icon class="entity-card-icon" color="primary" size="20">mdi-map-marker-outline</v-icon>
 
 						<div class="entity-card-title-group">
 							<span class="entity-card-name">{{ location.name }}</span>
-							<span v-if="location.description" class="entity-card-desc">{{ location.description }}</span>
-						</div>
 
-						<v-chip density="compact" class="entity-card-count">{{ location.totalBooks }}</v-chip>
+							<div class="entity-card-meta">
+								<v-chip density="compact" size="small" class="entity-card-count">{{ location.totalBooks }}</v-chip>
+								<span v-if="location.description" class="entity-card-desc">{{ location.description }}</span>
+							</div>
+						</div>
 
 						<div class="entity-card-actions" @click.stop>
-							<v-icon
-								@click="editLocation(location.id)"
-								size="small"
-								class="mx-1"
-							>
-								mdi-pencil
-							</v-icon>
-							<v-btn
-								icon
-								variant="text"
-								density="compact"
-								@click="deleteItem(location.id)"
-								:loading="deleteLoading.includes(location.id)"
-								:disabled="deleteLoading.includes(location.id)"
-								class="mx-1"
-							>
-								<v-icon size="small" color="error">mdi-delete</v-icon>
-							</v-btn>
+							<row-actions-menu
+								:actions="actionsFor(location.id)"
+								:menu-label="t(AppLabels.ACTIONS)"
+								@action="onRowAction(location.id, $event)"
+							/>
 						</div>
 
+						<!--
+							Purely an open/closed indicator - the whole header is
+							the toggle. Hidden on phones, where the overflow menu
+							carries an explicit expand/collapse entry instead, so
+							the row isn't crowded with a control that only looks
+							separately tappable.
+						-->
 						<v-icon
+							v-if="!smAndDown"
 							class="entity-card-chevron"
 							:class="{'entity-card-chevron--open': expanded.includes(location.id)}"
 						>
@@ -78,7 +79,10 @@
 
 					<v-expand-transition>
 						<div v-if="expanded.includes(location.id)" class="entity-card-body">
-							<location-books-table :location="controller.getLocation(location.id)"/>
+							<location-books-table
+								v-if="controller.getLocation(location.id)"
+								:location="controller.getLocation(location.id)!"
+							/>
 						</div>
 					</v-expand-transition>
 				</div>
@@ -111,11 +115,16 @@ import LocationExt from "@/model/location/LocationExt";
 import LocationBooksTable from "@/views/locations/LocationBooksTable.vue";
 import EmptyState from "@/components/emptyState/EmptyState.vue";
 import {useI18n} from "vue-i18n";
+import {useDisplay} from "vuetify";
 import {AppLabels} from "@/plugins/i18n/AppLabels";
+import RowActionsMenu from "@/components/entityList/RowActionsMenu.vue";
+import {RowAction} from "@/components/entityList/RowAction";
 
 const controller = new LocationsController();
 
 const {t} = useI18n();
+
+const {smAndDown} = useDisplay();
 
 /**
  *
@@ -193,6 +202,46 @@ async function deleteItem(locationId: number) {
 }
 
 /**
+ * The row's action set. On phones `RowActionsMenu` collapses these into one
+ * overflow button; above `sm` it renders them as inline icon buttons.
+ */
+function actionsFor(locationId: number): RowAction[] {
+	const actions: RowAction[] = [
+		{key: "edit", label: t(AppLabels.EDIT), icon: "mdi-pencil"},
+		{
+			key: "delete",
+			label: t(AppLabels.DELETE),
+			icon: "mdi-delete",
+			destructive: true,
+			loading: deleteLoading.value.includes(locationId),
+			disabled: deleteLoading.value.includes(locationId),
+		},
+	];
+
+	// The chevron is hidden on phones (see the template), so the menu is the
+	// only labelled way to say "show this location's books".
+	if (smAndDown.value) {
+		actions.unshift({
+			key: "expand",
+			label: t(AppLabels.VIEW_ALL),
+			icon: expanded.value.includes(locationId) ? "mdi-chevron-up" : "mdi-chevron-down",
+		});
+	}
+
+	return actions;
+}
+
+function onRowAction(locationId: number, key: string) {
+	if (key === "edit") {
+		editLocation(locationId);
+	} else if (key === "delete") {
+		deleteItem(locationId);
+	} else if (key === "expand") {
+		toggleExpand(locationId);
+	}
+}
+
+/**
  *
  * @param locationId
  */
@@ -220,22 +269,38 @@ function toggleExpand(locationId: number) {
 .entity-card-header {
 	display: flex;
 	align-items: center;
-	gap: 14px;
-	padding: 14px 18px;
+	gap: 12px;
+	padding: 10px 16px;
+	min-height: 60px;
 	cursor: pointer;
+}
+
+.entity-card-icon {
+	flex-shrink: 0;
 }
 
 .entity-card-title-group {
 	flex: 1;
 	display: flex;
 	flex-direction: column;
+	gap: 4px;
 	min-width: 0;
 }
 
 .entity-card-name {
-	font-size: 14px;
+	font-size: 15px;
 	font-weight: 600;
+	line-height: 1.3;
 	color: var(--pb-text);
+	overflow-wrap: anywhere;
+}
+
+/* Second line: everything that used to compete with the name horizontally. */
+.entity-card-meta {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-width: 0;
 }
 
 .entity-card-desc {

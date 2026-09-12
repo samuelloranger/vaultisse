@@ -3,6 +3,7 @@
 		v-model="dialog"
 		max-width="420"
 		:close-on-content-click="false"
+		:fullscreen="smAndDown"
 	>
 		<template v-slot:activator="{ props: activatorProps }">
 			<v-btn
@@ -31,14 +32,15 @@
 
 					<v-text-field
 						v-model="password"
-						:append-icon="show ? 'mdi-eye' : 'mdi-eye-off'"
+						autocomplete="current-password"
+						:append-inner-icon="show ? 'mdi-eye' : 'mdi-eye-off'"
 						:type="show ? 'text' : 'password'"
 						:label="t(AppLabels.USERCONF_CURRENT_PASSWORD)"
 						density="compact"
 						variant="outlined"
 						hide-details
 						autofocus
-						@click:append="show = !show"
+						@click:append-inner="show = !show"
 						@keyup.enter="deleteAccount"
 					/>
 				</v-card-text>
@@ -75,6 +77,7 @@
  * (see `DELETE /user` in server/src/routes/UserRoute.ts) - a session cookie
  * alone is no longer enough to trigger a permanent, cascading account wipe.
  */
+import {useDisplay} from "vuetify";
 import SettingsController from "@/controller/settings/SettingsController";
 import {ref} from "vue";
 import {userService} from "@/service/user/UserService";
@@ -107,4 +110,8 @@ async function deleteAccount() {
 		loading.value = false;
 	}
 }
+
+/** Phone-sized viewports get the dialog as a full-screen sheet - see the note in theme.scss. */
+const {smAndDown} = useDisplay();
+
 </script>

@@ -118,12 +118,19 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+/*
+ * `height: 520px` was taller than the whole viewport in landscape and on a
+ * short phone, pushing everything after the preview - including the dialog's
+ * action row - off-screen. Cap it against the viewport instead so it shrinks
+ * when there isn't 520px to give.
+ */
 .pb-file-preview {
 	border: 1px solid var(--pb-border);
 	border-radius: var(--pb-radius-sm);
 	overflow: hidden;
 	background: var(--pb-surface-alt);
-	height: 520px;
+	height: min(520px, 70dvh);
+	min-height: 240px;
 	position: relative;
 }
 

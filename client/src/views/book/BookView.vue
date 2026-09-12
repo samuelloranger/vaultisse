@@ -1,16 +1,21 @@
 <template>
 	<page-component :model="model">
 		<template v-slot:append>
+			<!--
+				Icon-only, so it needs an accessible name of its own. Not tinted
+				red at rest either: sitting next to Edit in the toolbar, a
+				permanently destructive-looking control invites a misfire on
+				touch - the confirmation dialog is where the warning belongs.
+			-->
 			<v-btn
 				variant="text"
 				density="comfortable"
 				icon
 				class="text-none mr-2"
-				color="error"
+				:aria-label="t(AppLabels.DELETE)"
 				@click="deleteBook()"
 				:loading="loadingDelete"
 				:disabled="loadingDelete"
-				small
 			>
 				<v-icon>mdi-delete-outline</v-icon>
 			</v-btn>
@@ -21,7 +26,6 @@
 					variant="text"
 					@click="cancelEditing()"
 					:disabled="loadingUpdate"
-					small
 				>
 					{{t(AppLabels.CANCEL)}}
 				</v-btn>
@@ -31,7 +35,6 @@
 					:disabled="!hasChanges"
 					@click="updateBook()"
 					:loading="loadingUpdate"
-					small
 					variant="elevated"
 				>
 					{{t(AppLabels.SAVE)}}
@@ -43,7 +46,6 @@
 				class="text-none"
 				color="primary"
 				variant="elevated"
-				small
 				prepend-icon="mdi-pencil-outline"
 				@click="startEditing()"
 			>

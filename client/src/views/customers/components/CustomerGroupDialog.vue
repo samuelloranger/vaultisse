@@ -2,6 +2,7 @@
 	<v-dialog
 		v-model="dialog"
 		width="500"
+		:fullscreen="smAndDown"
 	>
 		<v-card>
 			<v-card-title>
@@ -73,6 +74,7 @@
  * Create/edit dialog for a customer group. Passing an existing `group`
  * prop switches it to edit mode; omitting it creates a new one.
  */
+import {useDisplay} from "vuetify";
 import {computed, Ref, ref} from 'vue'
 import {useI18n} from "vue-i18n";
 import {AppLabels} from "@/plugins/i18n/AppLabels";
@@ -142,4 +144,8 @@ function closeDialog() {
 	description.value = "";
 	dialog.value = false;
 }
+
+/** Phone-sized viewports get the dialog as a full-screen sheet - see the note in theme.scss. */
+const {smAndDown} = useDisplay();
+
 </script>

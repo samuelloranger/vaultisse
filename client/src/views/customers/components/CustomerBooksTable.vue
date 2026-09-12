@@ -47,18 +47,15 @@
 			<v-btn
 				icon
 				variant="text"
-				density="compact"
+				density="comfortable"
+				size="small"
+				:aria-label="t(AppLabels.DELETE)"
 				@click="removeCustomerBook(item.code)"
 				:loading="removeLoading.includes(item.code)"
 				:disabled="removeLoading.includes(item.code)"
-				class="mx-1"
+				class="mx-1 customer-books-remove"
 			>
-				<v-icon
-					small
-					color="error"
-				>
-					mdi-delete
-				</v-icon>
+				<v-icon size="small">mdi-delete</v-icon>
 			</v-btn>
 		</template>
 	</v-data-table-virtual>
@@ -142,3 +139,9 @@ onMounted(async () => {
 	}
 })
 </script>
+<style scoped>
+/* Neutral at rest; the confirmation dialog carries the warning. */
+.customer-books-remove {
+	color: var(--pb-text-muted);
+}
+</style>

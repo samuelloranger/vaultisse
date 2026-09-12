@@ -4,6 +4,7 @@
 		width="600"
 		persistent
 		:close-on-content-click="false"
+		:fullscreen="smAndDown"
 	>
 		<v-card>
 			<v-card-title
@@ -65,6 +66,7 @@
  * `axiosInstance`'s response interceptor for any unhandled API error (see
  * `plugins/axiosInstance.ts`), showing the server's response body if present.
  */
+import {useDisplay} from "vuetify";
 import {errorDialogController} from "@/components/errorDialog/ErrorDialogController";
 import {computed} from "vue";
 import {useI18n} from "vue-i18n";
@@ -82,4 +84,8 @@ const model = computed({
 		controller.setVisible(val);
 	}
 })
+
+/** Phone-sized viewports get the dialog as a full-screen sheet - see the note in theme.scss. */
+const {smAndDown} = useDisplay();
+
 </script>

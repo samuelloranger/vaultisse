@@ -10,26 +10,12 @@
 
 			<span class="entity-list-row-name">{{ item.name }}</span>
 
-			<div class="entity-list-row-actions">
-				<v-icon
-					@click="$emit('edit', item.id)"
-					size="small"
-					class="mx-1 entity-list-row-edit"
-				>
-					mdi-pencil
-				</v-icon>
-				<v-btn
-					icon
-					variant="text"
-					density="compact"
-					@click="$emit('delete', item.id)"
-					:loading="deleteLoading.includes(item.id)"
-					:disabled="deleteLoading.includes(item.id)"
-					class="mx-1"
-				>
-					<v-icon size="small" color="error">mdi-delete</v-icon>
-				</v-btn>
-			</div>
+			<row-actions-menu
+				class="entity-list-row-actions"
+				:actions="actionsFor(item.id)"
+				:menu-label="t(AppLabels.ACTIONS)"
+				@action="onAction(item.id, $event)"
+			/>
 		</div>
 	</div>
 </template>
@@ -41,6 +27,11 @@
  * inline edit/delete). Used by views whose only real column is a name
  * (authors, categories) where a full data-table header row is overkill.
  */
+import {useI18n} from "vue-i18n";
+import {AppLabels} from "@/plugins/i18n/AppLabels";
+import RowActionsMenu from "@/components/entityList/RowActionsMenu.vue";
+import {RowAction} from "@/components/entityList/RowAction";
+
 interface Item {
 	id: number;
 	name: string;
@@ -52,15 +43,39 @@ interface Props {
 	deleteLoading?: number[];
 }
 
-withDefaults(defineProps<Props>(), {
+const props = withDefaults(defineProps<Props>(), {
 	icon: 'mdi-bookmark-outline',
 	deleteLoading: () => [],
 });
 
-defineEmits<{
+const emit = defineEmits<{
 	edit: [id: number];
 	delete: [id: number];
 }>();
+
+const {t} = useI18n();
+
+function actionsFor(id: number): RowAction[] {
+	return [
+		{key: "edit", label: t(AppLabels.EDIT), icon: "mdi-pencil"},
+		{
+			key: "delete",
+			label: t(AppLabels.DELETE),
+			icon: "mdi-delete",
+			destructive: true,
+			loading: props.deleteLoading.includes(id),
+			disabled: props.deleteLoading.includes(id),
+		},
+	];
+}
+
+function onAction(id: number, key: string) {
+	if (key === "edit") {
+		emit("edit", id);
+	} else if (key === "delete") {
+		emit("delete", id);
+	}
+}
 </script>
 
 <style scoped>
@@ -72,16 +87,14 @@ defineEmits<{
 	display: flex;
 	align-items: center;
 	gap: 12px;
-	padding: 11px 18px;
+	/* Room for a 44px action control without the row looking cramped. */
+	min-height: 56px;
+	padding: 8px 18px;
 	transition: background-color 0.15s ease;
 }
 
 .entity-list-row:hover {
 	background: var(--pb-surface-alt);
-}
-
-.entity-list-row:hover .entity-list-row-edit {
-	cursor: pointer;
 }
 
 .entity-list-row--border {
@@ -95,14 +108,14 @@ defineEmits<{
 
 .entity-list-row-name {
 	flex: 1;
+	min-width: 0;
 	font-size: 14px;
 	font-weight: 500;
 	color: var(--pb-text);
+	overflow-wrap: anywhere;
 }
 
 .entity-list-row-actions {
-	display: flex;
-	align-items: center;
 	flex-shrink: 0;
 }
 </style>

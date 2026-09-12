@@ -4,6 +4,7 @@
 		width="700"
 		scrollable
 		persistent
+		:fullscreen="smAndDown"
 	>
 		<v-card>
 			<v-card-title class="d-flex" style="align-items: center">
@@ -89,6 +90,7 @@
  * image drop zone, submitted via `bookService.createBook`. Used as the
  * fallback when a book can't be found by ISBN lookup.
  */
+import {useDisplay} from "vuetify";
 import {computed, ref, Ref, watch} from "vue";
 import {validateIsbn10, validateIsbn13} from "@/utils/IsbnVerification";
 import { VFileUpload } from 'vuetify/labs/VFileUpload'
@@ -213,4 +215,8 @@ watch(() => image.value, (img) => {
 		image.value = undefined;
 	}
 })
+
+/** Phone-sized viewports get the dialog as a full-screen sheet - see the note in theme.scss. */
+const {smAndDown} = useDisplay();
+
 </script>

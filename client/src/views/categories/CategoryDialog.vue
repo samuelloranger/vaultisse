@@ -2,6 +2,7 @@
 	<v-dialog
 		v-model="dialog"
 		width="500"
+		:fullscreen="smAndDown"
 	>
 		<v-card>
 			<v-card-title>
@@ -54,6 +55,7 @@
  * switches it to edit mode; omitting it creates a new one. Either way,
  * `ApplicationService`'s cached category list is refreshed afterward.
  */
+import {useDisplay} from "vuetify";
 import {computed, Ref, ref} from 'vue'
 import {applicationService} from "@/service/ApplicationService";
 import Category from "@/model/category/Category";
@@ -119,4 +121,8 @@ function closeDialog() {
 	name.value = "";
 	dialog.value = false;
 }
+
+/** Phone-sized viewports get the dialog as a full-screen sheet - see the note in theme.scss. */
+const {smAndDown} = useDisplay();
+
 </script>

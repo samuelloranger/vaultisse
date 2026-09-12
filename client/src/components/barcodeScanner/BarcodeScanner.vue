@@ -1,5 +1,5 @@
 <template>
-	<v-dialog v-model="dialog" width="500">
+	<v-dialog v-model="dialog" width="500" :fullscreen="smAndDown">
 		<template v-slot:activator="{ props: activatorProps }">
 			<v-btn v-bind="activatorProps" variant="text" icon density="compact">
 				<v-icon>mdi-barcode-scan</v-icon>
@@ -24,6 +24,7 @@
  * text and auto-closes on the first successful scan. Used anywhere a stock
  * code or ISBN can be typed, as a camera-based alternative.
  */
+import {useDisplay} from "vuetify";
 import { ref, watch} from "vue";
 import { Html5Qrcode } from "html5-qrcode";
 import {useI18n} from "vue-i18n";
@@ -73,6 +74,10 @@ watch(dialog, async (val) => {
 		}
 	}
 });
+
+
+/** Phone-sized viewports get the dialog as a full-screen sheet - see the note in theme.scss. */
+const {smAndDown} = useDisplay();
 
 </script>
 

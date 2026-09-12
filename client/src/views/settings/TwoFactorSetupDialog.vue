@@ -5,6 +5,7 @@
 		:close-on-content-click="false"
 		:persistent="step === 'backupCodes'"
 		@update:model-value="onDialogToggle"
+		:fullscreen="smAndDown"
 	>
 		<template v-slot:activator="{ props: activatorProps }">
 			<v-btn
@@ -40,12 +41,24 @@
 							<p class="text-caption mb-1">{{t(AppLabels.TWOFA_SETUP_MANUAL_KEY)}}</p>
 							<code class="d-block mb-4" style="word-break: break-all; font-size: 13px;">{{secret}}</code>
 
+							<!--
+								`inputmode="numeric"` brings up the digit keypad
+								rather than the full keyboard, and
+								`autocomplete="one-time-code"` lets iOS and
+								Android offer the code from the authenticator or
+								an SMS without the user leaving the dialog.
+							-->
 							<v-text-field
 								v-model="code"
 								:label="t(AppLabels.TWOFA_CODE)"
 								density="compact"
 								variant="outlined"
 								maxlength="6"
+								inputmode="numeric"
+								autocomplete="one-time-code"
+								autocapitalize="none"
+								autocorrect="off"
+								spellcheck="false"
 								hide-details
 								autofocus
 								@keyup.enter="enable"
@@ -106,6 +119,7 @@
  * 2. Shows the one-time backup codes returned on success - dismissible only
  *    by explicit confirmation (`persistent`), since they're never shown again.
  */
+import {useDisplay} from "vuetify";
 import SettingsController from "@/controller/settings/SettingsController";
 import {ref} from "vue";
 import {userService} from "@/service/user/UserService";
@@ -174,4 +188,8 @@ function finish() {
 	appSnackbarController.show({message: t(AppLabels.TWOFA_ENABLED_SNACKBAR)});
 	dialog.value = false;
 }
+
+/** Phone-sized viewports get the dialog as a full-screen sheet - see the note in theme.scss. */
+const {smAndDown} = useDisplay();
+
 </script>

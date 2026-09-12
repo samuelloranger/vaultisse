@@ -6,7 +6,6 @@
 					@click="createCustomer()"
 					class="text-none ml-3"
 					color="primary"
-					small
 					variant="elevated"
 				>
 					{{t(AppLabels.ADD)}}
@@ -18,7 +17,6 @@
 				@click="groupsTree?.createGroup()"
 				class="text-none ml-3"
 				color="primary"
-				small
 				variant="elevated"
 			>
 				{{t(AppLabels.ADD)}}
@@ -44,7 +42,6 @@
 							@click="createCustomer()"
 							class="text-none"
 							color="primary"
-							small
 							variant="elevated"
 						>
 							{{t(AppLabels.ADD)}}
@@ -57,40 +54,35 @@
 							:key="customer.id"
 							class="pb-card entity-card"
 						>
+							<!--
+								Title-first and full-width: the group chip and
+								book count move to a second metadata line rather
+								than competing with the name for the same 390px.
+							-->
 							<div class="entity-card-header" @click="toggleExpand(customer.id)">
-								<v-icon color="primary" size="20">mdi-account-outline</v-icon>
+								<v-icon class="entity-card-icon" color="primary" size="20">mdi-account-outline</v-icon>
 
 								<div class="entity-card-title-group">
 									<span class="entity-card-name">{{ customer.name }}</span>
+
+									<div class="entity-card-meta">
+										<v-chip density="compact" size="small" class="entity-card-count">{{ customer.totalBooks }}</v-chip>
+										<v-chip v-if="customer.groupName" density="compact" size="small" class="entity-card-group">{{ customer.groupName }}</v-chip>
+										<span v-else class="text-medium-emphasis entity-card-group">{{ t(AppLabels.NO_GROUP) }}</span>
+									</div>
 								</div>
-
-								<v-chip v-if="customer.groupName" density="compact" class="entity-card-group">{{ customer.groupName }}</v-chip>
-								<span v-else class="text-medium-emphasis entity-card-group">{{ t(AppLabels.NO_GROUP) }}</span>
-
-								<v-chip density="compact" class="entity-card-count">{{ customer.totalBooks }}</v-chip>
 
 								<div class="entity-card-actions" @click.stop>
-									<v-icon
-										@click="editCustomer(customer.id)"
-										size="small"
-										class="mx-1"
-									>
-										mdi-pencil
-									</v-icon>
-									<v-btn
-										icon
-										variant="text"
-										density="compact"
-										@click="deleteItem(customer.id)"
-										:loading="deleteLoading.includes(customer.id)"
-										:disabled="deleteLoading.includes(customer.id)"
-										class="mx-1"
-									>
-										<v-icon size="small" color="error">mdi-delete</v-icon>
-									</v-btn>
+									<row-actions-menu
+										:actions="actionsFor(customer.id)"
+										:menu-label="t(AppLabels.ACTIONS)"
+										@action="onRowAction(customer.id, $event)"
+									/>
 								</div>
 
+								<!-- Open/closed indicator only; see LocationsView for why it's hidden on phones. -->
 								<v-icon
+									v-if="!smAndDown"
 									class="entity-card-chevron"
 									:class="{'entity-card-chevron--open': expanded.includes(customer.id)}"
 								>
@@ -100,7 +92,10 @@
 
 							<v-expand-transition>
 								<div v-if="expanded.includes(customer.id)" class="entity-card-body">
-									<customer-books-table :customer="controller.getCustomer(customer.id)"/>
+									<customer-books-table
+										v-if="controller.getCustomer(customer.id)"
+										:customer="controller.getCustomer(customer.id)!"
+									/>
 								</div>
 							</v-expand-transition>
 						</div>
@@ -148,11 +143,16 @@ import {useI18n} from "vue-i18n";
 import {AppLabels} from "@/plugins/i18n/AppLabels";
 import CustomerGroupsTree from "@/views/customers/components/CustomerGroupsTree.vue";
 import CustomerDetail from "@/model/customer/CustomerDetail";
+import {useDisplay} from "vuetify";
+import RowActionsMenu from "@/components/entityList/RowActionsMenu.vue";
+import {RowAction} from "@/components/entityList/RowAction";
 
 const controller = new CustomersController();
 const groupsController = new CustomerGroupsController();
 
 const {t} = useI18n();
+
+const {smAndDown} = useDisplay();
 
 /**
  *
@@ -239,6 +239,44 @@ async function deleteItem(customerId: number) {
 }
 
 /**
+ * The row's action set - one overflow menu on phones, inline icon buttons
+ * above `sm` (see `RowActionsMenu`).
+ */
+function actionsFor(customerId: number): RowAction[] {
+	const actions: RowAction[] = [
+		{key: "edit", label: t(AppLabels.EDIT), icon: "mdi-pencil"},
+		{
+			key: "delete",
+			label: t(AppLabels.DELETE),
+			icon: "mdi-delete",
+			destructive: true,
+			loading: deleteLoading.value.includes(customerId),
+			disabled: deleteLoading.value.includes(customerId),
+		},
+	];
+
+	if (smAndDown.value) {
+		actions.unshift({
+			key: "expand",
+			label: t(AppLabels.VIEW_ALL),
+			icon: expanded.value.includes(customerId) ? "mdi-chevron-up" : "mdi-chevron-down",
+		});
+	}
+
+	return actions;
+}
+
+function onRowAction(customerId: number, key: string) {
+	if (key === "edit") {
+		editCustomer(customerId);
+	} else if (key === "delete") {
+		deleteItem(customerId);
+	} else if (key === "expand") {
+		toggleExpand(customerId);
+	}
+}
+
+/**
  *
  * @param customerId
  */
@@ -267,22 +305,39 @@ function toggleExpand(customerId: number) {
 .entity-card-header {
 	display: flex;
 	align-items: center;
-	gap: 14px;
-	padding: 14px 18px;
+	gap: 12px;
+	padding: 10px 16px;
+	min-height: 60px;
 	cursor: pointer;
+}
+
+.entity-card-icon {
+	flex-shrink: 0;
 }
 
 .entity-card-title-group {
 	flex: 1;
 	display: flex;
 	flex-direction: column;
+	gap: 4px;
 	min-width: 0;
 }
 
 .entity-card-name {
-	font-size: 14px;
+	font-size: 15px;
 	font-weight: 600;
+	line-height: 1.3;
 	color: var(--pb-text);
+	overflow-wrap: anywhere;
+}
+
+/* Second line: everything that used to compete with the name horizontally. */
+.entity-card-meta {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 8px;
+	min-width: 0;
 }
 
 .entity-card-group {

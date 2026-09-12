@@ -25,40 +25,33 @@
 					class="d-flex align-center my-3"
 				>
 					<v-icon size="28" class="mr-3" color="primary">{{ fileIcon(file) }}</v-icon>
-					<div class="flex-grow-1" style="min-width: 0">
-						<div class="text-truncate">{{ file.file_name }}</div>
-						<div class="text-caption" style="color: var(--pb-text-muted)">
-							{{ formattedSize(file) }} &middot; {{ formattedDate(file) }}
-						</div>
-					</div>
-					<v-btn
-						icon
-						variant="text"
-						density="compact"
+					<!--
+						The file name is the preview trigger. That removes a third
+						unlabelled icon button from the row and gives the action a
+						target the size of the whole row rather than 21x21.
+					-->
+					<button
+						type="button"
+						class="pb-file-row-open flex-grow-1"
 						@click="previewFile = file"
 					>
-						<v-icon size="21">mdi-eye-outline</v-icon>
-					</v-btn>
-					<v-btn
-						icon
-						variant="text"
-						density="compact"
-						class="mx-1"
-						:href="downloadUrl(file)"
-					>
-						<v-icon size="21">mdi-download</v-icon>
-					</v-btn>
-					<v-btn
-						icon
-						variant="text"
-						density="compact"
-						class="mr-4"
-						:loading="deleteLoadingId === file.id"
-						:disabled="deleteLoadingId !== null"
-						@click="removeFile(file)"
-					>
-						<v-icon size="21" color="error">mdi-delete</v-icon>
-					</v-btn>
+						<span class="text-truncate d-block">{{ file.file_name }}</span>
+						<span class="text-caption d-block" style="color: var(--pb-text-muted)">
+							{{ formattedSize(file) }} &middot; {{ formattedDate(file) }}
+						</span>
+					</button>
+					<!--
+						Three unlabelled icon buttons in one row - the same
+						pattern collapsed everywhere else. On phones this is a
+						single overflow menu; above `sm` the icons stay inline,
+						now as named, focusable buttons.
+					-->
+					<row-actions-menu
+						class="mr-2"
+						:actions="fileActionsFor(file)"
+						:menu-label="t(AppLabels.ACTIONS)"
+						@action="onFileAction(file, $event)"
+					/>
 				</div>
 			</div>
 
@@ -122,6 +115,8 @@ import {PATH_PREFIX} from "@/Constants";
 import {IBookFile} from "@/types/book/IBookFile";
 import {confirmationDialogController} from "@/components/confirmationDialog/ConfirmationDialogController";
 import {appSnackbarController, SnackbarType} from "@/components/appSnackbar/AppSnackbarController";
+import RowActionsMenu from "@/components/entityList/RowActionsMenu.vue";
+import {RowAction} from "@/components/entityList/RowAction";
 
 const {t} = useI18n();
 
@@ -144,6 +139,31 @@ function fileIcon(file: IBookFile): string {
 	if (file.file_type === "epub") return "mdi-book-open-page-variant-outline";
 	if (file.file_type === "pdf") return "mdi-file-pdf-box";
 	return "mdi-tablet";
+}
+
+/** Download / delete for one backed-up ebook file - preview is the file name itself. */
+function fileActionsFor(file: IBookFile): RowAction[] {
+	return [
+		{key: "download", label: t(AppLabels.DOWNLOAD), icon: "mdi-download"},
+		{
+			key: "delete",
+			label: t(AppLabels.DELETE),
+			icon: "mdi-delete",
+			destructive: true,
+			loading: deleteLoadingId.value === file.id,
+			disabled: deleteLoadingId.value !== null,
+		},
+	];
+}
+
+function onFileAction(file: IBookFile, key: string) {
+	if (key === "download") {
+		// A plain navigation: the endpoint replies with Content-Disposition,
+		// so the browser downloads rather than navigating away.
+		window.location.href = downloadUrl(file);
+	} else if (key === "delete") {
+		removeFile(file);
+	}
 }
 
 function downloadUrl(file: IBookFile): string {
@@ -215,6 +235,25 @@ async function removeFile(file: IBookFile) {
 </script>
 
 <style scoped>
+/* A real button, styled back down to look like the row text it replaced. */
+.pb-file-row-open {
+	min-width: 0;
+	min-height: 44px;
+	padding: 4px 0;
+	border-radius: var(--pb-radius-sm);
+	background: none;
+	border: none;
+	text-align: left;
+	font: inherit;
+	color: inherit;
+	cursor: pointer;
+}
+
+.pb-file-row-open:hover span:first-child,
+.pb-file-row-open:focus-visible span:first-child {
+	text-decoration: underline;
+}
+
 .pb-file-dropzone {
 	display: flex;
 	flex-direction: column;

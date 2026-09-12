@@ -2,6 +2,7 @@
 	<v-dialog
 		v-model="dialog"
 		width="480"
+		:fullscreen="smAndDown"
 	>
 		<v-card>
 			<v-card-title>
@@ -88,6 +89,7 @@
  * date range plus an optional group and customer, then downloads every
  * matching loan (returned or not, from `loan_history`) as an .xlsx file.
  */
+import {useDisplay} from "vuetify";
 import {computed, ref, Ref, watch} from 'vue';
 import {useI18n} from "vue-i18n";
 import {AppLabels} from "@/plugins/i18n/AppLabels";
@@ -204,6 +206,10 @@ function closeDialog() {
 	customerId.value = null;
 	dialog.value = false;
 }
+
+/** Phone-sized viewports get the dialog as a full-screen sheet - see the note in theme.scss. */
+const {smAndDown} = useDisplay();
+
 </script>
 
 <style scoped>

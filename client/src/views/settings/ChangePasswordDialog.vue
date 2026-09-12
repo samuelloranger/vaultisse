@@ -3,6 +3,7 @@
 		v-model="dialog"
 		max-width="500"
 		:close-on-content-click="false"
+		:fullscreen="smAndDown"
 	>
 		<template v-slot:activator="{ props: activatorProps }">
 			<v-btn
@@ -28,19 +29,21 @@
 
 					<v-text-field
 						v-model="currentPassword"
-						:append-icon="show1 ? 'mdi-eye' : 'mdi-eye-off'"
+						autocomplete="current-password"
+						:append-inner-icon="show1 ? 'mdi-eye' : 'mdi-eye-off'"
 						:type="show1 ? 'text' : 'password'"
 						:label="t(AppLabels.USERCONF_CURRENT_PASSWORD)"
 						density="compact"
 						variant="outlined"
 						hide-details
 						class="mb-4"
-						@click:append="show1 = !show1"
+						@click:append-inner="show1 = !show1"
 					></v-text-field>
 
 					<v-text-field
 						v-model="newPassword1"
-						:append-icon="show2 ? 'mdi-eye' : 'mdi-eye-off'"
+						autocomplete="new-password"
+						:append-inner-icon="show2 ? 'mdi-eye' : 'mdi-eye-off'"
 						:type="show2 ? 'text' : 'password'"
 						hint="At least 8 characters"
 						:label="t(AppLabels.USERCONF_NEW_PASSWORD)"
@@ -48,7 +51,7 @@
 						variant="outlined"
 						hide-details
 						class="mb-2"
-						@click:append="show2 = !show2"
+						@click:append-inner="show2 = !show2"
 					></v-text-field>
 
 					<!-- Password requirements list -->
@@ -75,14 +78,15 @@
 
 					<v-text-field
 						v-model="newPassword2"
-						:append-icon="show3 ? 'mdi-eye' : 'mdi-eye-off'"
+						autocomplete="new-password"
+						:append-inner-icon="show3 ? 'mdi-eye' : 'mdi-eye-off'"
 						:type="show3 ? 'text' : 'password'"
 						:label="t(AppLabels.USEERCONF_PASSWORD_REPEAT)"
 						density="compact"
 						variant="outlined"
 						:error-messages="passwordMismatchMessage"
 						class=" mt-3"
-						@click:append="show3 = !show3"
+						@click:append-inner="show3 = !show3"
 					></v-text-field>
 				</v-card-text>
 
@@ -118,8 +122,9 @@
  * uppercase, digit, special char) and that both entries match before
  * enabling submit, via `userService.changePassword`.
  */
+import {useDisplay} from "vuetify";
 import SettingsController from "@/controller/settings/SettingsController";
-import {ref, computed} from "vue";
+import {ref, computed, Ref} from "vue";
 import {AxiosError} from "axios";
 import {userService} from "@/service/user/UserService";
 import {appSnackbarController} from "@/components/appSnackbar/AppSnackbarController";
@@ -142,7 +147,7 @@ const show1 = ref(false);
 const show2 = ref(false);
 const show3 = ref(false);
 
-const error = ref(null);
+const error: Ref<string | null> = ref(null);
 
 
 const currentPassword = ref("");
@@ -186,10 +191,14 @@ async function changePassword() {
 		currentPassword.value = "";
 		newPassword1.value = "";
 		newPassword2.value = "";
-	} catch (e: AxiosError) {
-		error.value = e.response.data.message
+	} catch (e: unknown) {
+		error.value = (e as AxiosError<{message: string}>).response?.data?.message ?? null
 	} finally {
 		loading.value = false;
 	}
 }
+
+/** Phone-sized viewports get the dialog as a full-screen sheet - see the note in theme.scss. */
+const {smAndDown} = useDisplay();
+
 </script>

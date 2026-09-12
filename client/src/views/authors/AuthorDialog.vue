@@ -2,6 +2,7 @@
 	<v-dialog
 		v-model="dialog"
 		width="500"
+		:fullscreen="smAndDown"
 	>
 		<v-card>
 			<v-card-title>
@@ -53,6 +54,7 @@
  * switches it to edit mode (renames via `BookAuthor.update`); omitting it
  * creates a new one via `AuthorsController.addAuthor`.
  */
+import {useDisplay} from "vuetify";
 import {computed, Ref, ref} from 'vue'
 import CustomersController from "@/controller/customers/CustomersController";
 import Customer from "@/model/customer/Customer";
@@ -118,4 +120,8 @@ function closeDialog() {
 	name.value = "";
 	dialog.value = false;
 }
+
+/** Phone-sized viewports get the dialog as a full-screen sheet - see the note in theme.scss. */
+const {smAndDown} = useDisplay();
+
 </script>

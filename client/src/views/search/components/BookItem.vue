@@ -6,7 +6,7 @@
 			:class="{'book-item--hover': isHovering}"
 		>
 			<img
-				:src="showFallback ? notFound : book.getImageUrl()"
+				:src="showFallback ? notFound : (book.getImageUrl() ?? notFound)"
 				@error="showFallback = true"
 				class="book-item-cover"
 			/>

@@ -33,7 +33,7 @@
 				>
 					<img
 						v-if="user.hasImage()"
-						:src="user.getImage()"
+						:src="user.getImage() ?? undefined"
 						style="width: 100%; height: 100%; object-fit: cover"
 					/>
 					<v-icon v-else dark size="30">mdi-account</v-icon>
