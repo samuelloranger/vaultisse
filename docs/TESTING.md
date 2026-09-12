@@ -1,7 +1,7 @@
 # Testing the server
 
-Jest + Supertest integration tests for the Express/Postgres API in `server/`,
-plus a few pure-function unit tests. Runs automatically on every push and PR
+`bun test` + Supertest integration tests for the Express/Postgres API in
+`server/`, plus a few pure-function unit tests. Runs automatically on every push and PR
 via [`.github/workflows/test.yml`](../.github/workflows/test.yml) - see
 [Continuous integration](#continuous-integration) below.
 
@@ -24,9 +24,12 @@ normal development is enough, tests use a completely separate database on it
 
 ```bash
 cd server
-npm test          # single run
-npm run test:watch
+bun test          # single run
+bun test --watch
 ```
+
+`npm test` / `npm run test:watch` still work - both scripts now just call
+`bun test`.
 
 ## How a test file works
 
@@ -44,10 +47,14 @@ it("does the thing", async () => {
 ```
 
 - **`setupTestApp()`** ([`test/helpers/testApp.ts`](../server/test/helpers/testApp.ts))
-  wires up one fresh `AppService` per test file (routes mounted, HTTP server
-  listening on an OS-assigned free port) and tears it down in `afterAll`.
-  Each test file gets its own isolated module registry (a Jest default), so
-  this is safe to call once per file with zero cross-file interference.
+  wires up the `AppService` (routes mounted, HTTP server listening on an
+  OS-assigned free port). `bun test` runs the whole suite in one process with
+  one module graph, so all files share that one instance: `setupTestApp()`
+  initialises it on the first call and is a no-op afterwards, and the single
+  teardown runs from the preload's global `afterAll` once every file is done.
+  Call it once per file exactly as before - just don't assume your file has a
+  private `AppService`, a private pg pool, or a private module registry the
+  way it would have had under Jest.
 - **`createAuthenticatedUser()`** ([`test/helpers/auth.ts`](../server/test/helpers/auth.ts))
   registers and logs in a brand-new real account and hands back a `supertest`
   agent that carries its session cookie automatically, like a logged-in
@@ -55,22 +62,29 @@ it("does the thing", async () => {
 
 ## The dedicated test database
 
-[`test/setup/globalSetup.js`](../server/test/setup/globalSetup.js) runs once
-before the whole suite: it drops and recreates a `vaultisse_test` database
-and loads the real schema (tables + seed data - languages, formats, i18n
+[`test/setup/preload.ts`](../server/test/setup/preload.ts) runs once before
+the whole suite - `bun test` has no `globalSetup`, so it is wired in as a
+`preload` entry in [`server/bunfig.toml`](../server/bunfig.toml) and does the
+job Jest split across `globalSetup.js` and `setupFiles`: it forces every
+environment variable the app reads to a deterministic test value, then drops
+and recreates a `vaultisse_test` database and loads the real schema (tables + seed data - languages, formats, i18n
 labels) from [`assets/db/databaseSchema.sql`](../assets/db/databaseSchema.sql),
 the same file a fresh production deploy runs. A full drop+recreate rather
 than truncating tables keeps this immune to schema drift - if it ever stops
 working, so would a new deployment.
 
 Locally, connection details (host/port/user/password) are read from your own
-`server/.env` - only the database name is overridden. In CI those are just
-real environment variables set before Node starts (see the workflow file),
-which `dotenv.config()` never overrides.
+`server/.env` - only the database name is overridden. Bun loads that file
+itself, before any code runs, so there is no `dotenv.config()` call anywhere
+in the test path. In CI those are just real environment variables set before
+the runner starts (see the workflow file), and Bun - like dotenv before it -
+never overrides a variable that is already set.
 
-Integration tests share this one database, so `jest.config.js` sets
-`maxWorkers: 1` - test *files* run serially. Each file's own tests still run
-at normal speed.
+Integration tests share this one database. `bun test` runs every file
+sequentially in a single process, so that sharing is safe without any
+`maxWorkers` setting - but it also means a file cannot assume it is alone:
+anything you write that is instance-wide (a lone location, a truncated table)
+is visible to every file that runs after yours.
 
 One file opts out:
 [`AuthRegisterBootstrap.test.ts`](../server/test/routes/AuthRegisterBootstrap.test.ts)
@@ -78,11 +92,17 @@ tests what happens when the **first** account on an instance registers (it
 becomes the admin), which needs a genuinely empty `users` table - and the
 shared database has accounts in it from whichever files ran earlier, an order
 no test may assume. So it creates its own `vaultisse_test_bootstrap` database
-from the same schema file, points a freshly-required `AppService` at it (hence
-the `require` inside `beforeAll` - the singleton reads `DB_NAME` when its
-module is first loaded), and drops it again in `afterAll`. Reach for this only
-when a test genuinely needs an empty instance; everything else belongs in the
-shared database.
+from the same schema file, swaps the shared `AppService`'s pg pool for one
+pointed at it in `beforeAll`, and restores the pool and drops the database in
+`afterAll`. The swap is what a `require` inside `beforeAll` used to achieve
+under Jest's per-file module registry; with one module graph, every route is
+already bound to the one `AppService`, and the pool is the only thing left to
+redirect (routes call `appService.getDatabasePool()` per request rather than
+caching it). Reach for this only when a test genuinely needs an empty
+instance; everything else belongs in the shared database. Do **not** try to
+get an empty instance by truncating the shared one - it cascades across every
+library table, and a later file that then finds exactly one location in the
+instance gets its books auto-filed into it.
 
 ## Real login, not a shortcut
 
@@ -100,8 +120,12 @@ and so tripping, that limiter's bucket.
 
 Anything that would otherwise call a real third-party service (Google
 Books/Open Library ISBN metadata, Open Library cover images) mocks `axios`
-with `jest.mock("axios")`. `GOOGLE_BOOKS_API_KEY` is forced to an empty
-string in `test/setup/testEnv.js` - **unconditionally**, not just when unset
+through [`test/helpers/axiosMock.ts`](../server/test/helpers/axiosMock.ts).
+Bun's `mock.module()` is global for the rest of the run rather than file-local
+like `jest.mock()`, so the files that need a stubbed axios import that one
+shared registration and each reset its behaviour in their own `beforeEach`.
+`GOOGLE_BOOKS_API_KEY` is forced to an empty string in
+`test/setup/preload.ts` - **unconditionally**, not just when unset
 - because a leftover placeholder value in a developer's own `server/.env`
 would otherwise silently flip which code path (Google Books vs. the Open
 Library fallback) `BooksRoute.ts`'s ISBN lookup takes, and tests must not

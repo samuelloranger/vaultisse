@@ -8,28 +8,44 @@
  *
  * WHY THIS FILE HAS ITS OWN DATABASE: "is this the first account?" is a
  * question about an empty `users` table, and the shared test database (see
- * test/setup/globalSetup.js) has accounts in it from whichever files ran
- * before this one - file execution order isn't something a test may assume.
- * So this file creates its own database from the real schema, points a
- * freshly-required `AppService` at it (hence the `require` inside `beforeAll`
- * rather than a top-level import - the singleton reads DB_NAME when the
- * module is first loaded), and drops it again afterwards.
+ * test/setup/preload.ts) has accounts in it from whichever files ran before
+ * this one - file execution order isn't something a test may assume. So this
+ * file creates its own database from the real schema and drops it again
+ * afterwards.
+ *
+ * WHY IT SWAPS THE POOL: under Jest, pointing `AppService` at that database
+ * was just a matter of setting `DB_NAME` and `require`-ing the module inside
+ * `beforeAll`, because Jest gave every test file its own module registry - the
+ * singleton, and every route module that imports it, were rebuilt per file.
+ * `bun test` runs the whole suite in one module graph: `AppService` is already
+ * constructed and every route is already bound to that one instance, so
+ * re-importing changes nothing. Swapping the singleton's pool for the duration
+ * of this file is the equivalent, and routes pick it up because they all call
+ * `appService.getDatabasePool()` per request rather than caching it.
+ *
+ * Emptying `users` on the *shared* database instead is not an option: it
+ * cascades to every table that references users, and a later file that then
+ * finds exactly one location in the instance gets books auto-filed into it
+ * (`__automaticallyAddBookToLocation`), which silently breaks assertions
+ * several files away.
  */
 import request from "supertest";
 import fs from "fs";
 import path from "path";
-import {Client} from "pg";
+import {Client, Pool} from "pg";
+import {setupTestApp} from "../helpers/testApp";
 import {nextFakeIp, TEST_PASSWORD} from "../helpers/auth";
-
-const {getTestDbConfig} = require("../setup/testDbConfig");
+import {appService} from "../../src/AppService";
+import {getTestDbConfig} from "../setup/testDbConfig";
 
 const config = getTestDbConfig();
 const BOOTSTRAP_DB = `${config.database}_bootstrap`;
 const SCHEMA_PATH = path.join(__dirname, "..", "..", "..", "assets", "db", "databaseSchema.sql");
 
-let app: any;
-let appService: any;
-let previousDbName: string | undefined;
+const app = setupTestApp();
+
+let bootstrapPool: Pool;
+let sharedPool: Pool;
 let previousApproval: string | undefined;
 
 async function adminClient(): Promise<Client> {
@@ -58,6 +74,11 @@ async function accounts(): Promise<Record<string, any>[]> {
     return rows;
 }
 
+/** `m_databasePool` is `private readonly` to the compiler only; this is the runtime field. */
+function setAppServicePool(pool: Pool): void {
+    (appService as unknown as {m_databasePool: Pool}).m_databasePool = pool;
+}
+
 beforeAll(async () => {
     const admin = await adminClient();
     await admin.query(`DROP DATABASE IF EXISTS "${BOOTSTRAP_DB}"`);
@@ -69,24 +90,27 @@ beforeAll(async () => {
     await db.query(fs.readFileSync(SCHEMA_PATH, "utf-8"));
     await db.end();
 
-    previousDbName = process.env.DB_NAME;
     // Deliberately ON for the whole file: the bootstrap account has to be
     // usable even when approval is required, since there is nobody to approve
     // it yet (see the comment on the INSERT in AuthRoute.ts).
     previousApproval = process.env.REGISTRATION_REQUIRES_APPROVAL;
-    process.env.DB_NAME = BOOTSTRAP_DB;
     process.env.REGISTRATION_REQUIRES_APPROVAL = "true";
 
-    appService = require("../../src/AppService").appService;
-    appService.init();
-    app = appService.getApp();
+    sharedPool = appService.getDatabasePool();
+    bootstrapPool = new Pool({
+        host: config.host,
+        port: config.port,
+        user: config.user,
+        password: config.password,
+        database: BOOTSTRAP_DB,
+    });
+    setAppServicePool(bootstrapPool);
 });
 
 afterAll(async () => {
-    await new Promise<void>((resolve) => appService.getServer()?.close(() => resolve()));
-    await appService.getDatabasePool().end();
+    setAppServicePool(sharedPool);
+    await bootstrapPool.end();
 
-    process.env.DB_NAME = previousDbName;
     process.env.REGISTRATION_REQUIRES_APPROVAL = previousApproval;
 
     const admin = await adminClient();

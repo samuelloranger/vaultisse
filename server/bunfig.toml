@@ -1,0 +1,5 @@
+# `bun test` has no globalSetup/setupFiles equivalent: the preload module
+# below runs once, before any test file is imported, and does both jobs Jest
+# split across test/setup/testEnv.js and test/setup/globalSetup.js.
+[test]
+preload = ["./test/setup/preload.ts"]

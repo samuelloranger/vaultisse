@@ -1,9 +1,7 @@
-import axios from "axios";
+import {mockedAxiosGet} from "../helpers/axiosMock";
 import {setupTestApp} from "../helpers/testApp";
 import {createAuthenticatedUser, ITestUser} from "../helpers/auth";
 
-jest.mock("axios");
-const mockedAxios = axios as jest.Mocked<typeof axios>;
 
 const app = setupTestApp();
 
@@ -11,10 +9,10 @@ let user: ITestUser;
 
 beforeEach(async () => {
     user = await createAuthenticatedUser(app);
-    mockedAxios.get.mockReset();
+    mockedAxiosGet.mockReset();
     // Default: every cover lookup "succeeds" with a plausible image response,
     // unless a specific test overrides this to simulate a miss.
-    mockedAxios.get.mockResolvedValue({status: 200, headers: {"content-type": "image/jpeg"}});
+    mockedAxiosGet.mockResolvedValue({status: 200, headers: {"content-type": "image/jpeg"}});
 });
 
 const GOODREADS_CSV = [
@@ -179,7 +177,7 @@ describe("POST /import/library - vaultisse origin", () => {
 
         const bookRes = await user.agent.get("/api/rest/book/search").query({query: "Base64 Cover Book"});
         expect(bookRes.body.books[0].image_url).toBe(cover);
-        expect(mockedAxios.get).not.toHaveBeenCalled();
+        expect(mockedAxiosGet).not.toHaveBeenCalled();
     });
 
     it("rejects a disallowed cover host and falls back to an ISBN lookup instead", async () => {
@@ -196,14 +194,14 @@ describe("POST /import/library - vaultisse origin", () => {
 
         const bookRes = await user.agent.get("/api/rest/book/search").query({query: "Disallowed Cover Book"});
         expect(bookRes.body.books[0].image_url).toContain("covers.openlibrary.org");
-        expect(mockedAxios.get).toHaveBeenCalledWith(
+        expect(mockedAxiosGet).toHaveBeenCalledWith(
             expect.stringContaining("covers.openlibrary.org"),
             expect.anything()
         );
     });
 
     it("leaves the cover empty when the ISBN fallback lookup finds nothing", async () => {
-        mockedAxios.get.mockResolvedValue({status: 404, headers: {}});
+        mockedAxiosGet.mockResolvedValue({status: 404, headers: {}});
         const csv = [VAULTISSE_CSV_HEADER, `No Cover Book,Someone,${freshIsbn()},,,,,,,,`].join("\n");
 
         const res = await user.agent

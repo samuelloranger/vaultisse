@@ -52,3 +52,7 @@ ecosystem-config.js
 
 # Runtime logs (LOGGER_PATH) - upstream tracked these by accident
 server/logs.log/
+
+# Stale compiled server test output (bun test executes .js as duplicate suites)
+/server/test/**/*.js
+/server/test/**/*.js.map

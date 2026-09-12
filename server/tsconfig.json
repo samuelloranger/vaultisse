@@ -109,8 +109,8 @@
     "skipLibCheck": true                                 /* Skip type checking all .d.ts files. */
   },
   // Excluded from the production build (rootDir above is "./src/", so a
-  // sibling "test" directory would otherwise fail with TS6059). ts-jest
-  // still transforms test files fine - see tsconfig.test.json, which uses
-  // isolatedModules (per-file transpilation, no whole-program file list).
+  // sibling "test" directory would otherwise fail with TS6059). `bun test`
+  // transpiles the test files itself, per file, without consulting this
+  // project's file list.
   "exclude": ["node_modules", "dist", "test"]
 }

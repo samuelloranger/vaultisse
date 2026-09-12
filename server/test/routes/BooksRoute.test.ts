@@ -1,10 +1,8 @@
-import axios from "axios";
+import {mockedAxiosGet} from "../helpers/axiosMock";
 import {setupTestApp} from "../helpers/testApp";
 import {createAuthenticatedUser, ITestUser} from "../helpers/auth";
 import {appService} from "../../src/AppService";
 
-jest.mock("axios");
-const mockedAxios = axios as jest.Mocked<typeof axios>;
 
 const app = setupTestApp();
 
@@ -12,7 +10,7 @@ let user: ITestUser;
 
 beforeEach(async () => {
     user = await createAuthenticatedUser(app);
-    mockedAxios.get.mockReset();
+    mockedAxiosGet.mockReset();
 });
 
 /**
@@ -256,7 +254,7 @@ describe("POST /book/isbn/:isbn (external metadata lookup)", () => {
      * intentionally isn't what would run in production.
      */
     function mockOpenLibraryMetadata(overrides: {title?: string; authorName?: string[]; pages?: number} = {}) {
-        mockedAxios.get.mockImplementation((url: string) => {
+        mockedAxiosGet.mockImplementation((url: string) => {
             if (url.includes("openlibrary.org/search.json")) {
                 return Promise.resolve({
                     data: {
@@ -322,7 +320,7 @@ describe("POST /book/isbn/:isbn (external metadata lookup)", () => {
     });
 
     it("404s when no metadata is found anywhere", async () => {
-        mockedAxios.get.mockResolvedValue({data: {}}); // No `docs` in the Open Library response.
+        mockedAxiosGet.mockResolvedValue({data: {}}); // No `docs` in the Open Library response.
         const res = await user.agent.post(`/api/rest/book/isbn/${freshIsbn()}`);
         expect(res.status).toBe(404);
     });
