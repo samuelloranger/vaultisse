@@ -7,6 +7,7 @@ import { ResponsiveDialog } from '@/components/ResponsiveDialog'
 import { errorMessage } from '@/components/ScreenState'
 import { useAddBookStock, useDeleteBookStock, useUpdateBookStock } from '@/queries/book'
 import { SelectField } from './BookFields'
+import { statusLabel } from './stockStatus'
 
 /**
  * Add or edit one physical copy.
@@ -20,13 +21,6 @@ import { SelectField } from './BookFields'
  * its own confirm step, where a warning belongs and where it cannot be hit by a
  * misfire aimed at the row next to it.
  */
-
-const STATUS_LABELS: Record<BookStockStatus, string> = {
-  [BookStockStatus.Available]: 'Available',
-  [BookStockStatus.NotAvailable]: 'Withdrawn',
-  [BookStockStatus.Booked]: 'On loan',
-  [BookStockStatus.Damaged]: 'Damaged',
-}
 
 /**
  * `POST /book/:id/stock` answers 406 for `Booked`: a copy cannot be created
@@ -45,10 +39,6 @@ const ALL_STATUSES = [
   BookStockStatus.Booked,
   BookStockStatus.Damaged,
 ]
-
-export function statusLabel(status: BookStockStatus): string {
-  return STATUS_LABELS[status] ?? 'Unknown'
-}
 
 export function StockDialog({
   bookId,

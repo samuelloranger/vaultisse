@@ -10,6 +10,7 @@ import { BookShelf } from './BookShelf'
 import { BooksInTimeChart } from './BooksInTimeChart'
 import { CounterTiles } from './CounterTiles'
 import { ReturnBooksDialog } from './ReturnBooksDialog'
+import { StockStatusSummary } from './StockStatusSummary'
 
 /**
  * The dashboard.
@@ -81,6 +82,8 @@ export function DashboardScreen() {
       ) : null}
 
       <BooksInTimeChart booksInTime={data.booksInTime} />
+
+      <StockStatusSummary stockStatus={data.stockStatus} />
 
       <BookShelf title="Recently added" books={data.lastBooks} />
 

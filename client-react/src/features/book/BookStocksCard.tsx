@@ -4,7 +4,8 @@ import type { BookStock } from '@/api/book'
 import type { Policy } from '@/api/types'
 import { BookStockStatus } from '@/api/types'
 import { Card, Eyebrow, MutedText } from '@/components/Card'
-import { StockDialog, statusLabel } from './StockDialog'
+import { StockDialog } from './StockDialog'
+import { statusLabel } from './stockStatus'
 
 /**
  * The physical copies of this book.
