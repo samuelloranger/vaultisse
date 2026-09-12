@@ -222,9 +222,11 @@ export function SelectField({
  *     `@tamagui/config`'s stock `dark_Switch` untouched — so
  *     `$backgroundActive` was `#1a1a1a`, a neutral near-black on a navy card.
  *     Hence `activeStyle` below: it is the only way to stop that override.
- *  3. **The thumb was `$surface`**, i.e. *exactly* the card behind it, 29px
- *     tall inside a 44px pill. A card-coloured circle punched out of an
- *     almost-invisible pill is the crescent.
+ *  3. **The thumb was the card colour.** `$surface` is the right idiom for a
+ *     thumb — the card showing through a hole in the track — but it needs a
+ *     track to show through. A 29px `$surface` circle punched out of an
+ *     invisible pill is not a knob, it is the crescent. It stays `$surface`
+ *     here, now that there is something for it to sit in.
  *
  * So every colour here is stated explicitly, from this app's palette, on both
  * sides of `checked`. The geometry is stated too: a **32px track centred in a
@@ -322,7 +324,11 @@ export function ToggleRow({
           marginVertical={(SWITCH_HEIGHT - THUMB_SIZE) / 2}
           zIndex={1}
           borderRadius={1000}
-          backgroundColor="$onPrimary"
+          // `$surface`, not `$onPrimary`: the knob has to read against the
+          // *track* on both sides of `checked`, and `$onPrimary` only promises
+          // to read against `$primary` — in the warm palette it is a near-black
+          // that disappears into the off track.
+          backgroundColor="$surface"
           transition="quick"
         />
       </Switch>
