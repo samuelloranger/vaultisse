@@ -11,7 +11,7 @@ write-up in [AUTHENTICATION.md](AUTHENTICATION.md); this one is the rest of
 
 - [Profile](#profile)
 - [UI preferences](#ui-preferences)
-- [The leasing toggle](#the-leasing-toggle)
+- [Instance settings (admin only)](#instance-settings-admin-only)
 - [Deleting an account](#deleting-an-account)
 - [Security notice acknowledgement](#security-notice-acknowledgement)
 - [Where this lives in code](#where-this-lives-in-code)
@@ -61,23 +61,51 @@ Theme is applied client-side immediately for instant feedback, then persisted in
 the background purely so a new device starts out right - it doesn't block on the
 request completing, and the locally chosen value wins if the two disagree.
 
-## The leasing toggle
+## Instance settings (admin only)
 
-**`PATCH /user/leasing`** - `{ "leasingEnabled": true | false }`. Off by
-default: plenty of households just track a collection and never lend books
-to anyone.
+Everything above is a per-account preference. The settings in this section are
+**not**: they live in the single-row `app_settings` table and describe the
+shared collection, so changing one changes the app for every account on the
+instance. They are read by anyone (the client needs them to draw itself) and
+written only by an admin.
 
-Despite living under `/user` (and being served to the client inside the
-policy payload's `user` object, so nothing consuming it had to change), this is
-**not** a per-account preference. It's persisted as
-`app_settings.leasing_enabled` in a single-row table, and flipping it changes
-what every account sees - which is the point, since the loan data itself is
-shared. Same for `app_settings.is_public_institution`.
+**`GET /api/rest/admin/settings`** returns them; **`PATCH
+/api/rest/admin/settings`** changes any subset. Both are behind `requireAdmin`
+(see [AUTHENTICATION.md](AUTHENTICATION.md#roles-and-the-admin-panel)), so a
+valid session that is not an admin gets a plain `403` - not a `401`, and not a
+bounce to `/login`. Every successful `PATCH` writes an
+`instance_settings_changed` row to `activity_log` naming the admin and the
+fields they changed.
 
-Flipping this on/off changes what the rest of the app shows, not just a
-Settings checkbox - see
+| Field | Meaning |
+|---|---|
+| `leasingEnabled` | Whether the Loans and Customers pages (and their nav items) exist. Off by default: plenty of households just track a collection and never lend books to anyone. |
+
+### The leasing toggle was a user setting, and should not have been
+
+Until v1.2.0 this was `PATCH /user/leasing` behind `requireAuth`, and it was
+rendered on the Settings page next to the theme picker. That was wrong in a way
+worth recording: the value was **already** `app_settings.leasing_enabled` -
+one row for the whole instance - so any member could add or remove the Loans
+and Customers nav entries for everybody else, from a screen that looked like it
+only changed their own account.
+
+Moving it to `/admin/settings` and moving the control into the admin panel's
+**Library** tab are the same fix in two halves. Gating the endpoint alone would
+have left a card that 403s for most of the people looking at it; moving the
+card alone would have hidden a control the API still handed out.
+
+The value is still served to *every* account inside `GET /app/policy`'s `user`
+object - the nav cannot be drawn without it - so nothing that reads it had to
+change. Only the write moved. See
 [CUSTOMERS.md](CUSTOMERS.md#leasing-is-opt-in) for the nav-item and
-route-guard behavior this controls.
+route-guard behavior it controls.
+
+`app_settings.is_public_institution` is the other column in that table and is
+deliberately **not** in the list above: it gates a post-login security notice
+that the React client has no dialog for (see below), so a toggle for it could
+only ever turn on a screen that does not render. It has no endpoint at all
+until that dialog is ported.
 
 ## Deleting an account
 
@@ -109,11 +137,14 @@ notice isn't shown and the endpoint isn't called.
 
 | Concern | File |
 |---|---|
-| Profile, preferences, leasing toggle, account deletion, security notice | `server/src/routes/UserRoute.ts` |
+| Profile, preferences, account deletion, security notice | `server/src/routes/UserRoute.ts` |
 | Session list/revoke, password change, 2FA | `server/src/routes/UserRoute.ts` - see [AUTHENTICATION.md](AUTHENTICATION.md) instead |
-| `users` schema | `assets/db/databaseSchema.sql` |
+| Instance settings (admin only) | `server/src/routes/admin/AdminSettingsRoute.ts` |
+| `users` and `app_settings` schema | `assets/db/databaseSchema.sql` |
 | Client: `/user` HTTP client | `client-react/src/api/user.ts` |
-| Client: query hooks + cache keys | `client-react/src/queries/user.ts` |
-| Client: settings route | `client-react/src/routes/_app/settings.tsx` |
-| Client: settings page UI | `client-react/src/features/settings/SettingsScreen.tsx`, `ProfileCard.tsx`, `AppearanceCard.tsx`, `LendingCard.tsx`, `SettingsControls.tsx`, `DeleteAccountDialog.tsx` |
+| Client: `/admin` HTTP client | `client-react/src/api/admin.ts` |
+| Client: query hooks + cache keys | `client-react/src/queries/user.ts`, `client-react/src/queries/admin.ts` |
+| Client: profile route | `client-react/src/routes/_app/profile.tsx` (`settings.tsx` redirects to it) |
+| Client: profile page UI | `client-react/src/features/settings/SettingsScreen.tsx`, `ProfileCard.tsx`, `AppearanceCard.tsx`, `SettingsControls.tsx`, `DeleteAccountDialog.tsx` |
+| Client: admin page UI | `client-react/src/features/admin/AdminScreen.tsx` and the tabs beside it |
 | Client: theme definitions | `client-react/src/theme/palette.ts`, `client-react/src/theme/tamagui.config.ts`, `client-react/src/theme/ThemeProvider.tsx` |

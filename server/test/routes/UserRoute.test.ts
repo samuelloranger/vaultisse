@@ -51,42 +51,22 @@ describe("PATCH /user/sidebar-rail", () => {
     });
 });
 
-describe("PATCH /user/leasing", () => {
-    it("accepts a boolean", async () => {
+/**
+ * The leasing toggle used to live here, as `PATCH /user/leasing` behind
+ * `requireAuth`. It is an instance setting - `app_settings.leasing_enabled`,
+ * one row, which decides whether Loans and Customers exist in the nav for
+ * *every* account - so it moved to `PATCH /api/rest/admin/settings` behind
+ * `requireAdmin`. Its coverage moved with it, to AdminSettingsRoute.test.ts.
+ *
+ * This is what stays behind: proof that the un-gated route is actually gone
+ * rather than still answering alongside the gated one. A "moved" endpoint that
+ * kept working would leave the hole open while looking closed.
+ */
+describe("PATCH /user/leasing (moved to the admin surface)", () => {
+    it("no longer exists under /user", async () => {
         const user = await createAuthenticatedUser(app);
         const res = await user.agent.patch("/api/rest/user/leasing").send({leasingEnabled: true});
-        expect(res.status).toBe(200);
-    });
-
-    it("rejects a non-boolean", async () => {
-        const user = await createAuthenticatedUser(app);
-        const res = await user.agent.patch("/api/rest/user/leasing").send({leasingEnabled: "yes"});
-        expect(res.status).toBe(400);
-    });
-
-    /**
-     * Leasing is an instance setting stored in the single-row `app_settings`
-     * table, not a per-account preference: with one shared library, a member
-     * who turned lending off while another had it on would be hiding shared
-     * loan data from themselves. So one account's toggle moves everyone's
-     * policy payload.
-     */
-    it("is an instance setting - one account's toggle moves every account's policy", async () => {
-        const a = await createAuthenticatedUser(app);
-        const b = await createAuthenticatedUser(app);
-
-        await a.agent.patch("/api/rest/user/leasing").send({leasingEnabled: true});
-        expect((await b.agent.get("/api/rest/app/policy")).body.user.leasingEnabled).toBe(true);
-
-        await b.agent.patch("/api/rest/user/leasing").send({leasingEnabled: false});
-        expect((await a.agent.get("/api/rest/app/policy")).body.user.leasingEnabled).toBe(false);
-
-        // ...and it really is the one app_settings row behind it.
-        const {rows} = await appService.getDatabasePool().query("SELECT leasing_enabled FROM app_settings");
-        expect(rows).toHaveLength(1);
-        expect(rows[0].leasing_enabled).toBe(false);
-
-        await a.agent.patch("/api/rest/user/leasing").send({leasingEnabled: true});
+        expect(res.status).toBe(404);
     });
 });
 

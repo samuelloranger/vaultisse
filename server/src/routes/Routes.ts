@@ -17,6 +17,7 @@ import CustomerRoute from "./CustomerRoute";
 import LoansRoute from "./LoansRoute";
 import ImportRoute from "./import-export/ImportRoute";
 import AdminUsersRoute from "./admin/AdminUsersRoute";
+import AdminSettingsRoute from "./admin/AdminSettingsRoute";
 
 export const routes: Record<string, Router> = {
     "/app": AppRoute,
@@ -31,4 +32,7 @@ export const routes: Record<string, Router> = {
     "/import": ImportRoute,
     // Admin-only; every route inside is gated by requireAdmin, not requireAuth.
     "/admin/users": AdminUsersRoute,
+    // Instance-wide settings (app_settings). Also admin-only - these change
+    // the app for every account, which is why they do not live under /user.
+    "/admin/settings": AdminSettingsRoute,
 }

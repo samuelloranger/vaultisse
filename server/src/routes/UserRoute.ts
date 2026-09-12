@@ -242,48 +242,19 @@ router.patch("/sidebar-rail", requireAuth, async (req: Request, res: Response) =
     }
 });
 
-/**
- * PATCH /user/leasing
- * ----------------------
- * Update whether the Loans and Customers pages (and their nav items) are shown
- * (see AppMenu.vue and Router.ts on the client). Off by default - plenty of
- * households just track a collection and don't lend books out.
+/*
+ * PATCH /user/leasing has MOVED to PATCH /api/rest/admin/settings
+ * (routes/admin/AdminSettingsRoute.ts).
  *
- * NOT a per-account preference, despite living under `/user` for the client's
- * sake: this is one shared library, so the setting describes the collection and
- * is stored in the single-row `app_settings` table. One member turning lending
- * on turns it on for everyone, which is the point - otherwise they'd be looking
- * at loan data the rest of the household can't reach. The route and its request
- * shape are unchanged so the Settings page keeps working; gating it to admins
- * belongs with the admin panel (section 2 of the shared-library spec).
- *
- * Auth: required. Body: { "leasingEnabled": true | false }.
- * Responses: 200 {"message": "Leasing preference updated successfully"} |
- *            400 {"error": "Invalid leasingEnabled"}.
+ * It never belonged here. The value is `app_settings.leasing_enabled` - one row
+ * for the whole instance - and flipping it adds or removes the Loans and
+ * Customers nav entries for every account, so any member could change the app
+ * for everybody else through a route gated by nothing more than `requireAuth`.
+ * Living under `/user` is precisely what made an instance setting keep looking
+ * like a personal preference every time somebody read it. The value is still
+ * served to every account inside GET /app/policy's user object, because the nav
+ * cannot be drawn without it; only the write is admin-only now.
  */
-router.patch("/leasing", requireAuth, async (req: Request, res: Response) => {
-    const {leasingEnabled} = req.body;
-
-    if (typeof leasingEnabled !== "boolean") {
-        return res.status(400).json({error: "Invalid leasingEnabled"});
-    }
-
-    const pool = appService.getDatabasePool();
-
-    try {
-        await pool.query(
-            `UPDATE app_settings
-             SET leasing_enabled = $1
-             WHERE id = 1`,
-            [leasingEnabled]
-        );
-
-        res.status(200).json({message: "Leasing preference updated successfully"});
-    } catch (err: any) {
-        console.error("Error executing query", err.stack);
-        res.status(500).send("Internal Server Error");
-    }
-});
 
 /**
  * DELETE /user

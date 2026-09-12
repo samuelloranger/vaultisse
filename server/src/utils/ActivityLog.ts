@@ -18,10 +18,12 @@ import {Pool, PoolClient} from "pg";
  *  - **Auth events** - things an account did to its own session. Surfaced to
  *    that account in Settings > Recent logins via `GET /user/activity`, which
  *    filters on `AUTH_ACTIVITY_ACTIONS` below rather than duplicating the list.
- *  - **Admin events** - things an admin did to *someone else's* account from
- *    `/api/rest/admin/users` (AdminUsersRoute.ts). These carry
- *    `entity_type = 'user'` / `entity_id = <target account>`, which is exactly
- *    what those two generic columns were reserved for. They are excluded from
+ *  - **Admin events** - things an admin did from `/api/rest/admin/*` that
+ *    somebody else has to live with: another account's role or access
+ *    (AdminUsersRoute.ts, `entity_type = 'user'` / `entity_id = <target
+ *    account>`) and the instance settings (AdminSettingsRoute.ts,
+ *    `entity_type = 'app_settings'`) - which is exactly what those two generic
+ *    columns were reserved for. They are excluded from
  *    Settings > Recent logins: that list is "what happened to my session",
  *    and an admin's actions on other people's accounts are neither auth events
  *    nor something the *target* should learn about through their own feed.
@@ -35,6 +37,14 @@ export enum ActivityAction {
     USER_DISABLED = "user_disabled",
     USER_ROLE_CHANGED = "user_role_changed",
     USER_DELETED = "user_deleted",
+    /**
+     * An admin changed `app_settings` (AdminSettingsRoute.ts). Carries
+     * `entity_type = 'app_settings'` / `entity_id = 1` - the one row - and the
+     * fields that changed in `metadata`. Not an account action, but the same
+     * kind of event: something one admin did that everybody else now lives
+     * with.
+     */
+    INSTANCE_SETTINGS_CHANGED = "instance_settings_changed",
 }
 
 /**
