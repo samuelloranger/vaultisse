@@ -163,6 +163,11 @@ function readingRoomTheme(p: ReadingRoomPalette, boxShadow: string) {
     /** The *fill* of a control's track — a switch's off state, a slider rail. */
     controlTrack: p.controlTrack,
     primary: p.primary,
+    /**
+     * Label ink for text **on** `$primary` — a near-black espresso in both
+     * themes, despite the name. Not a light colour, and not a surface: a knob
+     * or chip that sits on anything else wants `$surface`. See `./palette.ts`.
+     */
     onPrimary: p.onPrimary,
     secondary: p.secondary,
     accent: p.accent,

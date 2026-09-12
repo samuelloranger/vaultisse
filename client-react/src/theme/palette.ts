@@ -177,8 +177,24 @@ export type ReadingRoomPalette = {
   navBorderStrong: string
   /** `--pb-nav-accent` — selected-item highlight, independent of `accent`. */
   navAccent: string
-  /** Foreground that reads on top of `primary`. Not in the SCSS; Vuetify
-   *  derived it, and Tamagui needs it named. */
+  /**
+   * The label colour for text sitting **on** the `primary` fill. Not in the
+   * SCSS; Vuetify derived it, and Tamagui needs it named.
+   *
+   * **It is a near-black espresso in both themes, not white.** The name reads
+   * like "the light one" and that is exactly the trap: it was `#ffffff` until
+   * the terracotta fill stayed put and the *label* flipped instead, because
+   * white on `#c67838` measures 3.29:1 and fails AA on every primary button in
+   * the app. It is now 5.08:1 light / 5.15:1 dark, and — since `primary` is the
+   * same terracotta in both — the same espresso in both.
+   *
+   * So it is the **only** thing it says it is: ink, for a label, over the
+   * primary fill. It is not "the colour that contrasts with the theme", and it
+   * is not a surface. A knob, chip or tick that has to read against something
+   * other than `primary` wants `surface` (a switch thumb reads as the card
+   * showing through the track — see `e49c341`, which is this mistake), and
+   * anything over `danger` wants `onDanger`.
+   */
   onPrimary: string
 }
 
