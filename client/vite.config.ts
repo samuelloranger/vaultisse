@@ -1,7 +1,6 @@
-
+import * as path from 'node:path'
 import {defineConfig} from 'vite'
 import vue from '@vitejs/plugin-vue'
-import * as path from "node:path";
 
 export default defineConfig(({command, mode}) => {
     const isProd = command === 'build' // true during `vite` dev server
@@ -11,7 +10,9 @@ export default defineConfig(({command, mode}) => {
         plugins: [vue()],
         resolve: {
             alias: {
-                '@': path.resolve(__dirname, './src'), // 👈 this line is required
+                // `import.meta.dirname` rather than `__dirname`: Vite 8's
+                // native config loader (the planned default) has no CJS globals.
+                '@': path.resolve(import.meta.dirname, './src'),
             },
         },
         build: {
