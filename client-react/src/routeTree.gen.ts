@@ -11,6 +11,11 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
+import { Route as AppAuthorsRouteImport } from './routes/_app/authors'
+import { Route as AppCategoriesRouteImport } from './routes/_app/categories'
+import { Route as AppLocationsRouteImport } from './routes/_app/locations'
+import { Route as AppBookBook_idRouteImport } from './routes/_app/book.$book_id'
+import { Route as AppLibrarySearchRouteImport } from './routes/_app/library.search'
 
 const AppRoute = AppRouteImport.update({
   id: '/_app',
@@ -21,24 +26,84 @@ const AppIndexRoute = AppIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppRoute,
 } as any)
+const AppAuthorsRoute = AppAuthorsRouteImport.update({
+  id: '/authors',
+  path: '/authors',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppCategoriesRoute = AppCategoriesRouteImport.update({
+  id: '/categories',
+  path: '/categories',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppLocationsRoute = AppLocationsRouteImport.update({
+  id: '/locations',
+  path: '/locations',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppBookBook_idRoute = AppBookBook_idRouteImport.update({
+  id: '/book/$book_id',
+  path: '/book/$book_id',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppLibrarySearchRoute = AppLibrarySearchRouteImport.update({
+  id: '/library/search',
+  path: '/library/search',
+  getParentRoute: () => AppRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
+  '/authors': typeof AppAuthorsRoute
+  '/categories': typeof AppCategoriesRoute
+  '/locations': typeof AppLocationsRoute
+  '/book/$book_id': typeof AppBookBook_idRoute
+  '/library/search': typeof AppLibrarySearchRoute
 }
 export interface FileRoutesByTo {
+  '/authors': typeof AppAuthorsRoute
+  '/categories': typeof AppCategoriesRoute
+  '/locations': typeof AppLocationsRoute
   '/': typeof AppIndexRoute
+  '/book/$book_id': typeof AppBookBook_idRoute
+  '/library/search': typeof AppLibrarySearchRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_app': typeof AppRouteWithChildren
+  '/_app/authors': typeof AppAuthorsRoute
+  '/_app/categories': typeof AppCategoriesRoute
+  '/_app/locations': typeof AppLocationsRoute
   '/_app/': typeof AppIndexRoute
+  '/_app/book/$book_id': typeof AppBookBook_idRoute
+  '/_app/library/search': typeof AppLibrarySearchRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/authors'
+    | '/categories'
+    | '/locations'
+    | '/book/$book_id'
+    | '/library/search'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/_app' | '/_app/'
+  to:
+    | '/authors'
+    | '/categories'
+    | '/locations'
+    | '/'
+    | '/book/$book_id'
+    | '/library/search'
+  id:
+    | '__root__'
+    | '/_app'
+    | '/_app/authors'
+    | '/_app/categories'
+    | '/_app/locations'
+    | '/_app/'
+    | '/_app/book/$book_id'
+    | '/_app/library/search'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -61,15 +126,60 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/authors': {
+      id: '/_app/authors'
+      path: '/authors'
+      fullPath: '/authors'
+      preLoaderRoute: typeof AppAuthorsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/categories': {
+      id: '/_app/categories'
+      path: '/categories'
+      fullPath: '/categories'
+      preLoaderRoute: typeof AppCategoriesRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/locations': {
+      id: '/_app/locations'
+      path: '/locations'
+      fullPath: '/locations'
+      preLoaderRoute: typeof AppLocationsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/book/$book_id': {
+      id: '/_app/book/$book_id'
+      path: '/book/$book_id'
+      fullPath: '/book/$book_id'
+      preLoaderRoute: typeof AppBookBook_idRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/library/search': {
+      id: '/_app/library/search'
+      path: '/library/search'
+      fullPath: '/library/search'
+      preLoaderRoute: typeof AppLibrarySearchRouteImport
+      parentRoute: typeof AppRoute
+    }
   }
 }
 
 interface AppRouteChildren {
+  AppAuthorsRoute: typeof AppAuthorsRoute
+  AppCategoriesRoute: typeof AppCategoriesRoute
+  AppLocationsRoute: typeof AppLocationsRoute
   AppIndexRoute: typeof AppIndexRoute
+  AppBookBook_idRoute: typeof AppBookBook_idRoute
+  AppLibrarySearchRoute: typeof AppLibrarySearchRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppAuthorsRoute: AppAuthorsRoute,
+  AppCategoriesRoute: AppCategoriesRoute,
+  AppLocationsRoute: AppLocationsRoute,
   AppIndexRoute: AppIndexRoute,
+  AppBookBook_idRoute: AppBookBook_idRoute,
+  AppLibrarySearchRoute: AppLibrarySearchRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
