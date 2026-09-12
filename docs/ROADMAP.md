@@ -8,6 +8,33 @@ sending a pull request (see [CONTRIBUTING.md](../CONTRIBUTING.md)).
 Have an idea that isn't listed? Open an issue — see
 [Suggesting features](CONTRIBUTING.md#suggesting-features).
 
+> **This is a fork.** The list below is upstream
+> [AlbertAmat/vaultisse](https://github.com/AlbertAmat/vaultisse)'s roadmap, kept
+> as upstream maintains it — the checkboxes track *upstream*, not this fork, and
+> are deliberately left unticked. Three of the items are already implemented
+> here:
+>
+> - **#7 Library sharing** — implemented, but not as described. Upstream proposes
+>   N libraries with membership; this fork has exactly one library per instance,
+>   which *is* the instance, with membership being "has an account here". That
+>   removes the `libraries` table, the membership table, the library switcher and
+>   per-request library resolution the general version would need, so this is a
+>   different feature that solves the same household problem — not a head start
+>   on upstream's.
+> - **#8 Admin panel** — implemented. `users.role` is `admin` or `user`, the
+>   first account to register becomes admin, and `/app/admin` lists accounts and
+>   can approve, enable/disable, promote/demote and delete them. There are no
+>   library-level roles, because with one shared library there is no second axis.
+> - **#12 Disable new users by default** — implemented as
+>   `REGISTRATION_REQUIRES_APPROVAL` (off by default), with the admin panel above
+>   as the approval UI. The first account is exempt, since otherwise nobody could
+>   approve it.
+>
+> See [AUTHENTICATION.md](AUTHENTICATION.md#roles-and-the-admin-panel) and
+> [the shared-library design](superpowers/specs/2026-09-11-shared-library-admin-mobile-design.md)
+> for the details, and the same spec's "Out of scope" for what was deliberately
+> *not* built: multiple libraries, library-level roles, and invitations (#6).
+
 ## Integrations
 
 - [ ] **Kindle and Kobo integration** ([#1](https://github.com/AlbertAmat/vaultisse/issues/1))

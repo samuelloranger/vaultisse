@@ -45,12 +45,20 @@ members - their `customers.group_id` just goes back to `NULL` (an `ON DELETE
 SET NULL` foreign key), so removing a group is safe to do even with active
 members in it.
 
-Group names are unique per user - `POST`/`PUT` surface a Postgres unique
-violation (`error.code === '23505'`) as a 409 rather than a generic 500.
+Group names are unique **instance-wide** (`unique_customer_group_name UNIQUE
+(name)`), not per account - the library is shared, so two members each creating
+"Class 4B" would otherwise split the same group in two. `POST`/`PUT` surface the
+Postgres unique violation (`error.code === '23505'`) as a 409 rather than a
+generic 500.
 
 `GET /customer/group` returns each group with a `total_customers` count
-(a `LEFT JOIN` + `COUNT`, not a stored counter), used for the group picker
-UI in [`CustomerGroupsTree.vue`](../client/src/views/customers/components/CustomerGroupsTree.vue).
+(a `LEFT JOIN` + `COUNT`, not a stored counter, cast `::int` server-side), shown
+on each group row in
+[`CustomersScreen.tsx`](../client-react/src/features/customers/CustomersScreen.tsx).
+Expanding a group opens
+[`CustomerGroupMembersPanel.tsx`](../client-react/src/features/customers/CustomerGroupMembersPanel.tsx),
+which replaces the old client's HTML5 drag-and-drop assignment — that fired no
+events on touch, so it was never usable on a phone.
 
 ## Lending and returning books
 
@@ -65,12 +73,11 @@ Three ways a book ends up on loan or comes back, all in
 | Return one book | `DELETE /customer/:id/book/:bookStockCode` | Clears `customer_id`, `status → 0`, `loaned_at → NULL`. Closes the matching `loan_history` row (`recordReturn`). |
 | Bulk-return several books | `POST /book/return` (BooksRoute.ts) | Same as above, by stock code, not scoped to one customer - used when a customer brings back several books from different loans at once. |
 
-The lending flow is barcode-driven end to end: the UI scans/types a stock
-`code` (see [`BarcodeScanner.vue`](BOOKS.md#barcodestock-code-scanning)),
-looks it up with `GET /book/:bookCode/add/md` to show what's about to be
-added, then submits the batch. Nothing here requires knowing a book's
-catalog id - the stock code is the only identifier the physical workflow
-needs.
+The lending flow is stock-code-driven end to end: the UI takes a stock `code`
+(see [Stock-code entry](BOOKS.md#stock-code-entry)), looks it up with
+`GET /book/:bookCode/add/md` to show what's about to be added, then submits
+the batch. Nothing here requires knowing a book's catalog id - the stock code
+is the only identifier the physical workflow needs.
 
 Every lend/return here writes to `loan_history` via the shared
 [`recordLoan`/`recordReturn`](../server/src/utils/LoanHistory.ts) helpers -
@@ -79,20 +86,25 @@ see [LOANS.md](LOANS.md) for why that table exists separately from
 
 ## Leasing is opt-in
 
-The Customers and Loans pages (and their nav items) are hidden by default -
-plenty of households just track a collection and never lend anything out.
-This is an *instance* setting, not a per-account one: with one shared
-library, a member who turned lending off while another had it on would just
-be hiding shared loan data from themselves. It's turned on in
-**Settings > Features** (`app_settings.leasing_enabled`, see
-[SETTINGS.md](SETTINGS.md)) and applies to everyone, which:
+Lending is off by default - plenty of households just track a collection and
+never lend anything out. It's toggled in **Settings > Lending**
+([`LendingCard.tsx`](../client-react/src/features/settings/LendingCard.tsx),
+`PATCH /user/leasing`).
 
-- adds "Customers" and "Loans" to the left nav (`AppMenu.vue`), and
-- lifts a client-side route guard in [`Router.ts`](../client/src/router/Router.ts)
-  that otherwise redirects those paths back to the dashboard even if
-  bookmarked/typed directly - a UI affordance, not an authorization
-  boundary: the loan endpoints stay reachable to any authenticated account
-  regardless of this flag.
+This is an *instance* setting, not a per-account one: with one shared library, a
+member who turned lending off while another had it on would just be hiding
+shared loan data from themselves. Despite the `/user` path it persists to
+`app_settings.leasing_enabled` (see [SETTINGS.md](SETTINGS.md#the-leasing-toggle))
+and applies to everyone.
+
+The flag was never an authorization boundary - the loan endpoints stay reachable
+to any authenticated account regardless of it - and in the React client it is not
+a navigation boundary either. The old client hid the "Customers" and "Loans" nav
+items and had a `Router.ts` guard redirecting those paths to the dashboard; the
+rewrite has neither, so both screens are always in the nav and always reachable.
+What `leasingEnabled` still controls on screen is the borrower shown against a
+copy on the book detail page
+([`BookStocksCard.tsx`](../client-react/src/features/book/BookStocksCard.tsx)).
 
 ## Where this lives in code
 
@@ -101,7 +113,8 @@ be hiding shared loan data from themselves. It's turned on in
 | Customer/group CRUD, lend/return endpoints | `server/src/routes/CustomerRoute.ts` |
 | `loan_history` bookkeeping | `server/src/utils/LoanHistory.ts` |
 | `customers`/`customer_groups` schema | `assets/db/databaseSchema.sql` |
-| Client: `/customer` HTTP client | `client/src/service/customers/CustomersService.ts`, `CustomerGroupService.ts` |
-| Client: page controllers | `client/src/controller/customers/CustomersController.ts`, `CustomerGroupsController.ts` |
-| Client: customers page UI | `client/src/views/customers/CustomersView.vue`, `client/src/views/customers/components/` |
-| Client: leasing feature toggle | `client/src/views/settings/SettingsView.vue`, `client/src/router/Router.ts` |
+| Client: `/customer` HTTP client | `client-react/src/api/customer.ts` |
+| Client: query hooks + cache keys | `client-react/src/queries/customer.ts` |
+| Client: customers route | `client-react/src/routes/_app/customers.tsx` |
+| Client: customers page UI | `client-react/src/features/customers/CustomersScreen.tsx`, `CustomerControls.tsx`, `CustomerBooksPanel.tsx`, `CustomerGroupMembersPanel.tsx`, `CustomerLendBooksDialog.tsx`, `CustomerMoveToGroupDialog.tsx` |
+| Client: leasing feature toggle | `client-react/src/features/settings/LendingCard.tsx`, `client-react/src/api/user.ts` |

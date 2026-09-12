@@ -38,21 +38,27 @@ environment variables, running the client and server). In short:
 ```bash
 # server
 cd server
-npm install
-npm run dev
+bun install
+bun run dev
 
 # client (in another terminal)
-cd client
-npm install
-npm run dev
+cd client-react
+bun install
+bun run dev
 ```
 
 ## Repository layout
 
-This is an npm-workspaces-free monorepo with two independent Node projects:
+This is a workspace-free monorepo with two independent Bun projects:
 
-- `client/` — Vue 3 + Vuetify 3 SPA (Vite, TypeScript)
-- `server/` — Express REST API (TypeScript, PostgreSQL)
+- `client-react/` — React 19 SPA (TanStack Router + Query, Tamagui, Vite, TypeScript)
+- `server/` — Express REST API (TypeScript, PostgreSQL), run directly by Bun
+
+Both are on Bun 1.4 and TypeScript 7, and each has its own `bun.lock`. Linting and
+formatting are [Biome](https://biomejs.dev/) on both sides, with two configs: the root
+`biome.json` covers `server/`, and `client-react/biome.json` covers the client.
+`client-react/README.md` documents the client's layout rules; read it before adding a
+screen.
 
 See the [Architecture section of the README](README.md#architecture) for how the
 code is organized inside each and how they communicate.
@@ -64,17 +70,22 @@ code is organized inside each and how they communicate.
 - **Follow existing patterns.** New backend resources should get their own route
   file under `server/src/routes/` and be registered in `Routes.ts`, mirroring the
   existing resources (books, authors, categories, ...). New frontend features
-  should follow the `view/controller/service/model` split already used for
-  existing pages.
+  should follow the `api/ → queries/ → routes/ + features/` split every screen
+  already uses — the nine numbered rules in
+  [`client-react/README.md`](client-react/README.md) are the short version, and
+  [docs/CLIENT-ARCHITECTURE.md](docs/CLIENT-ARCHITECTURE.md) explains why each exists.
 - **Keep the client thin.** Business logic and data access belong in the server;
   the client should call the REST API rather than talking to the database or
   external APIs (Google Books/Open Library) directly.
 - **Security-sensitive code** (auth, password handling, session/cookie logic,
   anything touching `AuthMiddleware.ts` or `AuthRoute.ts`) should be changed
   carefully and called out explicitly in your PR description.
-- **Lint:** the server has a `tslint` config (`npm run lint` in `server/`).
-  `vue-tsc --build` (`npm run type-check` in `client/`) should pass with no new
-  type errors.
+- **Lint and types:** Biome is the linter and formatter on both sides —
+  `bun run lint` at the repo root for `server/`, `bun run lint` in `client-react/`
+  for the client. `tsc --noEmit` (`bun run type-check` in `client-react/`) should
+  pass with no new type errors.
+- **Tests:** `bun test` in `server/` for the API suite, `bunx vitest run` in
+  `client-react/` for the client's. See [docs/TESTING.md](docs/TESTING.md).
 - Don't commit `.env` files, real credentials, or personal data/book covers used
   only for local testing.
 
@@ -91,8 +102,9 @@ return`). Group unrelated changes into separate commits/PRs where practical.
 2. Make your change, following the conventions above.
 3. Run the relevant checks:
    ```bash
-   cd server && npm run lint
-   cd client && npm run type-check
+   bun run lint                              # server (from the repo root)
+   cd server && bun test
+   cd client-react && bun run lint && bun run type-check && bunx vitest run
    ```
 4. Push your branch and open a pull request against `main`. Describe:
    - What the change does and why
@@ -120,7 +132,7 @@ Open a [GitHub issue](../../issues) with:
 
 - A clear description of the problem and the expected behavior
 - Steps to reproduce (and, if relevant, sample data/ISBN)
-- Environment details (OS, Node/PostgreSQL versions, browser)
+- Environment details (OS, Bun/PostgreSQL versions, browser)
 - Relevant logs or console/network errors, with any secrets redacted
 
 For security vulnerabilities, do **not** open a public issue — see
@@ -138,13 +150,19 @@ wanted but don't have anyone working on them yet.
 ## Adding a new language
 
 UI labels live in the `app_languages` / `app_labels` tables (see
-`assets/db/databaseSchema.sql`) and are loaded by the client's Vue I18n setup in
-`client/src/plugins/i18n/`. To add a language:
+`assets/db/databaseSchema.sql`) and reach the client in `GET /app/policy`'s `labels`
+map (`server/src/routes/AppRoute.ts`). To add a language:
 
 1. Insert a row into `app_languages` for the new language code.
 2. Add the corresponding `app_labels` rows for every existing `code`, translated.
-3. Add translated Markdown files for the `/docs` help pages (see
-   `client/src/views/docs/`).
-4. Verify the language selector in Settings picks up the new locale.
+3. Add it to `UI_LANGUAGES` in
+   `client-react/src/features/settings/ProfileCard.tsx` — the list the Settings
+   language selector offers, deliberately separate from the policy's `languages`
+   (which is the *book* language reference list).
+
+Note that the React client does not render those labels yet: it fetches them with the
+policy but its own strings are still hardcoded English. Adding a language to the
+database is useful groundwork, but it won't change what's on screen until the
+label lookup the rewrite design calls for lands.
 
 Thank you for contributing to Vaultisse!

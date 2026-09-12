@@ -1,9 +1,16 @@
-# Testing the server
+# Testing
 
-`bun test` + Supertest integration tests for the Express/Postgres API in
-`server/`, plus a few pure-function unit tests. Runs automatically on every push and PR
-via [`.github/workflows/test.yml`](../.github/workflows/test.yml) - see
-[Continuous integration](#continuous-integration) below.
+Two suites, one per package. Most of this document is about the server's,
+which is the older and more involved of the two; the client's has its own
+section at the end.
+
+- **`server/`** - `bun test` + Supertest integration tests against the real
+  Express/Postgres API, plus a few pure-function unit tests. Runs automatically
+  on every push and PR via
+  [`.github/workflows/test.yml`](../.github/workflows/test.yml) - see
+  [Continuous integration](#continuous-integration) below.
+- **`client-react/`** - Vitest + React Testing Library, jsdom, no server. See
+  [Testing the client](#testing-the-client).
 
 ## Contents
 
@@ -14,6 +21,7 @@ via [`.github/workflows/test.yml`](../.github/workflows/test.yml) - see
 - [Mocking external APIs](#mocking-external-apis)
 - [Adding a new test file](#adding-a-new-test-file)
 - [What's covered, what isn't](#whats-covered-what-isnt)
+- [Testing the client](#testing-the-client)
 - [Continuous integration](#continuous-integration)
 
 ## Running locally
@@ -28,7 +36,7 @@ bun test          # single run
 bun test --watch
 ```
 
-`npm test` / `npm run test:watch` still work - both scripts now just call
+`bun run test` / `bun run test:watch` work too - both scripts just call
 `bun test`.
 
 ## How a test file works
@@ -119,11 +127,15 @@ and so tripping, that limiter's bucket.
 ## Mocking external APIs
 
 Anything that would otherwise call a real third-party service (Google
-Books/Open Library ISBN metadata, Open Library cover images) mocks `axios`
-through [`test/helpers/axiosMock.ts`](../server/test/helpers/axiosMock.ts).
-Bun's `mock.module()` is global for the rest of the run rather than file-local
-like `jest.mock()`, so the files that need a stubbed axios import that one
-shared registration and each reset its behaviour in their own `beforeEach`.
+Books/Open Library ISBN metadata, Open Library cover images) goes through
+[`test/helpers/fetchMock.ts`](../server/test/helpers/fetchMock.ts). Those call
+sites use `fetch`, which is a global rather than a module, so there is nothing
+to `mock.module()`: the stub is installed on `globalThis` for the duration of a
+file and put back afterwards. That matters because `bun test` runs every file
+in one process - a stub left in place would silently answer for every file that
+runs later. The helpers hand back real `Response` objects, since the code under
+test reads `ok`, `status`, `headers.get(...)`, `json()` and `body?.cancel()`.
+
 `GOOGLE_BOOKS_API_KEY` is forced to an empty string in
 `test/setup/preload.ts` - **unconditionally**, not just when unset
 - because a leftover placeholder value in a developer's own `server/.env`
@@ -173,7 +185,10 @@ endpoints, categories, authors, locations (including moving stock), customers
 (including groups and lending/returning), the book catalog (CRUD, search,
 ISBN lookup, the stock lifecycle and loan history), the CSV import feature
 (both origins, templates, duplicates, cover handling), the dashboard
-aggregate, and the two file-signature/ISBN-checksum utilities.
+aggregate, the admin account-management API including its guard rails
+(`AdminUsersRoute.test.ts`) and the first-account-becomes-admin bootstrap
+(`AuthRegisterBootstrap.test.ts`), and the two file-signature/ISBN-checksum
+utilities.
 
 Not yet covered - reasonable next additions, not attempted here because they
 need file fixtures or push the initial suite's scope too far: cover-image
@@ -183,10 +198,50 @@ and ebook-file upload/download endpoints (`POST /book/:id/image`,
 *is* covered), and `activity_log`/session-management edge cases beyond the
 one happy-path test each.
 
+## Testing the client
+
+Vitest + React Testing Library, in jsdom. No database, no server, no Postgres -
+this suite is fast and runs anywhere.
+
+```bash
+cd client-react
+bunx vitest run       # single run: 72 tests across 11 files
+bun run test:watch
+```
+
+`bun run test` runs the same thing (`vitest run`).
+
+Per the rewrite design, **each screen gets at least four tests**: it renders, it
+shows data from a mocked query, its primary action fires the right mutation, and
+its error state renders.
+[`features/dashboard/DashboardScreen.test.tsx`](../client-react/src/features/dashboard/DashboardScreen.test.tsx)
+is the template - copy its shape.
+
+The one rule worth stating outright: **mock the `api/` module, never the query
+hook.** Stubbing the hook would take the real cache key and the real
+invalidation out of the test, which is exactly the part most likely to be wrong.
+Mocking a level lower leaves both in place.
+
+[`src/test/renderWithProviders.tsx`](../client-react/src/test/renderWithProviders.tsx)
+wraps a component in a fresh `QueryClient` and the theme,
+[`src/test/fixtures.ts`](../client-react/src/test/fixtures.ts) holds the shared
+policy/dashboard shapes, and
+[`src/test/setup.ts`](../client-react/src/test/setup.ts) is the Vitest setup file.
+
+One file is not a screen test:
+[`src/api/http.test.ts`](../client-react/src/api/http.test.ts) pins the session
+rules from [AUTHENTICATION.md](AUTHENTICATION.md#what-the-client-does-when-a-session-dies) -
+a 401 carrying `sessionExpired: true` hard-navigates to `/login`; any other 401,
+and a 403, must not.
+
 ## Continuous integration
 
-[`.github/workflows/test.yml`](../.github/workflows/test.yml) runs the whole
+[`.github/workflows/test.yml`](../.github/workflows/test.yml) runs the **server**
 suite on every push (any branch) and every PR into `main`, against a
 throwaway `postgres:18-alpine` service container - the same image
 `docker-compose.yml` runs in production, so a passing run there is a
 meaningful signal, not just "the mocks agree with each other."
+`docker-release.yml` calls that workflow directly to gate the image build on it.
+
+The client suite is **not** in CI yet - run `bunx vitest run` in `client-react/`
+before opening a PR that touches it.

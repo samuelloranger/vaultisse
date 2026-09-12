@@ -29,11 +29,13 @@ write-up in [AUTHENTICATION.md](AUTHENTICATION.md); this one is the rest of
 the [policy bootstrap](CATALOG.md#the-policy-bootstrap)) - the client never
 deals with raw bytes.
 
-Changing `language` here is a profile field, not an immediate UI language
-switch by itself - the actual active locale is set from
-`GET /app/policy`'s `user.language` on the *next* policy fetch (login, or a
-manual reload), via `i18n.global.locale.value` in
-[`ApplicationService.fetchPolicy()`](../client/src/service/ApplicationService.ts).
+`language` is stored and offered in the picker
+([`ProfileCard.tsx`](../client-react/src/features/settings/ProfileCard.tsx)'s
+`UI_LANGUAGES`, which is the four *UI* locales and deliberately not the policy's
+22-entry *book* language list), but changing it does not change what's on screen
+yet: the React client fetches the policy's `labels` map and doesn't render from
+it. See the root README's
+[Internationalization](../README.md#internationalization) section.
 
 ## UI preferences
 
@@ -42,14 +44,22 @@ persist an instant, optimistic UI change independently of the rest of the
 profile form:
 
 - **`PATCH /user/theme`** - `"beige"` or `"library"` (400 on anything else).
-  See `client/src/plugins/theme.ts` for what each theme actually changes.
+  The names carried over exactly: `beige` *is* the React client's light theme
+  and `library` *is* its dark one, both ported in
+  [`theme/palette.ts`](../client-react/src/theme/palette.ts). The picker offers a
+  third choice, "System", which has no column value - it persists whichever of
+  the two is currently resolved
+  ([`AppearanceCard.tsx`](../client-react/src/features/settings/AppearanceCard.tsx)).
 - **`PATCH /user/sidebar-rail`** - boolean; whether the left nav collapses
-  to icon-only "rail" mode (expanding on hover) instead of staying fully
-  expanded. Read by `AppMenu.vue`.
+  to icon-only "rail" mode instead of staying fully expanded. **Nothing reads
+  it in the React client**: the shell is a `Sheet` on phones and a persistent
+  sidebar from `sm`, with no third state (see the note in
+  [`AppShell.tsx`](../client-react/src/components/AppShell.tsx)). The endpoint
+  and column are still there for it to come back to.
 
-Both are applied client-side immediately for instant feedback, then
-persisted in the background purely so they're restored on the next login -
-neither blocks on the request completing.
+Theme is applied client-side immediately for instant feedback, then persisted in
+the background purely so a new device starts out right - it doesn't block on the
+request completing, and the locally chosen value wins if the two disagree.
 
 ## The leasing toggle
 
@@ -58,10 +68,10 @@ default: plenty of households just track a collection and never lend books
 to anyone.
 
 Despite living under `/user` (and being served to the client inside the
-policy payload's `user` object, so the router guard and menu gating didn't
-have to change), this is **not** a per-account preference. It's persisted as
-`app_settings.leasing_enabled` in a single-row table, and flipping it moves
-the nav for every account - which is the point, since the loan data itself is
+policy payload's `user` object, so nothing consuming it had to change), this is
+**not** a per-account preference. It's persisted as
+`app_settings.leasing_enabled` in a single-row table, and flipping it changes
+what every account sees - which is the point, since the loan data itself is
 shared. Same for `app_settings.is_public_institution`.
 
 Flipping this on/off changes what the rest of the app shows, not just a
@@ -89,10 +99,11 @@ empties the household's shelves - see
 **`POST /user/security-notice/accept`** - idempotent acknowledgement of the
 security-measures notice shown after login when the instance is flagged as a
 public institution (`app_settings.is_public_institution`). `GET /app/policy` reports
-whether it's still pending as `user.securityNoticeAccepted`; see
-`SecurityNoticeDialog.vue` for the UI and `AppRoute.ts`'s `getUser()`/
-`recordSecurityNoticeSent()` for how the "first time shown" timestamp is
-recorded (once, via `ON CONFLICT DO NOTHING`).
+whether it's still pending as `user.securityNoticeAccepted`; see `AppRoute.ts`'s
+`getUser()`/`recordSecurityNoticeSent()` for how the "first time shown"
+timestamp is recorded (once, via `ON CONFLICT DO NOTHING`). The React client
+carries the flag through its policy type but has no dialog for it yet, so the
+notice isn't shown and the endpoint isn't called.
 
 ## Where this lives in code
 
@@ -101,7 +112,8 @@ recorded (once, via `ON CONFLICT DO NOTHING`).
 | Profile, preferences, leasing toggle, account deletion, security notice | `server/src/routes/UserRoute.ts` |
 | Session list/revoke, password change, 2FA | `server/src/routes/UserRoute.ts` - see [AUTHENTICATION.md](AUTHENTICATION.md) instead |
 | `users` schema | `assets/db/databaseSchema.sql` |
-| Client: `/user` HTTP client | `client/src/service/user/UserService.ts` |
-| Client: page controller | `client/src/controller/settings/SettingsController.ts` |
-| Client: settings page UI | `client/src/views/settings/SettingsView.vue`, `SettingsCard.vue` |
-| Client: theme definitions | `client/src/plugins/theme.ts` |
+| Client: `/user` HTTP client | `client-react/src/api/user.ts` |
+| Client: query hooks + cache keys | `client-react/src/queries/user.ts` |
+| Client: settings route | `client-react/src/routes/_app/settings.tsx` |
+| Client: settings page UI | `client-react/src/features/settings/SettingsScreen.tsx`, `ProfileCard.tsx`, `AppearanceCard.tsx`, `LendingCard.tsx`, `SettingsControls.tsx`, `DeleteAccountDialog.tsx` |
+| Client: theme definitions | `client-react/src/theme/palette.ts`, `client-react/src/theme/tamagui.config.ts`, `client-react/src/theme/ThemeProvider.tsx` |

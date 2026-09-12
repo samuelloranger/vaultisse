@@ -14,7 +14,7 @@ UI, or `BooksRoute.ts` on the server, start here.
 - [Cover images](#cover-images)
 - [Ebook file backups](#ebook-file-backups)
 - [Search, counters, and filters](#search-counters-and-filters)
-- [Barcode/stock-code scanning](#barcodestock-code-scanning)
+- [Stock-code entry](#stock-code-entry)
 - [Printing labels](#printing-labels)
 - [Where this lives in code](#where-this-lives-in-code)
 
@@ -29,7 +29,7 @@ contributions in place rather than taking the household's books with it. See
 for why, including the `ON DELETE SET NULL` reasoning.
 
 `books_isbn_unique` is instance-wide, so a title is entered once: a second
-member scanning the same barcode is told it's already on the shelf (manual
+member entering the same ISBN is told it's already on the shelf (manual
 `POST /book`) or handed the existing book (`POST /book/isbn/:isbn`
 find-or-create).
 
@@ -217,12 +217,12 @@ pdf and a mobi backup at once.
   back with `Content-Disposition: attachment`.
 - **`DELETE /book/:id/file/:fileId`** removes one file.
 
-On the client, `BookFile.vue` renders every uploaded file as a list row
-(icon, name, size/date) with download/delete actions and an "add file"
-action; a preview (eye) button opens `BookFilePreviewDialog.vue`, a modal
-wrapping `BookFilePreview.vue` with a fullscreen toggle. Kindle (`mobi`)
-files have no in-browser renderer, so their preview shows "preview
-unavailable" without fetching the file.
+On the client,
+[`BookFilesCard.tsx`](../client-react/src/features/book/BookFilesCard.tsx)
+renders every uploaded file as a row (type, name, size/date) with download and
+delete actions and an "add file" control. The old client's in-browser preview
+(`epubjs`) is **not** ported: the rewrite design keeps `epubjs` but defers it,
+and a reader is its own screen. Download is the only way to open a file today.
 
 ## Search, counters, and filters
 
@@ -240,32 +240,40 @@ unavailable" without fetching the file.
   | `RECENT` | Added in the last 30 days. |
 
 - **`GET /book/counters`** - four cheap counts (`total`, `recent`, `onLoan`,
-  `noStock`) powering the left nav's Library quick filters
-  (`AppMenu.vue`) - deliberately separate from `/search` so the nav doesn't
-  need a full paginated query on every page load.
+  `noStock`) summarising the library - deliberately separate from `/search` so
+  showing them doesn't need a full paginated query on every page load. The
+  React client reads them on the dashboard
+  ([`CounterTiles.tsx`](../client-react/src/features/dashboard/CounterTiles.tsx));
+  the search screen's own controls map onto the `filters` above, see
+  [`searchParams.ts`](../client-react/src/features/search/searchParams.ts).
 
-## Barcode/stock-code scanning
+## Stock-code entry
 
-Anywhere a stock code or ISBN can be typed, `BarcodeScanner.vue` offers a
-camera-based alternative (via `html5-qrcode`): it opens a dialog, decodes the
-first barcode/QR code the device camera sees, emits the decoded text, and
-closes itself. It has no opinion on what the text means - the caller (create
-book by ISBN, add-to-customer, add-to-location, return-books) treats it as
-plain typed input either way.
+`GET /book/:bookCode/add/md` is the lookup that turns a *stock code* (not an
+ISBN) into a book + single stock, used by the "add to customer/location" flows
+so the UI can show what was just entered before committing the add.
 
-`GET /book/:bookCode/add/md` is the lookup that turns a *scanned stock code*
-(not an ISBN) into a book + single stock, used by the "add to customer/
-location" flows so the UI can show what was just scanned before committing
-the add.
+The old client fronted every one of those fields with `BarcodeScanner.vue`, a
+camera scanner built on `html5-qrcode`. **The React client has no scanner**: the
+rewrite design replaces `html5-qrcode` with `BarcodeDetector` plus a
+`@zxing/browser` fallback, and that has not landed. Typed entry is what exists,
+and it was always the path a denied camera permission, a laptop without one, or
+a scuffed barcode had to fall back to - so a scanner returning will be an
+addition to these fields, not a replacement for them. The relevant dialogs each
+carry a note saying so.
 
 ## Printing labels
 
-Each stock's `code` can be rendered as a barcode (`BookStock.generateBarcodeImage()`
-on the client) and queued in `PrintDialogController`
-([`components/printDialog/`](../client/src/components/printDialog)) for a
-batch print - one `<canvas>` per label, cover image alongside, laid out into
-a PDF via `jsPDF`. Nothing server-side is involved in printing; the whole
-label sheet is generated client-side from data already on the page.
+Each stock's `code` is meant to be printable as a barcode label - the old client
+rendered one `<canvas>` per label with `jsbarcode`, laid the sheet out into a PDF
+with `jsPDF`, and never involved the server.
+
+**Not ported to the React client.** Neither dependency is installed, and the
+print queue is its own screen rather than a control on the book page (see the
+note in
+[`BookStocksCard.tsx`](../client-react/src/features/book/BookStocksCard.tsx)).
+`book_stocks.code` is unchanged and still globally unique, so nothing about the
+data blocks this coming back.
 
 ## Where this lives in code
 
@@ -276,10 +284,11 @@ label sheet is generated client-side from data already on the page.
 | Epub/PDF content sniffing | `server/src/utils/FileSignature.ts` |
 | `loan_history` bookkeeping | `server/src/utils/LoanHistory.ts` |
 | `books`/`book_stocks`/`book_authors`/`book_files` schema | `assets/db/databaseSchema.sql` |
-| Client: book detail page state | `client/src/controller/book/BookController.ts` |
-| Client: `/book` HTTP client | `client/src/service/book/BookService.ts` |
-| Client: book/stock model classes | `client/src/model/book/Book.ts`, `BookItem.ts`, `BookStock.ts` |
-| Client: catalog search page | `client/src/views/search/BooksSearchView.vue`, `client/src/controller/search/SearchController.ts` |
-| Client: book detail + stock UI | `client/src/views/book/BookView.vue`, `client/src/views/book/compoents/` |
-| Client: camera barcode scanner | `client/src/components/barcodeScanner/BarcodeScanner.vue` |
-| Client: label printing | `client/src/components/printDialog/` |
+| Client: `/book` and `/book/search` HTTP clients | `client-react/src/api/book.ts`, `client-react/src/api/search.ts` |
+| Client: query hooks + cache keys | `client-react/src/queries/book.ts`, `client-react/src/queries/search.ts` |
+| Client: routes | `client-react/src/routes/_app/book.$book_id.tsx`, `client-react/src/routes/_app/library.search.tsx` |
+| Client: catalog search page | `client-react/src/features/search/SearchScreen.tsx`, `SearchControls.tsx`, `BookGrid.tsx`, `searchParams.ts`, `AddBookIsbnDialog.tsx`, `AddBookManuallyDialog.tsx` |
+| Client: ISBN checksum (client-side pre-check) | `client-react/src/features/search/isbn.ts` |
+| Client: book detail + stock UI | `client-react/src/features/book/BookScreen.tsx`, `BookMetaCard.tsx`, `BookFields.tsx`, `BookCover.tsx`, `BookStocksCard.tsx`, `StockDialog.tsx`, `BookFilesCard.tsx`, `AuthorPicker.tsx` |
+| Client: camera barcode scanner | *not ported* - see [Stock-code entry](#stock-code-entry) |
+| Client: label printing | *not ported* - see [Printing labels](#printing-labels) |

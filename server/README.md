@@ -1,15 +1,16 @@
 # Vaultisse — Server
 
-Express + TypeScript REST API for Vaultisse, backed by PostgreSQL. See the
-[repository root README](../README.md) for the full project overview,
+Express + TypeScript REST API for Vaultisse, backed by PostgreSQL, run by Bun.
+There is no build step to run it — Bun executes the TypeScript sources directly.
+See the [repository root README](../README.md) for the full project overview,
 architecture, and setup instructions covering both the client and the server.
 
 ## Quick start
 
 ```bash
-npm install
+bun install
 cp .env.example .env   # then fill in your local values
-npm run dev             # starts the API with nodemon + ts-node
+bun run dev            # starts the API with bun --watch
 ```
 
 See [Configure the server](../README.md#3-configure-the-server) in the root
@@ -18,10 +19,15 @@ README for what each environment variable does, and
 
 ## Scripts
 
-- `npm run dev` — start the API in watch mode (`NODE_ENV=development`)
-- `npm run build` — compile TypeScript to `dist/`
-- `npm start` — run the compiled server (`dist/index.js`) — used in production
-- `npm run lint` — run `tslint --fix`
+- `bun run dev` — start the API in watch mode (`NODE_ENV=development`)
+- `bun run start` — run the API (`bun src/index.ts`); this is what the Docker
+  image's `CMD` does
+- `bun test` / `bun run test:watch` — the Supertest suite, see
+  [docs/TESTING.md](../docs/TESTING.md)
+- `bun run build` — compile TypeScript to `dist/` with `tsc`. Only `build.sh`'s
+  zip-a-dist path needs this; the Docker image has no compile stage.
+- Linting and formatting are Biome, configured at the repo root: `bun run lint`
+  / `bun run format` from there.
 
 ## Structure
 

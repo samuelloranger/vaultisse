@@ -60,7 +60,7 @@ deliberately listing-only, no mutation endpoints of its own.
 
 ## The loan history report
 
-`GET /loans/report` is the export behind the Loans view's Excel report:
+`GET /loans/report` is what the Loans screen's report dialog reads:
 every loan (returned or still open) in a **required** date range, optionally
 narrowed by customer group and/or a single customer. Backed by
 `loan_history`, so returned loans show up too - unlike `GET /loans`, this is
@@ -68,6 +68,10 @@ how you'd answer "how many books did Class 4B borrow last semester."
 
 `date_from`/`date_to` are required (400 if either is missing) - this
 endpoint is meant for a bounded report, not a full-table dump.
+
+The old client's only output for this was an `.xlsx` pushed at the browser via
+`exceljs`. The React client renders the rows on screen instead, with a CSV
+download beside them - see the note at the top of `LoanReportDialog.tsx`.
 
 ## Where this lives in code
 
@@ -77,6 +81,8 @@ endpoint is meant for a bounded report, not a full-table dump.
 | `loan_history` read/write helpers | `server/src/utils/LoanHistory.ts` |
 | Lend/return actions (mutate `book_stocks` + call the helpers above) | `server/src/routes/CustomerRoute.ts`, `server/src/routes/BooksRoute.ts` |
 | `loan_history`/`book_stocks` schema | `assets/db/databaseSchema.sql` |
-| Client: `/loans` HTTP client | `client/src/service/loans/LoansService.ts` |
-| Client: page controller | `client/src/controller/loans/LoansController.ts` |
-| Client: loans page UI + Excel export | `client/src/views/loans/LoansView.vue`, `LoanReportDialog.vue`, `components/ReturnBooksDialog.vue` |
+| Client: `/loans` HTTP client | `client-react/src/api/loans.ts` |
+| Client: query hooks + cache keys | `client-react/src/queries/loans.ts` |
+| Client: loans route | `client-react/src/routes/_app/loans.tsx` |
+| Client: loans page UI + report dialog | `client-react/src/features/loans/LoansScreen.tsx`, `LoanFilters.tsx`, `LoanReportDialog.tsx` |
+| Client: bulk-return dialog | `client-react/src/features/dashboard/ReturnBooksDialog.tsx` |

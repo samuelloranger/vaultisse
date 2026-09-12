@@ -1,11 +1,13 @@
 # client-react
 
-The React client. Built alongside the Vue `client/` per
-[the rewrite design](../docs/superpowers/specs/2026-09-11-react-client-rewrite-design.md);
-`client/` keeps working until this reaches parity.
+The Vaultisse client. Built per
+[the rewrite design](../docs/superpowers/specs/2026-09-11-react-client-rewrite-design.md)
+alongside the Vue `client/`, which was deleted at cutover — this is the only
+client now. [docs/CLIENT-ARCHITECTURE.md](../docs/CLIENT-ARCHITECTURE.md) is the
+longer tour; the rules below are the short version to work from.
 
 React 19 · TanStack Router (file-based) · TanStack Query · Tamagui 2.7.7 ·
-Vite 8.3 · TypeScript 5.8 · Vitest + React Testing Library · Biome.
+Vite 8.3 · TypeScript 7 · Vitest + React Testing Library · Biome.
 
 ```bash
 bun install

@@ -1,10 +1,13 @@
 # Developer docs
 
 Deep-dive documentation for people working *on* Vaultisse's code -
-contributors, maintainers, whoever's deploying or auditing it. Not to be
-confused with the **in-app** `/docs` help pages (`client/src/views/docs/content/`),
-which are end-user-facing, translated into four languages, and explain how to
-*use* the app rather than how it's built.
+contributors, maintainers, whoever's deploying or auditing it. End-user help
+lives at [docs.vaultisse.com](https://docs.vaultisse.com), not here.
+
+`superpowers/` is a historical record - the design specs and implementation
+plans for this fork's larger changes, kept as written rather than maintained.
+Where a document here and a spec there disagree, this directory is the one
+describing the code as it stands.
 
 Start with the [root README](../README.md) for the project overview and
 architecture map; come here for the parts worth a longer explanation than fit
@@ -12,21 +15,23 @@ there.
 
 - **[AUTHENTICATION.md](AUTHENTICATION.md)** - the session model: JWTs,
   `token_version`, per-session revocation (`user_sessions`), the audit trail
-  (`activity_log`), and how a dying session surfaces on the client.
+  (`activity_log`), how a dying session surfaces on the client, and the
+  `admin`/`user` role with the account-management panel behind it.
 - **[DEPLOYMENT.md](DEPLOYMENT.md)** - self-hosting: local-only, behind your
   own reverse proxy, behind Cloudflare Tunnel, or the one-click Unraid template.
-- **[TESTING.md](TESTING.md)** - running the server's Jest/Supertest suite
-  locally, how the dedicated test database and auth helpers work, and the CI
-  workflow that runs it on every push/PR.
-- **[ROADMAP.md](ROADMAP.md)** - feature ideas that don't have anyone working
-  on them yet, for contributors looking for something to pick up.
+- **[TESTING.md](TESTING.md)** - running the server's `bun test`/Supertest
+  suite and the client's Vitest suite locally, how the dedicated test database
+  and auth helpers work, and the CI workflow that runs the server's on every
+  push/PR.
+- **[ROADMAP.md](ROADMAP.md)** - upstream's feature ideas that don't have
+  anyone working on them yet, plus which of them this fork already implemented.
 
 Module-by-module deep dives, each covering both the `server/src/routes/*.ts`
-endpoints and the matching `client/src/{controller,service,views}/` code:
+endpoints and the matching `client-react/src/{api,queries,features}/` code:
 
 - **[BOOKS.md](BOOKS.md)** - the catalog: books vs. physical stock, the
   stock lifecycle, ISBN auto-lookup (Google Books/Open Library), cover
-  images, ebook file backups, and barcode scanning/printing.
+  images, ebook file backups, and stock-code entry.
 - **[CUSTOMERS.md](CUSTOMERS.md)** - borrowers, customer groups, and the
   lending/returning flow.
 - **[LOCATIONS.md](LOCATIONS.md)** - shelves/storage locations and moving
@@ -40,8 +45,8 @@ endpoints and the matching `client/src/{controller,service,views}/` code:
 - **[SETTINGS.md](SETTINGS.md)** - profile, UI preferences, and the leasing
   feature toggle (session/password/2FA live in AUTHENTICATION.md instead).
 - **[CLIENT-ARCHITECTURE.md](CLIENT-ARCHITECTURE.md)** - the
-  controller/service/model pattern shared by every client feature, the
-  shared axios instance, routing, and i18n.
+  `api / queries / routes / features` split shared by every client screen, the
+  shared fetch wrapper, routing, and the policy bootstrap.
 
 `README.md`, `LICENSE`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, and
 `SECURITY.md` stay at the repo root - GitHub looks for those specific files

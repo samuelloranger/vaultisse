@@ -54,6 +54,8 @@ a successful move.
 |---|---|
 | Location CRUD, move-books endpoint | `server/src/routes/LocationRoute.ts` |
 | `locations` schema | `assets/db/databaseSchema.sql` |
-| Client: `/location` HTTP client | `client/src/service/locations/LocationsService.ts` |
-| Client: page controller | `client/src/controller/locations/LocationsController.ts` |
-| Client: locations page UI | `client/src/views/locations/LocationsView.vue`, `LocationDialog.vue`, `LocationBooksTable.vue`, `LocationAddBooksDialog.vue` |
+| Client: `/location` HTTP client | `client-react/src/api/location.ts` |
+| Client: query hooks + cache keys | `client-react/src/queries/location.ts` |
+| Client: locations route | `client-react/src/routes/_app/locations.tsx` |
+| Client: locations page UI | `client-react/src/features/locations/LocationsScreen.tsx`, `LocationBooksPanel.tsx`, `LocationAddBooksDialog.tsx` |
+| Client: the shared list/create/rename/delete screen behind it | `client-react/src/features/entityList/` |

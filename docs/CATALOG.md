@@ -62,9 +62,10 @@ Both are flat `{code/id, name}` tables with no per-user data, fetched as
 part of the [policy bootstrap](#the-policy-bootstrap) rather than through
 their own dedicated list endpoints. `languages.code` is a `CHAR(2)` (ISO
 639-1); `formats` is an arbitrary short id/name pair (e.g. "Paperback",
-"Hardcover", "Electronic" - see `ELECTRONIC_FORMAT_NAME` in
-[`Constants.ts`](../client/src/Constants.ts), which the client uses to
-detect an ebook edition for `Book.isElectronic()`).
+"Hardcover", "Electronic" - the client matches a book's `format_id` against
+the name `"Electronic"` to decide it's an ebook edition, see
+`ELECTRONIC_FORMAT` in
+[`BookScreen.tsx`](../client-react/src/features/book/BookScreen.tsx)).
 
 ## The policy bootstrap
 
@@ -78,15 +79,20 @@ Each section is fetched independently and defaults to `[]`/`{}` on its own
 failure (a try/catch per section) - one failing sub-query (say, a locations
 table hiccup) degrades that one dropdown instead of blocking login entirely.
 
-On the client, [`ApplicationService.fetchPolicy()`](../client/src/service/ApplicationService.ts)
-is the single call site: it turns the raw payload into typed model
-instances (`Category[]`, `Language[]`, `Format[]`, `Location[]`,
-`Customer[]`, `User`), sets the active i18n locale from `user.language`, and
-registers `labels` as that locale's translation messages. Every page that
-needs "the list of categories to pick from" reads it from this shared
-in-memory service rather than re-fetching - see
-[CLIENT-ARCHITECTURE.md](CLIENT-ARCHITECTURE.md#the-policy-bootstrap-applicationservice)
+On the client the payload is a single TanStack Query
+([`queries/app.ts`](../client-react/src/queries/app.ts)), not a singleton
+service. The authenticated layout's route loader awaits it before any screen
+renders, so `usePolicy()` resolves from cache everywhere; `staleTime` is 5
+minutes and it refetches on window focus, which is what keeps one member's new
+category from being invisible to another until a full reload. Any mutation that
+changes a reference list invalidates `policyKeys.all` rather than editing a
+local copy. See
+[CLIENT-ARCHITECTURE.md](CLIENT-ARCHITECTURE.md#the-policy-bootstrap)
 for how that fits into app startup.
+
+The `labels` map is fetched with the rest of the payload but nothing reads it
+yet — the React client's strings are hardcoded English until the label lookup
+replacing `vue-i18n` lands.
 
 ## Where this lives in code
 
@@ -96,7 +102,8 @@ for how that fits into app startup.
 | Author CRUD + search | `server/src/routes/AuthorRoute.ts` |
 | Policy bootstrap (languages, formats, locations, customers, labels, user) | `server/src/routes/AppRoute.ts` |
 | `categories`/`authors`/`book_authors`/`languages`/`formats` schema | `assets/db/databaseSchema.sql` |
-| Client: `/category`, `/author` HTTP clients | `client/src/service/categories/CategoriesService.ts`, `client/src/service/author/AuthorsService.ts` |
-| Client: page controllers | `client/src/controller/categories/CategoriesController.ts`, `client/src/controller/authors/AuthorsController.ts` |
-| Client: shared app-wide state | `client/src/service/ApplicationService.ts` |
-| Client: categories/authors page UI | `client/src/views/categories/`, `client/src/views/authors/` |
+| Client: `/category`, `/author` HTTP clients | `client-react/src/api/category.ts`, `client-react/src/api/author.ts` |
+| Client: query hooks + cache keys | `client-react/src/queries/category.ts`, `client-react/src/queries/author.ts`, `client-react/src/queries/keys.ts` |
+| Client: `/app/policy` as a query (no singleton) | `client-react/src/api/app.ts`, `client-react/src/queries/app.ts` |
+| Client: categories/authors routes | `client-react/src/routes/_app/categories.tsx`, `client-react/src/routes/_app/authors.tsx` |
+| Client: categories/authors page UI | `client-react/src/features/categories/CategoriesScreen.tsx`, `client-react/src/features/authors/AuthorsScreen.tsx`, `client-react/src/features/entityList/` |

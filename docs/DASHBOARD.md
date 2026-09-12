@@ -23,7 +23,7 @@ then assembles it into one JSON response:
 | `lastBooks` | Up to 10 books added in the last 30 days, newest first. |
 | `totalBooks` / `totalThisMonth` / `totalLastMonth` | Counts, this/previous calendar month via `date_trunc('month', ...)`. |
 | `totalCategories` / `totalCustomers` / `totalLocations` / `totalAuthors` | Simple `COUNT(*)` per table. |
-| `booksInTime` | Books added, grouped by month - powers the trend chart (`BooksInTimeChart.vue`). |
+| `booksInTime` | Books added, grouped by month - powered the old client's trend chart. Still served; the React client has no chart yet (`chart.js` isn't a dependency of it), so nothing reads this field today. |
 | `stockStatus` | `book_stocks` grouped by `status` - available/not-available/booked/damaged breakdown. |
 | `totalBookedBooks` | Count of stocks with a `customer_id` set (i.e. currently loaned). |
 | `categoryShelves` | Top 6 categories by book count, each with up to 10 of its most recent books - see [below](#category-shelves). |
@@ -37,9 +37,9 @@ waits on it.
 `COUNT(*)` in Postgres returns a `bigint`, which `node-postgres` serializes
 as a *string* to avoid precision loss on values above
 `Number.MAX_SAFE_INTEGER`. Every count in this response is explicitly cast
-back to `Number(...)` before being sent - a user's library is nowhere near
-that range, and the client's TypeScript types (plus Vuetify's prop
-validation) expect real numbers, not numeric strings.
+back to `Number(...)` before being sent - a library is nowhere near that
+range, and the client's TypeScript types expect real numbers, not numeric
+strings.
 
 ## Category shelves
 
@@ -67,6 +67,7 @@ being sent to the client:
 | Concern | File |
 |---|---|
 | The aggregate endpoint | `server/src/routes/DashboardRoute.ts` |
-| Client: `/dashboard` HTTP client | `client/src/service/dashboard/DashboardService.ts` |
-| Client: page controller | `client/src/controller/dashboard/DashboardController.ts` |
-| Client: dashboard page UI | `client/src/views/dashboard/DashboardView.vue`, `DashboardCard.vue`, `BooksInTimeChart.vue` |
+| Client: `/dashboard` HTTP client | `client-react/src/api/dashboard.ts` |
+| Client: query hooks + cache keys | `client-react/src/queries/dashboard.ts` |
+| Client: dashboard route | `client-react/src/routes/_app/index.tsx` |
+| Client: dashboard page UI | `client-react/src/features/dashboard/DashboardScreen.tsx`, `CounterTiles.tsx`, `BookShelf.tsx`, `ReturnBooksDialog.tsx` |

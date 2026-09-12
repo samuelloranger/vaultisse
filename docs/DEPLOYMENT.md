@@ -393,6 +393,17 @@ real `JWT_SECRET` — every other production hardening step above still applies.
   at all - but **take the app down and back up the `db-data` volume first**,
   and expect an `ACCESS EXCLUSIVE` lock for the minute it takes. Its own
   header comment explains each step.
+
+  **`1.2.0` has two files, and `2.sql` is mandatory.** It adds `users.role` and
+  promotes the instance's lowest-id account to `admin` - without it every
+  account is a `user`, nobody can reach `/app/admin`, and an instance with
+  `REGISTRATION_REQUIRES_APPROVAL=true` has no in-app way to approve anyone.
+  It's an ordinary additive migration (a column, a `CHECK`, one `UPDATE`),
+  independent of `1.sql` in practice, but run it second as numbered:
+  ```bash
+  docker compose exec -T db psql -U <DB_USER> -d <DB_NAME> < assets/db/upgrade/1.2.0/1.sql
+  docker compose exec -T db psql -U <DB_USER> -d <DB_NAME> < assets/db/upgrade/1.2.0/2.sql
+  ```
 - **Postgres major-version bumps are not the same kind of upgrade.** The app-version
   upgrade above is a drop-in restart because the same Postgres major version keeps
   reading the same data files. Bumping `docker-compose.yml`'s `postgres:XX-alpine`

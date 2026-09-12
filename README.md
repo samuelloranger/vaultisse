@@ -48,73 +48,79 @@ language, format, cover image), and it can look books up automatically by ISBN.
 
 ## Features
 
-- Add books manually or by scanning/typing an ISBN (auto-filled via the Google Books
+- Add books manually or by typing an ISBN (auto-filled via the Google Books
   API, falling back to Open Library when no API key is configured)
 - Track individual physical copies ("stock") of a book independently — each copy has
   its own status: available, booked/on loan, damaged, or not available
 - Record who a book is currently lent to, using a customer/borrower directory
 - Organize books by category, author, language, and format
 - Organize physical copies by shelf/location, so you always know where to find them
-- Print barcode/ISBN labels for shelving and quick re-scanning
 - Full-text search across the catalog
-- A dashboard with collection statistics and charts
-- Multi-language UI (English, Spanish, Catalan, Italian)
-- Built-in `/docs` help pages, rendered from Markdown, in the same languages
+- A dashboard with collection counters and category shelves
+- One shared library per instance: every account co-manages the same collection,
+  and each row records who added it
+- An admin role for managing accounts — approve, enable/disable, promote, delete
 - Cookie/session-based authentication with JWT, password hashing, rate limiting, and
   secure HTTP headers out of the box
 
 ## Architecture
 
-Vaultisse is a classic **SPA + REST API** monorepo: a Vue 3 single-page app talks to
+Vaultisse is a classic **SPA + REST API** monorepo: a React single-page app talks to
 an Express/PostgreSQL backend over a JSON API. In production the backend also serves
-the built frontend, so the whole app runs as a single Node.js process behind one port.
+the built frontend, so the whole app runs as a single Bun process behind one port.
 
 ```
-┌─────────────────────────┐        HTTPS / cookies        ┌──────────────────────────┐
-│  client/  (Vue 3 SPA)   │ ─────────────────────────────▶ │  server/ (Express API)  │
-│  Vuetify UI components  │ ◀───────────────────────────── │  JWT auth, business      │
-│  built with Vite        │        JSON over /api/rest     │  logic, PostgreSQL       │
-└─────────────────────────┘                                └────────────┬─────────────┘
-                                                                         │
-                                                                         ▼
-                                                              ┌────────────────────┐
-                                                              │   PostgreSQL DB    │
-                                                              └────────────────────┘
+┌──────────────────────────┐       HTTPS / cookies       ┌──────────────────────────┐
+│ client-react/ (React 19) │ ──────────────────────────▶ │  server/ (Express API)   │
+│ TanStack Router + Query  │ ◀────────────────────────── │  JWT auth, business      │
+│ Tamagui UI, built w/Vite │      JSON over /api/rest    │  logic, PostgreSQL       │
+└──────────────────────────┘                             └────────────┬─────────────┘
+                                                                      │
+                                                                      ▼
+                                                            ┌────────────────────┐
+                                                            │   PostgreSQL DB    │
+                                                            └────────────────────┘
 ```
 
 ### Client (frontend)
 
-Located in [`client/`](client). A Vue 3 + Vuetify 3 single-page application built with
-Vite.
+Located in [`client-react/`](client-react). A React 19 single-page application built
+with Vite, using TanStack Router for routing, TanStack Query for server state, and
+Tamagui for the UI layer. It replaced the original Vue 3 + Vuetify client; see
+[docs/CLIENT-ARCHITECTURE.md](docs/CLIENT-ARCHITECTURE.md) for the full tour and
+[`client-react/README.md`](client-react/README.md) for the conventions every screen
+follows.
 
-- **`src/views/`** – one folder per feature area (book, authors, categories, customers,
-  locations, dashboard, search, settings, docs, legal). Each contains the page-level
-  Vue components for that feature.
-- **`src/controller/`** – view controllers that hold page state/logic and call
-  services, keeping `.vue` files focused on markup (`BaseController.ts` is the shared
-  base class).
-- **`src/service/`** – one service per resource (book, author, categories, customers,
-  locations, dashboard, search, user). Services wrap the HTTP calls to the backend
-  API (`ApplicationService.ts` is the shared Axios wrapper, configured in
-  `src/plugins/axiosInstance.ts`).
-- **`src/model/`** – TypeScript classes/interfaces mirroring the domain entities
-  (book, author, category, customer, location, format, language, user).
-- **`src/router/`** – Vue Router setup; each feature has its own route file under
-  `src/router/routes/`.
-- **`src/plugins/i18n/`** – Vue I18n configuration and the generated label map used
-  for translations (labels themselves are stored in the database — see
-  [Internationalization](#internationalization)).
-- **`src/components/`** – shared/reusable UI components (dialogs, tables, pickers,
-  the barcode/ISBN scanner, label printing, etc.).
+- **`src/api/`** – one thin module per REST resource (app, book, search, author,
+  category, location, customer, loans, dashboard, user, admin). Fetch wrappers only:
+  no caching, no state, no React. `http.ts` is the shared request helper.
+- **`src/queries/`** – the `useQuery`/`useMutation` hooks built on `api/`. Cache keys
+  are declared once in `queries/keys.ts`, and this is where invalidation lives.
+- **`src/routes/`** – TanStack Router file-based route modules, one per screen, under
+  the authenticated `_app` layout.
+- **`src/features/<domain>/`** – screen-specific components, colocated with their
+  route (dashboard, search, book, locations, categories, authors, customers, loans,
+  settings, admin).
+- **`src/components/`** – shared presentational components: the app shell, the
+  responsive dialog, the text field, screen loading/error/empty states, icons.
+- **`src/theme/`** – the Tamagui config, the ported palette, and global CSS.
 
 The client is served under the `/app` base path (see `vite.config.ts` and
-`router/Router.ts`) and never talks to the database directly — everything goes
+`src/router.tsx`) and never talks to the database directly — everything goes
 through the REST API at `/api/rest/*`.
+
+A handful of the old client's features have working server endpoints but no UI in the
+React client yet: the camera barcode scanner (typed stock codes and ISBNs work
+everywhere it used to front), barcode label printing, in-browser ebook preview, the
+CSV library import, and the dashboard's "books added over time" chart. The loan report
+renders on screen with a CSV download instead of pushing an `.xlsx`. Each is noted in
+the file that would own it.
 
 ### Server (backend)
 
-Located in [`server/`](server). A Node.js + Express + TypeScript REST API backed by
-PostgreSQL.
+Located in [`server/`](server). A Bun + Express + TypeScript REST API backed by
+PostgreSQL. Bun runs the TypeScript sources directly — there is no compile step in
+the Docker image.
 
 - **`src/index.ts`** – process entry point; boots the singleton `AppService`.
 - **`src/AppService.ts`** – the application core. Owns the Express app, the
@@ -125,9 +131,14 @@ PostgreSQL.
   configured frontend origin), and cookie/body parsing.
 - **`src/routes/`** – one Express router per resource, registered in `Routes.ts`
   under the `/api/rest` prefix: `AppRoute`, `BooksRoute`, `LocationRoute`,
-  `CustomerRoute`, `AuthorRoute`, `CategoriesRoute`, `UserRoute`, `DashboardRoute`.
+  `CustomerRoute`, `AuthorRoute`, `CategoriesRoute`, `UserRoute`, `DashboardRoute`,
+  `LoansRoute`, `import-export/ImportRoute`, and `admin/AdminUsersRoute` (mounted at
+  `/admin/users` and gated by `requireAdmin` rather than `requireAuth`).
   `AuthRoute` is mounted separately at the root (`/`) and handles login, register,
   logout, and serving the built SPA in production.
+- **`src/middlewares/AdminMiddleware.ts`** – `requireAdmin`, the gate on every
+  `/api/rest/admin/*` route. See
+  [docs/AUTHENTICATION.md](docs/AUTHENTICATION.md#roles-and-the-admin-panel).
 - **`src/middlewares/AuthMiddleware.ts`** – `requireAuth`/`requireAuthPage`
   guards. Verify the JWT stored in the `token` cookie, check the user still
   exists and isn't disabled, check the session hasn't been individually
@@ -138,9 +149,11 @@ PostgreSQL.
 - **`src/types/`** – shared TypeScript interfaces (book/stock shapes, search
   filters, app error types).
 - **`src/utils/Logger.ts`** – lightweight file logger (`LOGGER_PATH` env var).
-- **`src/assets/`** – static assets shipped with the API: the standalone
-  `login.html`/`register.html` pages, background image, and (in production) the
-  built client bundle served from `assets/app`.
+- **`src/assets/`** – the standalone server-rendered `login.html` and
+  `register.html` pages. The built client is *not* in here: `AuthRoute.ts`
+  serves it from a sibling directory (`../../../client` in production, which is
+  where the Dockerfile puts the Vite output; `client-react/dist` in
+  development).
 
 Authentication is a JWT in an httpOnly cookie, but not purely stateless:
 `requireAuth` also checks a per-user `token_version` counter (bumped on
@@ -152,10 +165,10 @@ rounds) and never stored or logged in plaintext. See
 
 ### How they talk to each other
 
-- In **development**, Vite runs its own dev server (`npm run dev` in `client/`) and
-  proxies any request to `/api/rest/*` to the API (`http://localhost:<API_PORT>` by
-  default, see `vite.config.ts`). The API runs separately via `npm run dev` in
-  `server/` (nodemon + ts-node).
+- In **development**, Vite runs its own dev server (`bun run dev` in `client-react/`)
+  and proxies `/api/rest/*`, `/login` and `/register` to the API (`VITE_API_TARGET`,
+  `http://localhost:3000` by default — see `vite.config.ts`). The API runs separately
+  via `bun run dev` in `server/` (`bun --watch`).
 - In **production**, the client is built into static files and the Express server
   serves them directly (see `AuthRoute.ts`, which serves `index.html` for `/app` and
   `/app/*`, guarded by `requireAuth`) — there is a single process and a single port.
@@ -168,22 +181,22 @@ the in-app `/docs` help pages, which are end-user-facing), see
 
 ```
 vaultisse/
-├── client/                # Vue 3 + Vuetify frontend (see client/README.md)
+├── client-react/          # React 19 + Tamagui frontend (see client-react/README.md)
 │   └── src/
-│       ├── views/         # Page components, grouped by feature
-│       ├── controller/    # Page controllers (state + logic)
-│       ├── service/       # API clients, one per resource
-│       ├── model/         # Domain TypeScript models
-│       ├── router/        # Vue Router configuration
-│       ├── components/    # Shared UI components
-│       └── plugins/       # i18n, Vuetify, Axios setup
-├── server/                # Express + TypeScript REST API
+│       ├── api/           # Thin fetch wrappers, one per REST resource
+│       ├── queries/       # TanStack Query hooks; cache keys live in keys.ts
+│       ├── routes/        # TanStack Router file-based route modules
+│       ├── features/      # Screen-specific components, beside their route
+│       ├── components/    # Shared UI components (shell, dialog, field, icons)
+│       ├── theme/         # Tamagui config, palette, global CSS
+│       └── test/          # Render helper, fixtures, Vitest setup
+├── server/                # Express + TypeScript REST API, run by Bun
 │   └── src/
-│       ├── routes/        # One Express router per resource
-│       ├── middlewares/   # requireAuth (JWT) middleware
+│       ├── routes/        # One Express router per resource (+ admin/, import-export/)
+│       ├── middlewares/   # requireAuth (JWT) and requireAdmin middleware
 │       ├── types/         # Shared TypeScript types
 │       ├── utils/         # Logger, etc.
-│       └── assets/        # Static login/register pages, prod client bundle
+│       └── assets/        # Static server-rendered login/register pages
 ├── assets/
 │   ├── db/                # SQL schema (databaseSchema.sql) + upgrade/ (dated upgrade files)
 │   └── pm2/               # Sample PM2 ecosystem config for production
@@ -195,8 +208,9 @@ vaultisse/
 
 ### Prerequisites
 
-- [Node.js](https://nodejs.org/) 22.x and npm 10.x (used to develop this project;
-  other recent LTS versions likely work but aren't tested)
+- [Bun](https://bun.sh/) 1.4.x — the runtime, package manager, and test runner for
+  both packages. Bun executes the server's TypeScript directly, so there is no
+  separate Node.js install or build step to run it.
 - [PostgreSQL](https://www.postgresql.org/) 13+ (any recent version should do)
 - A [Google Books API key](https://developers.google.com/books) (optional — the
   server falls back to the free [Open Library API](https://openlibrary.org/developers/api)
@@ -219,11 +233,14 @@ createdb paperbooks
 psql -d paperbooks -f assets/db/databaseSchema.sql
 ```
 
-> There is no admin UI for the very first user, and none is needed: `/register` is a
-> normal, always-available page regardless of `ALLOW_DEV_AUTH` (see `AuthRoute.ts`) —
-> after loading the schema, just start the server and register through it like any
-> other account. Inserting a row into `users` directly is only useful if you want to
-> skip that page entirely.
+> Nothing has to be seeded by hand: `/register` is a normal, always-available page
+> regardless of `ALLOW_DEV_AUTH` (see `AuthRoute.ts`), so after loading the schema you
+> just start the server and register through it. **The first account to register
+> becomes the instance's admin** (`users.role = 'admin'`), decided in SQL under an
+> advisory lock so a race between two simultaneous registrations still produces
+> exactly one — and it is created enabled even when `REGISTRATION_REQUIRES_APPROVAL`
+> is on, since otherwise there would be nobody able to approve it. From there, the
+> admin panel at `/app/admin` manages every account that follows.
 
 The version-named files in `assets/db/upgrade/` (`1.0.0/1.sql`, `1.0.0/2.sql`,
 ...) are **not** for new installs — they're incremental upgrades for a
@@ -264,17 +281,20 @@ Generate a strong `JWT_SECRET`, for example: `openssl rand -hex 32`.
 
 ```bash
 cd server
-npm install
-npm run dev      # starts the API with nodemon on API_PORT
+bun install
+bun run dev      # starts the API with bun --watch on API_PORT
 ```
 
 ### 5. Run the client
 
 ```bash
-cd client
-npm install
-npm run dev       # starts Vite; proxies /api/rest to the server
+cd client-react
+bun install
+bun run dev       # starts Vite; proxies /api/rest, /login and /register to the server
 ```
+
+Point the proxy at a non-default API port with `VITE_API_TARGET`, e.g.
+`VITE_API_TARGET=http://localhost:3010 bun run dev`.
 
 Open the URL Vite prints (typically `http://localhost:5173/app`) in your browser.
 
@@ -286,10 +306,14 @@ From the repository root:
 ./build.sh
 ```
 
-This installs dependencies, builds the client (Vite) and server (`tsc`), assembles
-everything under `./dist` (`dist/client`, `dist/server`), copies server assets, and
-produces a deployable `dist.zip`. The server serves the built client itself, so a
-single Node.js process is all you need to run in production.
+This installs dependencies, builds the client (Vite) and compiles the server (`tsc`),
+assembles everything under `./dist` (`dist/client`, `dist/server`), copies server
+assets, and produces a deployable `dist.zip`. The server serves the built client
+itself, so a single process is all you need to run in production.
+
+The Docker image is built differently and does **not** use this script: it has no
+compile stage at all, because Bun runs the server's TypeScript sources directly.
+See [Deploying with Docker](#deploying-with-docker).
 
 ## Deploying with PM2
 
@@ -307,9 +331,10 @@ pm2 start ecosystem.config.js --env production
 
 Every push of a `vX.Y.Z` tag builds a production image and publishes it to GitHub
 Container Registry at `ghcr.io/albertamat/vaultisse` (see
-[Releasing a new version](#releasing-a-new-version)). The image bundles the compiled
-server and the built client into one process, same as the PM2 deployment above — there
-is no separate frontend container.
+[Releasing a new version](#releasing-a-new-version)). The image is `oven/bun:1.4-alpine`
+and bundles the server's TypeScript sources and the built client into one process, same
+as the PM2 deployment above — there is no separate frontend container, and no compile
+stage, since Bun runs the TypeScript directly (`bun server/src/index.ts`).
 
 To run it on a server with Docker installed:
 
@@ -332,8 +357,11 @@ rather than `latest` if you want upgrades to be a deliberate step.
 
 Once `app` is up, open `FRONT_END_URL` and go to `/register` to create your first
 account — it's a normal, always-available page, not gated by `ALLOW_DEV_AUTH` (which
-should stay `false`, see below). There's no separate admin role; every account has the
-same access.
+should stay `false`, see below). That first account becomes the instance's **admin**
+and gets the admin panel at `/app/admin`: list accounts, approve pending
+registrations, enable/disable, promote/demote, and delete. Every account after it
+registers as a plain `user`. There are no library-level roles — the library is shared,
+so any account that can log in can add, edit, lend and return books.
 
 A few things worth knowing before pointing this at a real server:
 
@@ -357,9 +385,10 @@ your own reverse proxy/DNS, production behind Cloudflare Tunnel, and a one-click
 
 ## Releasing a new version
 
-The repository root has a `package.json` that exists solely to anchor the release
-version (the client and server aren't published packages and keep their own internal
-version fields). To cut a release:
+The repository root has a `package.json` that anchors the release version (the client
+and server aren't published packages and keep their own internal version fields) and
+holds the shared [Biome](https://biomejs.dev/) dependency and its lint/format scripts.
+To cut a release:
 
 ```bash
 npm version patch   # or: minor / major
@@ -380,17 +409,24 @@ authentication on your server.
 
 ## Internationalization
 
-The UI currently ships in English, Spanish, Catalan, and Italian. Labels are stored
-in the database (`app_languages` / `app_labels` tables in `databaseSchema.sql`) and
-loaded into the client's Vue I18n instance — this keeps translations editable
-without a redeploy. The `/docs` help pages are Markdown files rendered per-language
-in the client. See [Contributing](#contributing) for how to add a new language.
+UI labels are stored in the database (`app_languages` / `app_labels` tables in
+`databaseSchema.sql`), translated into English, Spanish, Catalan, and Italian, and
+delivered to the client in `GET /app/policy`'s `labels` map — which keeps translations
+editable without a redeploy. Each account picks its language in Settings
+(`users.language`).
+
+**The React client does not apply those labels yet.** The rewrite replaced `vue-i18n`
+with a lightweight lookup that has not landed, so its UI strings are currently
+hardcoded English; the language selector and the server-side plumbing are both intact
+and waiting for it. See [Contributing](#contributing) for how to add a new language to
+the database.
 
 ## Roadmap
 
 Looking for ways to contribute? [docs/ROADMAP.md](docs/ROADMAP.md) lists feature ideas
-that don't have anyone working on them yet — Kindle/Kobo sync, SSO, an admin
-panel, library sharing for families, and more.
+that don't have anyone working on them yet — Kindle/Kobo sync, SSO, OPDS feeds,
+duplicate detection, and more. It also notes which of upstream's items this fork has
+already implemented.
 
 ## Contributing
 

@@ -156,7 +156,7 @@ three rows). Schema:
 | Column | Purpose |
 |---|---|
 | `session_key` | The opaque value carried as the JWT's `sid`. |
-| `user_agent`, `ip_address` | Captured at login, shown in Settings > Active sessions (device/browser parsed client-side, see `client/src/utils/DeviceInfo.ts`). |
+| `user_agent`, `ip_address` | Captured at login, shown in Settings > Active sessions (device/browser parsed client-side, see `client-react/src/features/settings/deviceInfo.ts`). |
 | `created_date` | When this login happened. |
 | `last_seen_date` | Last time this session made a request that passed validation (throttled updates, see above). |
 | `revoked_date` | `NULL` while active; set once, never cleared, on explicit logout, "log out this device," or a password change revoking every *other* session. |
@@ -198,10 +198,17 @@ different kinds of 401 apart:
 
 `requireAuth`'s failure response is `401 {"message": "Unauthorized",
 "sessionExpired": true}` specifically for the first case; nothing else in
-the API sets that flag. The client's shared axios interceptor
-(`client/src/plugins/axiosInstance.ts`) checks for it and does a full
+the API sets that flag. The client's shared fetch wrapper
+(`client-react/src/api/http.ts`) checks for it and does a full
 `window.location.href = "/login"` - a real navigation, not a router push,
-since there's no SPA state worth preserving once the session is gone.
+since there's no SPA state worth preserving once the session is gone and
+`/login` isn't a route this app owns. One wrinkle the axios version didn't
+have: a request carrying **no cookie at all** gets a plain `302` to `/login`
+rather than that JSON, and `fetch`'s default `redirect: "follow"` swallows it,
+so `http.ts` detects the followed redirect and treats it as the same case.
+[`http.test.ts`](../client-react/src/api/http.test.ts) pins all three
+behaviours: `sessionExpired` redirects, any other 401 does not, and a 403 does
+not.
 
 For the server-rendered `/app` and `/app/*` routes (a hard refresh, not an
 API call), `requireAuthPage` redirects to `/login` directly on *any* failure
@@ -263,7 +270,7 @@ entry. That is a UI hint; the server re-checks on every request.
 A generic, append-only table - not auth-specific by design, so future
 data-change logging (book/loan edits, say) can reuse it instead of growing a
 new table per feature. Only auth events are written today, via
-[`ActivityAction`](server/src/utils/ActivityLog.ts):
+[`ActivityAction`](../server/src/utils/ActivityLog.ts):
 
 | Column | Purpose |
 |---|---|
@@ -381,5 +388,7 @@ direction, plus immediate session revocation - see
 | TOTP/backup-code helpers | `server/src/utils/TwoFactorAuth.ts` |
 | Demo-mode write blocking | `server/src/middlewares/DemoModeMiddleware.ts` |
 | `users`/`user_sessions`/`activity_log`/`user_backup_codes` schema | `assets/db/databaseSchema.sql` |
-| Client: redirect-on-`sessionExpired`, cookie transport | `client/src/plugins/axiosInstance.ts` |
-| Client: Active sessions / Recent logins UI | `client/src/views/settings/SessionsCard.vue`, `LoginActivityCard.vue` |
+| Client: redirect-on-`sessionExpired`, cookie transport | `client-react/src/api/http.ts` (pinned by `http.test.ts`) |
+| Client: Active sessions / Recent logins UI | `client-react/src/features/settings/SessionsCard.tsx`, `ActivityCard.tsx`, `deviceInfo.ts` |
+| Client: password change, 2FA setup | `client-react/src/features/settings/ChangePasswordDialog.tsx`, `TwoFactorCard.tsx`, `TwoFactorSetupDialog.tsx` |
+| Client: admin panel (`/app/admin`) | `client-react/src/routes/_app/admin.tsx`, `client-react/src/features/admin/AdminScreen.tsx`, `client-react/src/api/admin.ts`, `client-react/src/queries/admin.ts` |
