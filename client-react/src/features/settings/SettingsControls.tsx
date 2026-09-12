@@ -218,10 +218,14 @@ export function SelectField({
  *     `backgroundColor: '$backgroundActive'` onto the frame *after* the
  *     caller's props whenever `checked` is true and no `activeStyle` was
  *     given, so `'$primary'` was silently dropped. Worse, a Tamagui component
- *     renders inside its own sub-theme, and this config keeps
- *     `@tamagui/config`'s stock `dark_Switch` untouched — so
- *     `$backgroundActive` was `#1a1a1a`, a neutral near-black on a navy card.
- *     Hence `activeStyle` below: it is the only way to stop that override.
+ *     renders inside the sub-theme matching its name, and the config then kept
+ *     `@tamagui/config`'s stock `dark_Switch` — so `$backgroundActive` was
+ *     `#1a1a1a`, a neutral near-black on a card that is not neutral. Hence
+ *     `activeStyle` below: it is the only way to stop that override. (The
+ *     sub-themes are gone now — `theme/tamagui.config.ts` ships `light` and
+ *     `dark` and nothing else — but the `activeStyle` still has to be here,
+ *     because `createSwitch` would overwrite `$primary` with `$backgroundActive`
+ *     whatever that resolved to.)
  *  3. **The thumb was the card colour.** `$surface` is the right idiom for a
  *     thumb — the card showing through a hole in the track — but it needs a
  *     track to show through. A 29px `$surface` circle punched out of an
@@ -302,11 +306,11 @@ export function ToggleRow({
           outlineWidth: 2,
         }}
       >
-        {/* The visible track. `$colorMuted` for "off" rather than a border
-            token: it is the only mid grey in the palette that clears both
-            surfaces, and an off switch has to be legible, not tasteful. A
-            dedicated track token belongs in the theme — see this task's
-            report. */}
+        {/* The visible track. `$controlTrack` is the palette's own token for
+            exactly this — the *fill* of a resting control, measured at 3.68:1
+            (light) / 3.52:1 (dark) against `$surface` per WCAG 1.4.11. It used
+            to be `$colorMuted`, a text colour borrowed because nothing better
+            was named; see `theme/palette.ts`. */}
         <YStack
           position="absolute"
           top={(SWITCH_HEIGHT - TRACK_HEIGHT) / 2}
@@ -315,7 +319,7 @@ export function ToggleRow({
           right={-THUMB_INSET}
           zIndex={0}
           borderRadius={1000}
-          backgroundColor={checked ? '$primary' : '$colorMuted'}
+          backgroundColor={checked ? '$primary' : '$controlTrack'}
           transition="quick"
         />
         <Switch.Thumb

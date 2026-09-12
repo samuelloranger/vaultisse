@@ -69,6 +69,10 @@
  *  - `borderControl` is new. `border` is a *decorative* divider and is allowed
  *    to be quiet; an input's outline is the only thing that identifies the
  *    field, so WCAG 1.4.11 wants 3:1 for it. One token could not be both.
+ *  - `controlTrack` is new, for the same reason one step further in: a switch's
+ *    off track is a *fill*, not an outline, and the only mid-tone that existed
+ *    to paint it with was `textMuted` — a type colour. Measured at 3.68:1 light
+ *    / 3.52:1 dark against `surface`.
  *  - `bgHover` is new. Hover used to reuse `bgAlt`, which is *darker* than the
  *    ground — correct in light, but in dark it made the hovered row recede into
  *    the page instead of lifting.
@@ -118,6 +122,23 @@ export type ReadingRoomPalette = {
   borderControl: string
   /** `--pb-border-strong` — hover/active edges and hard boundaries. */
   borderStrong: string
+  /**
+   * The *fill* of a control's track — a switch in its off position today, a
+   * slider rail or a progress trough tomorrow.
+   *
+   * Held to the same 3:1 against `surface` as
+   * {@link ReadingRoomPalette.borderControl}, and for the same reason: a track
+   * is the whole shape of the control, so if it does not clear 1.4.11 the
+   * control is not there. It starts life at the same value as `borderControl`
+   * because it answers the same question; it is a separate key so that
+   * redrawing a switch never has to move every input outline with it.
+   *
+   * Before this existed, `ToggleRow` painted its off track with `colorMuted` —
+   * a *text* colour, borrowed because nothing better was named. That reads far
+   * too heavy for a resting control (6.07:1 in light), and it meant a palette
+   * change aimed at captions would silently restyle every switch.
+   */
+  controlTrack: string
   /** `--pb-text` — body copy. */
   text: string
   /** `--pb-text-muted` — secondary copy, counts, captions. AA on every ground. */
@@ -171,6 +192,7 @@ export const beige: ReadingRoomPalette = {
   border: '#e3d7c2',
   borderControl: '#94836a',
   borderStrong: '#cdb896',
+  controlTrack: '#94836a',
   text: '#2f2a22',
   textMuted: '#6b6153',
   primary: '#c67838',
@@ -207,6 +229,7 @@ export const nocturne: ReadingRoomPalette = {
   border: '#484032',
   borderControl: '#8d7f68',
   borderStrong: '#5b5140',
+  controlTrack: '#8d7f68',
   text: '#f3ede1',
   textMuted: '#ab9d87',
   primary: '#c67838',

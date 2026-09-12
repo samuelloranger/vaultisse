@@ -32,6 +32,54 @@ import {
  *    makes `backgroundColor` a type error and forces `bg`. Half of React's
  *    ecosystem muscle memory is the long form; making both legal removes a
  *    whole class of "why won't this compile" for every later screen.
+ *  - **The preset's 292 sub-themes are dropped**; `themes` is `light` and
+ *    `dark` and nothing else. See below.
+ *
+ * ### Why there are no sub-themes
+ *
+ * `@tamagui/config/v4` ships 294 themes: `light`, `dark`, and 292 generated
+ * variants — `dark_Button`, `light_Input`, `dark_Switch`, `light_Card`, the
+ * same again under six colour scales, and so on. A Tamagui component renders
+ * inside the one matching its `componentName`, so with the preset spread in,
+ * every `<Button>` in this app resolved its colours from a **neutral grey
+ * ramp** picked for a different design, on top of the Reading Room ground.
+ *
+ * That is not theoretical. It is why the lending switch rendered as a dark
+ * crescent (`fe7ab48`): `createSwitch` spreads `backgroundColor:
+ * '$backgroundActive'` onto the frame *after* the caller's props when
+ * `checked` is true, and inside `dark_Switch` that resolved to `#1a1a1a`
+ * instead of the terracotta the call site asked for. The switch was redrawn by
+ * hand there; this is the cause it was working around.
+ *
+ * Dropping them is safe, and it was checked rather than assumed:
+ *
+ *  1. **Nothing goes undefined.** Every key in every preset sub-theme is also a
+ *     key of its parent `light` / `dark`. There is no `$x` that only a
+ *     sub-theme defines, so nothing can fail to resolve.
+ *  2. **A missing sub-theme is a no-op, not an error.** `getNewThemeName` in
+ *     `@tamagui/web` looks up `parent_ComponentName` and, when it is not in
+ *     `themes`, simply leaves the component in its parent theme.
+ *  3. **The reachable set is small and all of it is better off.** The preset's
+ *     sub-theme suffixes are Button, Card, Checkbox, Input, ListItem, Progress,
+ *     ProgressIndicator, RadioGroupItem, SelectItem, SelectTrigger, Slider*,
+ *     Switch, SwitchThumb, TextArea and Tooltip*. This app renders exactly five
+ *     of them — `Button`, `Input`, `TextArea`, `Switch`/`SwitchThumb`, and
+ *     `components/Card.tsx`, whose `styled(View, { name: 'Card' })` collides
+ *     with the preset's `Card` sub-theme and was quietly taking its
+ *     `$borderColor` from a grey ramp. The rest are unreachable, as are the
+ *     colour-scale variants (`light_blue`, `dark_red`, `*_accent`, …): they are
+ *     only entered through `<Theme name>` / a `theme` prop, and this client
+ *     uses neither.
+ *  4. **Nothing depended on the preset's defaults.** All 96 `<Button>` call
+ *     sites set `backgroundColor` explicitly, so no button's fill moves.
+ *
+ * Verified end to end by diffing the computed `background-color` / `color` /
+ * `border-*-color` of every element on every screen, at 1280px and 390px, in
+ * both themes, before and after. The only differences were the ones intended.
+ *
+ * If a component ever does want its own surface, add that one sub-theme here,
+ * written against the palette — `light_Foo` / `dark_Foo` next to `light` /
+ * `dark` below. What must not come back is 292 themes of somebody else's grey.
  *
  * ### Mobile floors encoded here, not per-screen
  *
@@ -112,6 +160,8 @@ function readingRoomTheme(p: ReadingRoomPalette, boxShadow: string) {
     borderColorStrong: p.borderStrong,
     /** The outline that identifies a control. 3:1 against `$surface`. */
     borderControl: p.borderControl,
+    /** The *fill* of a control's track — a switch's off state, a slider rail. */
+    controlTrack: p.controlTrack,
     primary: p.primary,
     onPrimary: p.onPrimary,
     secondary: p.secondary,
@@ -161,7 +211,9 @@ export const config = createTamagui({
       card: radius.card,
     },
   },
-  themes: { ...defaultConfig.themes, light, dark },
+  // Two themes, no sub-themes. See this file's header for the whole argument
+  // and for what was measured before the preset's 292 were taken out.
+  themes: { light, dark },
   settings: {
     ...defaultConfig.settings,
     // See the header comment: both `bg` and `backgroundColor` stay legal.
