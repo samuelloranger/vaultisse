@@ -32,13 +32,32 @@ function makeFakeStream() {
 }
 
 function makeFakeDecoder() {
-  let emit: ((decode: Decode) => void) | null = null
+  let deliver: ((decode: Decode) => void) | null = null
+
+  let announceStarted: () => void = () => {}
+  /**
+   * Resolves the moment the decode loop is actually live.
+   *
+   * The hook opens the camera and starts the decoder in two *different*
+   * effects: `status` flips to `scanning` as soon as the stream is attached,
+   * while the decode callback is only wired a further two async hops later —
+   * the decoder effect has to see the committed `streamReady`, await the
+   * factory, then await `start()`. So the visible status is not evidence that
+   * a decode can be delivered, and a test that emits on the strength of it is
+   * racing the decoder's own startup. Await this instead: it is the decoder
+   * saying it is ready, not a clock or a poll.
+   */
+  const started = new Promise<void>((resolve) => {
+    announceStarted = resolve
+  })
+
   const stop = vi.fn(() => {
-    emit = null
+    deliver = null
   })
   const start = vi.fn(
     async (_video: HTMLVideoElement, onDecode: (d: Decode) => void) => {
-      emit = onDecode
+      deliver = onDecode
+      announceStarted()
     }
   )
 
@@ -48,12 +67,20 @@ function makeFakeDecoder() {
     decoder,
     start,
     stop,
+    started,
     /** Whether the decode loop is currently live. */
     get running() {
-      return emit !== null
+      return deliver !== null
     },
     emit(decode: Decode) {
-      emit?.(decode)
+      // Loud rather than silent: an emit into a decoder that is not running is
+      // the exact shape of the race above, and swallowing it turns a wiring
+      // bug into a confusing "expected to be called, got 0 calls" somewhere
+      // further down.
+      if (!deliver) {
+        throw new Error('the fake decoder was asked to emit before it started')
+      }
+      deliver(decode)
     },
   }
 }
@@ -120,6 +147,8 @@ describe('useBarcodeScanner', () => {
       video: { facingMode: { ideal: 'environment' } },
     })
 
+    // `scanning` means the stream is attached, not that the decoder is wired.
+    await fake.started
     fake.emit({ value: '9780261102217', format: 'ean_13' })
     expect(onDecode).toHaveBeenCalledWith({ value: '9780261102217', format: 'ean_13' })
   })
@@ -181,6 +210,9 @@ describe('useBarcodeScanner', () => {
       />
     )
     await waitFor(() => expect(status()).toBe('scanning'))
+    // Same two-effect gap as above: unmounting before the decoder is up would
+    // assert against a teardown that has not been reached yet.
+    await fake.started
 
     view.unmount()
 
