@@ -21,7 +21,6 @@
     "allowImportingTsExtensions": true,
     "noEmit": true,
 
-    "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
       // `@tamagui/lucide-icons` ships per-icon .d.ts files but its subpath
