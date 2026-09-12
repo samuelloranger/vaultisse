@@ -175,6 +175,7 @@ describe('BookScreen', () => {
     await screen.findByTestId('book-screen')
 
     expect(screen.getByText('ISBN 9780061054884')).toBeInTheDocument()
+    expect(screen.getByText('5/1/1974')).toBeInTheDocument()
     // Category and format ids are resolved against the policy's reference lists.
     expect(screen.getByTestId('book-meta-view')).toHaveTextContent('Science-fiction')
     expect(screen.getByTestId('book-authors')).toHaveTextContent('Ursula K. Le Guin')

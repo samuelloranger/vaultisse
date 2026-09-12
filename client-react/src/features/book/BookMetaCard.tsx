@@ -322,7 +322,11 @@ export function BookMetaCard({ book, policy }: { book: BookDetail; policy: Polic
             <FieldRow label="Publisher" value={book.publisher} />
             <FieldRow
               label="Published"
-              value={book.published_date ? formatDate(book.published_date) : null}
+              value={
+                book.published_date
+                  ? formatDate(book.published_date, { dateOnly: true })
+                  : null
+              }
             />
           </XStack>
 

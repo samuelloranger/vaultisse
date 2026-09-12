@@ -60,4 +60,26 @@ describe('locale foundation', () => {
       new Intl.NumberFormat('fr-CA').format(1234.5)
     )
   })
+
+  it('keeps PostgreSQL date-column timestamps on their calendar date in western zones', () => {
+    const locale = createLocale('en', 'US', {})
+    expect(
+      locale.formatDate('1974-05-01T04:00:00.000Z', {
+        dateOnly: true,
+        timeZone: 'America/Los_Angeles',
+      })
+    ).toBe('5/1/1974')
+  })
+
+  it('does not resolve inherited label or plural entries', () => {
+    const labels = Object.create({
+      constructor: 'inherited',
+      'books.other': 'inherited plural',
+    }) as Record<string, string>
+    const locale = createLocale('en', 'US', labels)
+    expect(locale.t('constructor', 'explicit fallback')).toBe('explicit fallback')
+    expect(locale.tPlural('books', 2, 'One book', 'Explicit fallback')).toBe(
+      'Explicit fallback'
+    )
+  })
 })

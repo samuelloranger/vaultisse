@@ -1,7 +1,7 @@
 import { createContext, type ReactNode, useContext, useMemo } from 'react'
 
 export type InterpolationValues = Record<string, string | number>
-export type LocaleOptions = Intl.DateTimeFormatOptions
+export type LocaleOptions = Intl.DateTimeFormatOptions & { dateOnly?: boolean }
 
 export type LocaleContextValue = {
   language: string
@@ -61,6 +61,10 @@ function isDateOnly(value: string | number | Date): value is string {
   return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)
 }
 
+function hasLabel(labels: Record<string, string>, code: string): boolean {
+  return Object.hasOwn(labels, code)
+}
+
 export function createLocale(
   language: string | null | undefined,
   region: string | null | undefined,
@@ -69,7 +73,7 @@ export function createLocale(
   const locale = buildLocale(language, region)
   const pluralRules = new Intl.PluralRules(locale)
   const translate = (code: string, fallback: string, values?: InterpolationValues) =>
-    interpolate(labels[code] ?? fallback, values)
+    interpolate(hasLabel(labels, code) ? labels[code] : fallback, values)
 
   return {
     language:
@@ -85,16 +89,27 @@ export function createLocale(
     tPlural: (code, count, oneFallback, otherFallback, values = {}) => {
       const category = pluralRules.select(count)
       const fallback = category === 'one' ? oneFallback : otherFallback
-      const text = labels[`${code}.${category}`] ?? labels[`${code}.other`] ?? fallback
+      const categoryCode = `${code}.${category}`
+      const otherCode = `${code}.other`
+      const text = hasLabel(labels, categoryCode)
+        ? labels[categoryCode]
+        : hasLabel(labels, otherCode)
+          ? labels[otherCode]
+          : fallback
       return interpolate(text, { count, ...values })
     },
     formatDate: (value, options) => {
-      const date = isDateOnly(value)
-        ? new Date(`${value}T12:00:00.000Z`)
-        : dateValue(value)
-      const dateOptions = isDateOnly(value)
-        ? { ...options, timeZone: options?.timeZone ?? 'UTC' }
-        : options
+      const { dateOnly = false, ...intlOptions } = options ?? {}
+      const date =
+        dateOnly && typeof value === 'string'
+          ? new Date(`${value.slice(0, 10)}T12:00:00.000Z`)
+          : isDateOnly(value)
+            ? new Date(`${value}T12:00:00.000Z`)
+            : dateValue(value)
+      const dateOptions =
+        dateOnly || isDateOnly(value)
+          ? { ...intlOptions, timeZone: intlOptions.timeZone ?? 'UTC' }
+          : intlOptions
       if (Number.isNaN(date.getTime())) return ''
       try {
         return new Intl.DateTimeFormat(locale, dateOptions).format(date)

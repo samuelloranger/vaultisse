@@ -42,3 +42,9 @@ Complete. The implementation is committed in the task-owned client/server seams 
 
 - The general string/translation sweep remains intentionally out of scope; callers must supply explicit English fallbacks as they migrate.
 - Existing database rows with an invalid region are safely treated as `US` for provider requests, while new profile writes and admin defaults are constrained to the 16 supported codes.
+
+## Round 1/5 fix evidence
+
+- RED: the new timezone regression reproduced `4/30/1974` for PostgreSQL's `1974-05-01T04:00:00.000Z` in `America/Los_Angeles`; inherited-label coverage returned `inherited` for `constructor`.
+- GREEN: `formatDate(..., {dateOnly: true})` now normalizes date-column payloads to the UTC calendar date, and label/plural lookup requires own properties. The focused suite passes 11/11, including rendered BookScreen output `5/1/1974`.
+- Round verification: client lint and type-check pass; focused locale/BookScreen tests pass. No server code changed in this round.
