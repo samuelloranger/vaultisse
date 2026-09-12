@@ -17,20 +17,20 @@ function labels(policy: ReturnType<typeof makePolicy>): string[] {
 }
 
 describe('visibleNavItems', () => {
-  it('lists Loans and Customers while lending is on', () => {
+  it('lists Loans and Borrowers while lending is on', () => {
     const policy = makePolicy()
     policy.user.leasingEnabled = true
 
     expect(labels(policy)).toContain('Loans')
-    expect(labels(policy)).toContain('Customers')
+    expect(labels(policy)).toContain('Borrowers')
   })
 
-  it('drops Loans and Customers when lending is off', () => {
+  it('drops Loans and Borrowers when lending is off', () => {
     const policy = makePolicy()
     policy.user.leasingEnabled = false
 
     expect(labels(policy)).not.toContain('Loans')
-    expect(labels(policy)).not.toContain('Customers')
+    expect(labels(policy)).not.toContain('Borrowers')
   })
 
   it('leaves every other row alone when lending is off', () => {

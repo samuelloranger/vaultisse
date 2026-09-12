@@ -13,7 +13,7 @@ import { AdminMetadataRefresh } from './AdminMetadataRefresh'
  * `/app/profile`, where it looked exactly like the two personal preferences on
  * either side of it. It is not one: the value is `app_settings.leasing_enabled`,
  * a single row for the whole instance, and flipping it adds or removes the
- * Loans and Customers nav entries **for every account**. It was also writable
+ * Loans and Borrowers nav entries **for every account**. It was also writable
  * by every account, which is the other half of the same bug — see
  * `server/src/routes/admin/AdminSettingsRoute.ts`.
  *
@@ -63,7 +63,7 @@ export function AdminLibraryTab() {
         <ToggleRow
           testID="lending-toggle"
           label="Track loans and borrowers"
-          description="Adds the Loans and Customers sections. Turning it off hides them; nothing that has already been recorded is deleted."
+          description="Adds the Loans and Borrowers sections. Turning it off hides them; nothing that has already been recorded is deleted."
           checked={settings.data.leasingEnabled}
           disabled={update.isPending}
           onCheckedChange={(next) => update.mutate({ leasingEnabled: next })}

@@ -21,7 +21,7 @@ import { NativeSelect, SelectableRow } from './CustomerControls'
  *
  * ## Where the members come from
  *
- * From the customers list already in the cache, filtered by `group_id` — not a
+ * From the borrowers list already in the cache, filtered by `group_id` — not a
  * second endpoint. There is no `GET /customer/group/:id/members`, and the
  * customers query is mounted by the screen either way, so filtering it keeps
  * the member list and the borrowers list from ever disagreeing about who is in

@@ -71,7 +71,7 @@ export function setTheme(theme: ThemeName): Promise<{ message: string }> {
 /*
  * Lending used to be `setLeasingEnabled` here, calling `PATCH /user/leasing`.
  * It is not a personal preference — it is `app_settings.leasing_enabled`, one
- * row shared by every account, and flipping it moves the Loans and Customers
+ * row shared by every account, and flipping it moves the Loans and Borrowers
  * nav entries for everybody. It now lives in `api/admin.ts` as part of the
  * instance settings, behind `requireAdmin`. The *value* still arrives for every
  * account inside the policy's `user` object, because the nav needs it; only the

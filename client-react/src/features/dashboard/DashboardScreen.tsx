@@ -46,7 +46,7 @@ export function DashboardScreen() {
 
   const data = dashboard.data
   const shelvesWithBooks = data.categoryShelves.filter((s) => s.books.length > 0)
-  // Same instance-wide switch the Loans and Customers nav rows are behind. The
+  // Same instance-wide switch the Loans and Borrowers nav rows are behind. The
   // dashboard's lending surface - the return action and the on-loan list - goes
   // with them, or turning lending off leaves the section it removed from the
   // nav sitting on the first screen the user sees.

@@ -34,10 +34,10 @@ import {
 /**
  * Borrowers, their groups, and what each of them currently holds.
  *
- * ## Why a customer mutation names so many keys
+ * ## Why a borrower mutation names so many keys
  *
  * A borrower is not a leaf. They appear in `/app/policy`'s reference lists (the
- * lend dialogs' customer picker reads it), the dashboard counts them
+ * lend dialogs' borrower picker reads it), the dashboard counts them
  * (`totalCustomers`), and *lending* to one moves a copy: the book's counters,
  * the loans list, the shelf the copy came from, and the dashboard's
  * `totalBookedBooks` all change in the same write. The old client kept those in
@@ -67,7 +67,7 @@ export function useCustomers() {
   return useQuery(customersQueryOptions)
 }
 
-/** Every customer group, with its member count. */
+/** Every borrower group, with its member count. */
 export const customerGroupsQueryOptions = queryOptions({
   queryKey: customerKeys.groups(),
   queryFn: ({ signal }) => getCustomerGroups(signal),
@@ -75,7 +75,7 @@ export const customerGroupsQueryOptions = queryOptions({
   refetchOnWindowFocus: true,
 })
 
-/** The customer groups list. */
+/** The borrower groups list. */
 export function useCustomerGroups() {
   return useQuery(customerGroupsQueryOptions)
 }
@@ -105,12 +105,12 @@ export function useCustomerBooks(id: number) {
  * Everything a change to the *set of borrowers or groups* can be seen through.
  *
  * A prefix sweep rather than a surgical list: these are cheap endpoints, a
- * stale customer picker is a bug users have actually hit, and a key forgotten
+ * stale borrower picker is a bug users have actually hit, and a key forgotten
  * here fails silently and invisibly.
  */
 function invalidateCustomers(queryClient: QueryClient) {
   queryClient.invalidateQueries({ queryKey: customerKeys.all })
-  // `/app/policy` carries the lend dialogs' list of customers.
+  // `/app/policy` carries the lend dialogs' list of borrowers.
   queryClient.invalidateQueries({ queryKey: policyKeys.all })
   // `totalCustomers` is a dashboard tile.
   queryClient.invalidateQueries({ queryKey: dashboardKeys.all })
@@ -156,7 +156,7 @@ export function useUpdateCustomer() {
 /**
  * Delete a borrower.
  *
- * Invalidates the loan state, not just the customer list: the server does not
+ * Invalidates the loan state, not just the borrower list: the server does not
  * stop you deleting somebody who still has copies out, and those copies'
  * `customer_id` goes with them.
  */
@@ -168,7 +168,7 @@ export function useDeleteCustomer() {
   })
 }
 
-/** Create a customer group. A duplicate name comes back as a 409. */
+/** Create a borrower group. A duplicate name comes back as a 409. */
 export function useCreateCustomerGroup() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -177,7 +177,7 @@ export function useCreateCustomerGroup() {
   })
 }
 
-/** Rename / re-describe a customer group. A duplicate name comes back as a 409. */
+/** Rename / re-describe a borrower group. A duplicate name comes back as a 409. */
 export function useUpdateCustomerGroup() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -188,9 +188,9 @@ export function useUpdateCustomerGroup() {
 }
 
 /**
- * Delete a customer group.
+ * Delete a borrower group.
  *
- * Its members' `group_id` goes to `NULL` server-side, so the *customers* list
+ * Its members' `group_id` goes to `NULL` server-side, so the *borrowers* list
  * changes too — which `invalidateCustomers` already covers, and is the reason
  * this does not invalidate only the groups key.
  */
@@ -206,7 +206,7 @@ export function useDeleteCustomerGroup() {
  * Move a borrower into a group, or out of every group (`groupId: null`).
  *
  * One mutation for both directions because it is one intent, and because a
- * batch move fires it once per customer: a caller that had to pick between two
+ * batch move fires it once per borrower: a caller that had to pick between two
  * hooks per row would end up with the branch in the component.
  */
 export function useSetCustomerGroup() {

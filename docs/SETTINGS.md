@@ -80,7 +80,7 @@ fields they changed.
 
 | Field | Meaning |
 |---|---|
-| `leasingEnabled` | Whether the Loans and Customers pages (and their nav items) exist. Off by default: plenty of households just track a collection and never lend books to anyone. |
+| `leasingEnabled` | Whether the Loans and Borrowers pages (and their nav items) exist. Off by default: plenty of households just track a collection and never lend books to anyone. |
 | `registrationRequiresApproval` | Whether a new account is created `disabled` and has to be enabled by an admin before it can log in. |
 | `defaultLanguage` | `users.language` for the next account to register. Must be a row in `app_languages`. |
 | `defaultRegion` | `users.region` for the next account to register. Two uppercase letters. |
@@ -119,7 +119,7 @@ Until v1.2.0 this was `PATCH /user/leasing` behind `requireAuth`, and it was
 rendered on the Settings page next to the theme picker. That was wrong in a way
 worth recording: the value was **already** `app_settings.leasing_enabled` -
 one row for the whole instance - so any member could add or remove the Loans
-and Customers nav entries for everybody else, from a screen that looked like it
+and Borrowers nav entries for everybody else, from a screen that looked like it
 only changed their own account.
 
 Moving it to `/admin/settings` and moving the control into the admin panel's

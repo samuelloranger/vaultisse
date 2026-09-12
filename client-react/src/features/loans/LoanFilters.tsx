@@ -4,7 +4,7 @@ import type { LoanFilters as LoanFilterValues } from '@/api/loans'
 import { NativeDateField, NativeSelect } from '@/features/customers/CustomerControls'
 
 /**
- * The loans list's three filters: customer group, and a loan-date range.
+ * The loans list's three filters: borrower group, and a loan-date range.
  *
  * ## The layout is the fix, not a preference
  *

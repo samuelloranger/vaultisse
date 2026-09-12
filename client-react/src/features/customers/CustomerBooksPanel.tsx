@@ -11,7 +11,7 @@ import {
 import { useCustomerBooks, useReturnCustomerBook } from '@/queries/customer'
 
 /**
- * What one borrower currently holds — the expanded body of a customer row.
+ * What one borrower currently holds — the expanded body of a borrower row.
  *
  * ## Why this is not a table
  *

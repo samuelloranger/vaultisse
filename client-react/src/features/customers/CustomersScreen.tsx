@@ -26,7 +26,7 @@ import { CustomerLendBooksDialog } from './CustomerLendBooksDialog'
 import { CustomerMoveToGroupDialog } from './CustomerMoveToGroupDialog'
 
 /**
- * Customers — the people the library lends to, and the groups they sit in.
+ * Borrowers — the people the library lends to, and the groups they sit in.
  *
  * ## It is `features/entityList` twice, not a fourth list implementation
  *
@@ -43,7 +43,7 @@ import { CustomerMoveToGroupDialog } from './CustomerMoveToGroupDialog'
  * ## Two tabs rather than two routes
  *
  * `docs/CUSTOMERS.md` treats groups as an optional way to organise the same
- * people, and the nav has one "Customers" entry for both. A second nav row for
+ * people, and the nav has one "Borrowers" entry for both. A second nav row for
  * a feature most libraries never turn on would cost more than the tab does.
  *
  * ## What is deliberately not here
@@ -124,7 +124,7 @@ export function CustomersScreen() {
   const tabs = (
     <TabSwitch
       testID="customers-tabs"
-      label="Customers or groups"
+      label="Borrowers or groups"
       value={tab}
       options={TABS}
       onChange={setTab}
@@ -136,7 +136,7 @@ export function CustomersScreen() {
       <EntityListScreen<CustomerGroupRow, CustomerGroupInput>
         testID="customer-groups-screen"
         eyebrow="Lending"
-        title="Customer groups"
+        title="Borrower groups"
         noun="group"
         addLabel="Add group"
         loadingLabel="Loading groups…"
@@ -188,7 +188,7 @@ export function CustomersScreen() {
       <EntityListScreen<CustomerRow, CustomerInput>
         testID="customers-screen"
         eyebrow="Lending"
-        title="Customers"
+        title="Borrowers"
         noun="borrower"
         addLabel="Add borrower"
         loadingLabel="Loading borrowers…"

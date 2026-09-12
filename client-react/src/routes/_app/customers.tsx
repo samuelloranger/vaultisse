@@ -41,7 +41,7 @@ import { customerGroupsQueryOptions, customersQueryOptions } from '@/queries/cus
  * `ensureQueryData` is a cache hit: the `_app` layout awaits the same query.
  */
 export const Route = createFileRoute('/_app/customers')({
-  staticData: { title: 'Customers' },
+  staticData: { title: 'Borrowers' },
   beforeLoad: async ({ context }) => {
     const policy = await context.queryClient.ensureQueryData(policyQueryOptions)
     if (!policy.user.leasingEnabled) throw redirect({ to: '/' })

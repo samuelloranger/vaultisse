@@ -52,7 +52,7 @@ language, format, cover image), and it can look books up automatically by ISBN.
   API, falling back to Open Library when no API key is configured)
 - Track individual physical copies ("stock") of a book independently — each copy has
   its own status: available, booked/on loan, damaged, or not available
-- Record who a book is currently lent to, using a customer/borrower directory
+- Record who a book is currently lent to, using a borrower directory
 - Organize books by category, author, language, and format
 - Organize physical copies by shelf/location, so you always know where to find them
 - Full-text search across the catalog

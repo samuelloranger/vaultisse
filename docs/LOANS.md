@@ -17,15 +17,15 @@ them afterward.
 Two tables, two different jobs:
 
 - **`book_stocks`** knows the *current* state only. `status = 2` +
-  `customer_id` = "on loan to this customer right now." Once returned,
+  `customer_id` = "on loan to this borrower right now." Once returned,
   `customer_id`/`loaned_at` are wiped - there's no way to ask `book_stocks`
   "who had this book last March."
 - **`loan_history`** is an append-only log, one row per loan, written
   alongside every `book_stocks` transition into/out of `BOOKED` (see
   [`LoanHistory.ts`](../server/src/utils/LoanHistory.ts), called from both
   `BooksRoute.ts` and `CustomerRoute.ts`). Each row snapshots the book name,
-  customer name, and group name *as they were at loan time* - so renaming or
-  deleting a customer/group/book later doesn't corrupt historical reports,
+  borrower name, and group name *as they were at loan time* - so renaming or
+  deleting a borrower/group/book later doesn't corrupt historical reports,
   it just stops being reflected in future rows.
 
 `recordLoan`/`recordReturn` must be called by every code path that changes
@@ -51,7 +51,7 @@ sequenceDiagram
 
 `GET /loans` ([`LoansRoute.ts`](../server/src/routes/LoansRoute.ts)) lists
 every `book_stocks` row with `status = 2`, paginated (50/page), filterable
-by customer group and a loan-date range, newest first. This reads
+by borrower group and a loan-date range, newest first. This reads
 `book_stocks` directly (not `loan_history`) since it only cares about *now*.
 
 Returning a book from this list reuses the existing
@@ -62,7 +62,7 @@ deliberately listing-only, no mutation endpoints of its own.
 
 `GET /loans/report` is what the Loans screen's report dialog reads:
 every loan (returned or still open) in a **required** date range, optionally
-narrowed by customer group and/or a single customer. Backed by
+narrowed by borrower group and/or a single borrower. Backed by
 `loan_history`, so returned loans show up too - unlike `GET /loans`, this is
 how you'd answer "how many books did Class 4B borrow last semester."
 

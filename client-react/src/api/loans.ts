@@ -10,7 +10,7 @@ import { request } from './http'
  *    copy whose `status = 2`. Once a copy comes back its borrower and loan date
  *    are wiped, so this list can never answer "who had this last March".
  *  - **`GET /loans/report`** reads `loan_history`, an append-only log that
- *    snapshots the book, customer and group names *as they were at loan time*.
+ *    snapshots the book, borrower and group names *as they were at loan time*.
  *    That is what makes a historical report survive a rename or a deletion.
  *
  * There are no mutations here. Returning a copy goes through

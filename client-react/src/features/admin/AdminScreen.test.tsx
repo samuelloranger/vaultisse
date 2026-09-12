@@ -342,6 +342,11 @@ describe('AdminScreen', () => {
 
     await user.click(screen.getByTestId('admin-tabs-tab-library'))
     await screen.findByTestId('settings-lending')
+    expect(
+      screen.getByText(
+        'Adds the Loans and Borrowers sections. Turning it off hides them; nothing that has already been recorded is deleted.'
+      )
+    ).toBeInTheDocument()
 
     await user.click(screen.getByTestId('lending-toggle'))
 

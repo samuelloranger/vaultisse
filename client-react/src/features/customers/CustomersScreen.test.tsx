@@ -153,10 +153,15 @@ beforeEach(() => {
 })
 
 describe('CustomersScreen', () => {
-  it('renders', async () => {
+  it('uses borrower terminology across its tabs and headings', async () => {
     renderWithProviders(<CustomersScreen />)
     expect(await screen.findByTestId('customers-screen')).toBeInTheDocument()
-    expect(screen.getByText('Customers')).toBeInTheDocument()
+    expect(screen.getAllByText('Borrowers')).toHaveLength(2)
+    expect(screen.getByLabelText('Borrowers or groups')).toBeInTheDocument()
+
+    await userEvent.setup().click(screen.getByTestId('customers-tabs-groups'))
+
+    expect(await screen.findByText('Borrower groups')).toBeInTheDocument()
   })
 
   it('shows data from the query, counts and groups included', async () => {

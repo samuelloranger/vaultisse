@@ -171,7 +171,7 @@ export function LoansScreen() {
       {rows.length === 0 ? (
         <EmptyState
           title="Nothing is out"
-          description="Every copy is on its shelf. Lend one from a borrower's row on the Customers screen."
+          description="Every copy is on its shelf. Lend one from a borrower's row on the Borrowers screen."
         />
       ) : (
         <>

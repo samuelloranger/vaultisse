@@ -129,7 +129,7 @@ export function useSetTheme() {
  * `useSetLeasingEnabled` moved to `queries/admin.ts` as
  * `useUpdateInstanceSettings`, along with the endpoint behind it. It was never
  * a `/user` mutation: it writes `app_settings.leasing_enabled`, one row for the
- * whole instance, and it decides whether Loans and Customers exist in the nav
+ * whole instance, and it decides whether Loans and Borrowers exist in the nav
  * for everyone. It still invalidates `policyKeys.all` from over there — that is
  * the entire point of the mutation, not a tidy-up after it.
  */

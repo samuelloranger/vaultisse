@@ -115,7 +115,7 @@ export function deleteAdminUser(id: number): Promise<{ message: string }> {
  * Two groups of fields with nothing in common but their blast radius:
  *
  *  - **`leasingEnabled`** changes the app *right now*, for everybody. It is the
- *    setting that decides whether Loans and Customers exist in the nav.
+ *    setting that decides whether Loans and Borrowers exist in the nav.
  *  - **the four `registration*`/`default*` fields** change nothing anybody can
  *    see. They describe the **next account to register** and are read exactly
  *    once, by `POST /register`. Changing `defaultLanguage` does not move a
@@ -126,7 +126,7 @@ export function deleteAdminUser(id: number): Promise<{ message: string }> {
  * whether they just changed the app for six people or for the seventh.
  */
 export type InstanceSettings = {
-  /** Adds/removes the Loans and Customers sections, for every account. */
+  /** Adds/removes the Loans and Borrowers sections, for every account. */
   leasingEnabled: boolean
   /** New accounts are created disabled and wait for an admin to enable them. */
   registrationRequiresApproval: boolean

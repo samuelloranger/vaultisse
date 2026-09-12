@@ -128,7 +128,7 @@ export function useAdminSettings() {
  *
  * **Invalidating the policy is the point of this mutation, not a tidy-up after
  * it.** `leasingEnabled` lives in the policy's user object and is what
- * `AppShell` reads to decide whether the Loans and Customers nav entries exist.
+ * `AppShell` reads to decide whether the Loans and Borrowers nav entries exist.
  * Without the invalidation the switch would flip and the nav would not, until
  * something else happened to refetch.
  *

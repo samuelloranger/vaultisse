@@ -57,7 +57,7 @@ export function LoanReportDialog({
 
   const report = useLoanReport(submitted)
 
-  // Narrowing the group can strand a customer who is not in it.
+  // Narrowing the group can strand a borrower who is not in it.
   const customerOptions = customers
     .filter((customer) => groupId === null || customer.group_id === groupId)
     .map((customer) => ({ value: customer.id, label: customer.name }))

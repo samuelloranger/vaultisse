@@ -70,7 +70,7 @@ const NAV_GATES: Record<NavGate, (policy: Policy) => boolean> = {
  * enabled), so showing a greyed-out Admin row would advertise a door that is
  * not theirs rather than describe one that is coming.
  *
- * Loans and Customers are absent for the same reason when lending is off, and
+ * Loans and Borrowers are absent for the same reason when lending is off, and
  * through the same `gate` rather than a parallel mechanism. What differs is who
  * can change the answer: `leasingEnabled` is `app_settings.leasing_enabled`,
  * one row for the whole instance (see `features/settings/LendingCard.tsx`), and
@@ -91,7 +91,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Categories', to: '/categories', icon: Tag },
   { label: 'Authors', to: '/authors', icon: UserPen },
   { label: 'Loans', to: '/loans', icon: BookOpen, gate: 'lending' },
-  { label: 'Customers', to: '/customers', icon: Users, gate: 'lending' },
+  { label: 'Borrowers', to: '/customers', icon: Users, gate: 'lending' },
   { label: 'Profile', to: '/profile', icon: Settings },
   { label: 'Admin', to: '/admin', icon: Shield, gate: 'admin' },
 ]

@@ -64,7 +64,7 @@ export type EntityListScreenProps<T, TInput> = {
   /**
    * A strip between the title row and the list: tabs, filters, a counter.
    *
-   * Added for the customers screen, which is two of these lists — borrowers and
+   * Added for the borrowers screen, which is two of these lists — borrowers and
    * groups — behind one nav entry and therefore needs a switch that belongs to
    * neither of them. It sits above the empty state as well as above a populated
    * list, because a screen whose list is empty is exactly when you want the

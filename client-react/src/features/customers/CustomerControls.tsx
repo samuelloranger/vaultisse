@@ -186,7 +186,7 @@ export function TabSwitch<T extends string>({
  *
  * ## This is the replacement for the drag-and-drop that never worked
  *
- * The old customer-group assignment was HTML5 drag-and-drop. `dragstart` /
+ * The old borrower-group assignment was HTML5 drag-and-drop. `dragstart` /
  * `dragover` / `drop` fire for a mouse and **not at all** for a finger, so on a
  * phone the primary way to move a borrower between groups did nothing
  * whatsoever — the view even shipped a hint telling the user to drag. The
