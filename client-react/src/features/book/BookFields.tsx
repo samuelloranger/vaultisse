@@ -153,7 +153,9 @@ export function TextAreaField({
         minHeight={96}
         borderRadius="$control"
         backgroundColor="$surface"
-        borderColor="$borderColor"
+        // The control outline, not the divider — same rule as the `<select>`
+        // and `<input>` above, which already use `--borderControl`.
+        borderColor="$borderControl"
       />
     </YStack>
   )

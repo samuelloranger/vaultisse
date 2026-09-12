@@ -105,7 +105,11 @@ export function DateField({
           boxSizing: 'border-box',
           padding: '0 10px',
           borderRadius: 8,
-          border: '1px solid var(--borderColor)',
+          // `--borderControl`, not `--borderColor`: the divider token is
+          // decorative and allowed to be quiet, but this outline is the only
+          // thing that identifies the field (WCAG 1.4.11, 3:1). See
+          // `theme/palette.ts`.
+          border: '1px solid var(--borderControl)',
           background: 'var(--surface)',
           color: 'var(--color)',
         }}

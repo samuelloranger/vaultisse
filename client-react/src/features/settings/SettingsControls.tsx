@@ -34,7 +34,13 @@ const NATIVE_CONTROL_STYLE = {
   boxSizing: 'border-box' as const,
   padding: '0 10px',
   borderRadius: 8,
-  border: '1px solid var(--borderColor)',
+  // `--borderControl`, not `--borderColor`. The latter is the decorative
+  // divider token and is allowed to be quiet (1.2:1 on a card); an input's
+  // outline is the only thing that says "this is a field", which WCAG 1.4.11
+  // puts at 3:1. `components/Field.tsx` already used the right one, which is
+  // why "Name" had a crisp edge on the profile screen and "Email", "Language"
+  // and "Region" did not.
+  border: '1px solid var(--borderControl)',
   background: 'var(--surface)',
   color: 'var(--color)',
 }
@@ -138,7 +144,7 @@ export function TextInputField({
         }}
         style={{
           ...NATIVE_CONTROL_STYLE,
-          borderColor: error ? 'var(--red10)' : 'var(--borderColor)',
+          borderColor: error ? 'var(--danger)' : 'var(--borderControl)',
           opacity: disabled ? 0.6 : 1,
         }}
       />
@@ -383,6 +389,12 @@ export function ChoiceRow<T extends string>({
                 padding: '0 16px',
                 borderRadius: 8,
                 cursor: 'pointer',
+                // `--borderColor` here on purpose, not `--borderControl`.
+                // These are buttons, not fields: selection is carried by the
+                // terracotta fill, the label weight and `aria-pressed`, and
+                // the edge is only grouping them. They match the rest of the
+                // button family — `FilterChip`, `SelectableRow` — and moving
+                // this one to the field token would split that family in two.
                 border: `1px solid ${selected ? 'var(--primary)' : 'var(--borderColor)'}`,
                 background: selected ? 'var(--primary)' : 'transparent',
                 color: selected ? 'var(--onPrimary)' : 'var(--color)',
