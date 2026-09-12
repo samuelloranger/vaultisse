@@ -94,9 +94,19 @@ describe('ResponsiveDialog', () => {
    * Chrome, by walking the tab order and reading `document.activeElement` (25
    * tabs, 0 escapes, against 16 escapes before the fix).
    */
-  it('wraps an open dialog in a focus scope', async () => {
+  it('keeps the body inside the focus scope while open', async () => {
     renderWithProviders(<Harness startOpen />)
-    expect(await screen.findByTestId('dialog-focus-scope')).toBeInTheDocument()
+
+    const field = await screen.findByTestId('dialog-field')
+    const action = screen.getByTestId('dialog-action')
+    const scope = screen.getByTestId('dialog-focus-scope')
+
+    // Containment is the assertion, not the wrapper's existence: the frame — and
+    // so the wrapper — is rendered at every width and in both states, and the
+    // scope is armed by `open` rather than by mounting. What must be true is
+    // that everything Tab can reach is *inside* the element the scope is on.
+    expect(scope).toContainElement(field)
+    expect(scope).toContainElement(action)
   })
 
   it('closes on Escape', async () => {
