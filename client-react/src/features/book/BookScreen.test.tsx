@@ -128,6 +128,41 @@ beforeEach(() => {
 })
 
 describe('BookScreen', () => {
+  it('fills metadata, reports source gaps, and invalidates the book cache', async () => {
+    const user = userEvent.setup()
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          bookId: 1,
+          isbn: '9780061054884',
+          mode: 'fill',
+          changed: [],
+          stillMissing: ['category'],
+          sourcesTried: [],
+          unconfiguredSources: [],
+          failedSources: [],
+        })
+      )
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    try {
+      renderBook()
+      await user.click(await screen.findByRole('button', { name: 'Refresh metadata' }))
+      expect(await screen.findByText('No new metadata found.')).toBeInTheDocument()
+      expect(screen.getByText(/Still missing: category/)).toBeInTheDocument()
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/rest/book/1/refresh',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({ overwrite: false }),
+        })
+      )
+      await waitFor(() => expect(getBookMock).toHaveBeenCalledTimes(2))
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
   it('renders', async () => {
     renderBook()
     expect(await screen.findByTestId('book-screen')).toBeInTheDocument()

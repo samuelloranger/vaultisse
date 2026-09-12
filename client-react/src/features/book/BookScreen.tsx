@@ -9,6 +9,7 @@ import { useBook, useDeleteBook } from '@/queries/book'
 import { BookCover } from './BookCover'
 import { BookFilesCard } from './BookFilesCard'
 import { BookMetaCard } from './BookMetaCard'
+import { BookMetadataRefresh } from './BookMetadataRefresh'
 import { BookStocksCard } from './BookStocksCard'
 
 /**
@@ -100,8 +101,9 @@ export function BookScreen({
         <YStack $sm={{ width: 240, flexShrink: 0 }}>
           <BookCover bookId={data.id} imageUrl={data.image_url} title={data.name} />
         </YStack>
-        <YStack flexGrow={1} minWidth={0} gap="$3">
+        <YStack flexGrow={1} flexShrink={1} minWidth={0} gap="$3">
           <BookMetaCard book={data} policy={policy} />
+          <BookMetadataRefresh key={data.id} bookId={data.id} isbn={data.isbn} />
         </YStack>
       </YStack>
 

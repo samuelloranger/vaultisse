@@ -55,12 +55,25 @@ import {fetchBnfMetadata} from "./BnfUnimarc";
 
 export type MetadataSourceId = "google-books" | "open-library" | "bnf";
 
+/**
+ * Which provider supplied each field of the merged record.
+ *
+ * The merge is first-writer-wins, so exactly one provider owns each field and
+ * "which one" is knowable - it just used to be thrown away. `sources` says
+ * *that* the BnF contributed; this says the BnF is where the `391` came from,
+ * which is what the refresh flow shows the user field by field
+ * ("Pages - 391, from the BnF"). A field no provider had is simply absent.
+ */
+export type BookMetadataProvenance = Partial<Record<keyof IBookMetadata, MetadataSourceId>>;
+
 /** Outcome of one lookup, with enough detail for the route to say *why* it found nothing. */
 export interface IBookLookupResult {
     /** The merged record, or null when no provider had this ISBN. */
     metadata: IBookMetadata | null;
     /** Providers that contributed at least one field, in the order they ran. */
     sources: MetadataSourceId[];
+    /** Which provider each field of `metadata` came from. See {@link BookMetadataProvenance}. */
+    provenance: BookMetadataProvenance;
     /** Providers that could not run because the deployment has not configured them. */
     unconfigured: MetadataSourceId[];
     /** Providers that were called and failed (non-2xx, timeout, network error). */
@@ -224,7 +237,13 @@ export async function lookupBookMetadata(isbn: string, googleApiKey: string | un
         ? ["google-books", "bnf", "open-library"]
         : ["google-books", "open-library", "bnf"];
 
-    const result: IBookLookupResult = {metadata: null, sources: [], unconfigured: [], failed: []};
+    const result: IBookLookupResult = {
+        metadata: null,
+        sources: [],
+        provenance: {},
+        unconfigured: [],
+        failed: [],
+    };
     let merged = emptyBookMetadata();
     let found = false;
 
@@ -263,8 +282,14 @@ export async function lookupBookMetadata(isbn: string, googleApiKey: string | un
         merged = mergeBookMetadata(merged, answer);
         found = true;
 
-        if (__addedSomething(before, merged)) {
+        const filled = __fieldsFilled(before, merged);
+
+        if (filled.length > 0) {
             result.sources.push(source);
+
+            for (const field of filled) {
+                result.provenance[field] = source;
+            }
         }
     }
 
@@ -287,19 +312,29 @@ function __callProvider(
     }
 }
 
-/** Did the merge actually change anything, or did this provider only repeat what we had? */
-function __addedSomething(before: IBookMetadata, after: IBookMetadata): boolean {
-    return (
-        before.title !== after.title ||
-        before.authors.length !== after.authors.length ||
-        before.description !== after.description ||
-        before.categories.length !== after.categories.length ||
-        before.publisher !== after.publisher ||
-        before.publishedDate !== after.publishedDate ||
-        before.pageCount !== after.pageCount ||
-        before.language !== after.language ||
-        before.imageUrl !== after.imageUrl
-    );
+/**
+ * Which fields this provider filled that were empty before it ran - so both
+ * "did it contribute at all" and "which of these values are its" come out of
+ * one comparison.
+ *
+ * The merge is first-writer-wins, so a field can only ever go from empty to
+ * filled here; a provider that merely repeated a value we already had changes
+ * nothing and returns an empty list.
+ */
+function __fieldsFilled(before: IBookMetadata, after: IBookMetadata): (keyof IBookMetadata)[] {
+    const filled: (keyof IBookMetadata)[] = [];
+
+    if (before.title !== after.title) filled.push("title");
+    if (before.authors.length !== after.authors.length) filled.push("authors");
+    if (before.description !== after.description) filled.push("description");
+    if (before.categories.length !== after.categories.length) filled.push("categories");
+    if (before.publisher !== after.publisher) filled.push("publisher");
+    if (before.publishedDate !== after.publishedDate) filled.push("publishedDate");
+    if (before.pageCount !== after.pageCount) filled.push("pageCount");
+    if (before.language !== after.language) filled.push("language");
+    if (before.imageUrl !== after.imageUrl) filled.push("imageUrl");
+
+    return filled;
 }
 
 /**

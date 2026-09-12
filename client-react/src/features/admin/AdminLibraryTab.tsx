@@ -2,6 +2,7 @@ import { Text, YStack } from 'tamagui'
 import { errorMessage, ScreenError, ScreenLoading } from '@/components/ScreenState'
 import { SettingsSection, ToggleRow } from '@/features/settings/SettingsControls'
 import { useAdminSettings, useUpdateInstanceSettings } from '@/queries/admin'
+import { AdminMetadataRefresh } from './AdminMetadataRefresh'
 
 /**
  * Admin → **Library**. The settings that describe the shared collection.
@@ -73,6 +74,7 @@ export function AdminLibraryTab() {
           </Text>
         ) : null}
       </SettingsSection>
+      <AdminMetadataRefresh />
     </YStack>
   )
 }

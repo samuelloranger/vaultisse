@@ -528,6 +528,390 @@ describe("POST /book/isbn/:isbn (BnF gap-filling)", () => {
  * The deployment that had the variable present-but-empty took the honest
  * path; one that simply omitted the line did not.
  */
+/**
+ * `POST /book/:id/refresh` and `POST /book/refresh`.
+ *
+ * The production damage these exist for: four French paperbacks catalogued
+ * before the merge landed, every one of them with no publisher, no category
+ * and `pages = 0`. The fixtures below recreate exactly that - Google finds the
+ * book and answers with holes in it, the BnF has the publisher and the
+ * pagination, and nobody anywhere has a category.
+ */
+describe("POST /book/:id/refresh (re-fetch an existing book)", () => {
+    function bnfFixture(name: string): string {
+        return fs.readFileSync(path.join(__dirname, "..", "fixtures", "bnf", `${name}.xml`), "utf-8");
+    }
+
+    let refreshCounter = 0;
+    function freshFrenchIsbn(): string {
+        refreshCounter += 1;
+        const body = `9782${String(Date.now() % 1e5).padStart(5, "0")}${String(refreshCounter % 1000).padStart(3, "0")}`;
+        let sum = 0;
+        for (let i = 0; i < 12; i++) {
+            sum += (i % 2 === 0 ? 1 : 3) * Number(body[i]);
+        }
+        return body + String((10 - (sum % 10)) % 10);
+    }
+
+    /** Google's real answer for 9782824627151: the book, minus publisher, minus categories, with pageCount 0. */
+    const googlePartial = {
+        items: [
+            {
+                volumeInfo: {
+                    title: "Le boyfriend",
+                    authors: ["Freida McFadden"],
+                    publishedDate: "2025-10-08",
+                    description: "Comme beaucoup de femmes celibataires de New York...",
+                    language: "fr",
+                    imageLinks: {thumbnail: "https://books.google.com/books/content?id=abc"},
+                    pageCount: 0,
+                },
+            },
+        ],
+    };
+
+    /** Google answers partially; the BnF fills the publisher and the page count. */
+    function mockGoogleThenBnf() {
+        mockedFetch.mockImplementation((input: string | URL) => {
+            const url = String(input);
+            if (url.includes("googleapis.com")) return Promise.resolve(jsonResponse(googlePartial));
+            if (url.includes("catalogue.bnf.fr")) {
+                return Promise.resolve(new Response(bnfFixture("le-boyfriend-9782824627151")));
+            }
+            if (url.includes("covers.openlibrary.org")) return Promise.resolve(imageResponse(404, null));
+            return Promise.resolve(jsonResponse({}));
+        });
+    }
+
+    /**
+     * A book in the state production left them in: created through the ISBN
+     * route while Google was the only source that answered, so it has a title,
+     * a cover and `pages = 0`, and nothing else.
+     */
+    async function createDamagedBook(): Promise<{id: number; isbn: string}> {
+        const isbn = freshFrenchIsbn();
+
+        await withGoogleApiKey("a-test-key", async () => {
+            mockedFetch.mockImplementation((input: string | URL) =>
+                Promise.resolve(
+                    String(input).includes("googleapis.com")
+                        ? jsonResponse(googlePartial)
+                        : String(input).includes("covers.openlibrary.org")
+                          ? imageResponse(404, null)
+                          : jsonResponse({})
+                )
+            );
+
+            const res = await user.agent.post(`/api/rest/book/isbn/${isbn}`);
+            expect(res.status).toBe(200);
+        });
+
+        const {rows} = await appService.getDatabasePool().query("SELECT id FROM books WHERE isbn = $1", [isbn]);
+        // Recreate the exact production residue: the fix at the provider edge
+        // stops new zeroes, it does not repair the rows already carrying one.
+        await appService.getDatabasePool().query("UPDATE books SET pages = 0, publisher = NULL WHERE id = $1", [
+            rows[0].id,
+        ]);
+
+        return {id: rows[0].id, isbn};
+    }
+
+    it("fills the publisher and page count a pre-merge book is missing, naming the source of each", async () => {
+        const book = await createDamagedBook();
+        mockGoogleThenBnf();
+
+        const res = await withGoogleApiKey("a-test-key", () =>
+            user.agent.post(`/api/rest/book/${book.id}/refresh`)
+        );
+
+        expect(res.status).toBe(200);
+        expect(res.body.mode).toBe("fill");
+        expect(res.body.changed).toEqual(
+            expect.arrayContaining([
+                {field: "publisher", from: null, to: "City roman", source: "bnf"},
+                {field: "pages", from: 0, to: 391, source: "bnf"},
+            ])
+        );
+
+        const after = await user.agent.get(`/api/rest/book/${book.id}`);
+        expect(after.body).toMatchObject({publisher: "City roman", pages: 391});
+    });
+
+    it("preserves hand edits made while catalogue requests are in flight", async () => {
+        const book = await createDamagedBook();
+        mockedFetch.mockImplementation(async (input: string | URL) => {
+            if (String(input).includes("googleapis.com")) {
+                await appService.getDatabasePool().query(
+                    "UPDATE books SET publisher = 'Hand edit during lookup', pages = 777, image_url = '/uploaded-cover.jpg' WHERE id = $1",
+                    [book.id]
+                );
+                return jsonResponse(googlePartial);
+            }
+            if (String(input).includes("catalogue.bnf.fr")) {
+                return new Response(bnfFixture("le-boyfriend-9782824627151"));
+            }
+            return jsonResponse({});
+        });
+        const res = await withGoogleApiKey("a-test-key", () => user.agent.post(`/api/rest/book/${book.id}/refresh`));
+        expect(res.status).toBe(200);
+        const after = await user.agent.get(`/api/rest/book/${book.id}`);
+        expect(after.body.publisher).toBe("Hand edit during lookup");
+        expect(after.body.pages).toBe(777);
+        expect(after.body.image_url).toBe("/uploaded-cover.jpg");
+        expect(res.body.changed).toEqual([]);
+    });
+
+    it("asks for a retry if the ISBN changes during the lookup", async () => {
+        const book = await createDamagedBook();
+        mockedFetch.mockImplementation(async (input: string | URL) => {
+            if (String(input).includes("googleapis.com")) {
+                await appService.getDatabasePool().query("UPDATE books SET isbn = NULL WHERE id = $1", [book.id]);
+                return jsonResponse(googlePartial);
+            }
+            if (String(input).includes("catalogue.bnf.fr")) return new Response(bnfFixture("le-boyfriend-9782824627151"));
+            return jsonResponse({});
+        });
+        const res = await withGoogleApiKey("a-test-key", () => user.agent.post(`/api/rest/book/${book.id}/refresh`));
+        expect(res.status).toBe(409);
+        expect(res.body.error).toBe("isbn_changed");
+        const after = await user.agent.get(`/api/rest/book/${book.id}`);
+        expect(after.body.publisher).toBeNull();
+        expect(after.body.pages).toBe(0);
+    });
+
+    // The truth the owner has to be told rather than papered over: Google
+    // returns no categories for these titles and the BnF record carries no 606
+    // subject heading, so there is no category to be had. It stays NULL and
+    // the answer says which fields are in that position.
+    it("leaves the category empty when no source has one, and says so", async () => {
+        const book = await createDamagedBook();
+        mockGoogleThenBnf();
+
+        const pool = appService.getDatabasePool();
+        const before = await pool.query("SELECT COUNT(*)::int AS n FROM categories");
+
+        const res = await withGoogleApiKey("a-test-key", () =>
+            user.agent.post(`/api/rest/book/${book.id}/refresh`)
+        );
+
+        expect(res.body.changed.some((change: any) => change.field === "category")).toBe(false);
+        expect(res.body.stillMissing).toContain("category");
+
+        const after = await user.agent.get(`/api/rest/book/${book.id}`);
+        expect(after.body.category_id).toBeNull();
+
+        // And no placeholder category row was conjured up for it either - not
+        // a "Fiction", not an "Uncategorised", not the BnF's 686 class number.
+        const afterCount = await pool.query("SELECT COUNT(*)::int AS n FROM categories");
+        expect(afterCount.rows[0].n).toBe(before.rows[0].n);
+    });
+
+    /**
+     * The bug most likely to be in a feature like this one, so it is asserted
+     * on three axes at once: the second run reports no changes, links no
+     * second copy of the author, and does not move `date_updated`.
+     */
+    it("is idempotent - a second run changes nothing and duplicates no author", async () => {
+        const book = await createDamagedBook();
+        mockGoogleThenBnf();
+
+        const first = await withGoogleApiKey("a-test-key", () =>
+            user.agent.post(`/api/rest/book/${book.id}/refresh`)
+        );
+        expect(first.body.changed.length).toBeGreaterThan(0);
+
+        const pool = appService.getDatabasePool();
+        const {rows: afterFirst} = await pool.query("SELECT date_updated FROM books WHERE id = $1", [book.id]);
+
+        const second = await withGoogleApiKey("a-test-key", () =>
+            user.agent.post(`/api/rest/book/${book.id}/refresh`)
+        );
+
+        expect(second.status).toBe(200);
+        expect(second.body.changed).toEqual([]);
+
+        const {rows: afterSecond} = await pool.query("SELECT date_updated FROM books WHERE id = $1", [book.id]);
+        expect(String(afterSecond[0].date_updated)).toBe(String(afterFirst[0].date_updated));
+
+        const {rows: links} = await pool.query(
+            `SELECT authors.name FROM book_authors JOIN authors ON authors.id = book_authors.author_id
+             WHERE book_authors.book_id = $1`,
+            [book.id]
+        );
+        expect(links.map(row => row.name)).toEqual(["Freida McFadden"]);
+
+        const {rows: categories} = await pool.query("SELECT COUNT(*)::int AS n FROM categories");
+        expect(categories[0].n).toBeGreaterThanOrEqual(0);
+    });
+
+    it("keeps a hand-edited field a source disagrees with", async () => {
+        const book = await createDamagedBook();
+
+        await user.agent.put(`/api/rest/book/${book.id}`).send({
+            name: "Le boyfriend",
+            description: "A description I wrote myself.",
+            image_url: null,
+            isbn: book.isbn,
+            category_id: null,
+            language_code: "fr",
+            publisher: "My own publisher",
+            published_date: null,
+            pages: null,
+            format_id: null,
+        });
+
+        mockGoogleThenBnf();
+
+        const res = await withGoogleApiKey("a-test-key", () =>
+            user.agent.post(`/api/rest/book/${book.id}/refresh`)
+        );
+
+        expect(res.body.changed.some((change: any) => change.field === "publisher")).toBe(false);
+        expect(res.body.changed.some((change: any) => change.field === "description")).toBe(false);
+
+        const after = await user.agent.get(`/api/rest/book/${book.id}`);
+        expect(after.body.publisher).toBe("My own publisher");
+        expect(after.body.description).toBe("A description I wrote myself.");
+        // ...and the page count, which was never touched by hand, is repaired.
+        expect(after.body.pages).toBe(391);
+    });
+
+    it("replaces a filled field only when overwrite is asked for by name", async () => {
+        const book = await createDamagedBook();
+        await appService
+            .getDatabasePool()
+            .query("UPDATE books SET publisher = 'Stale Publisher' WHERE id = $1", [book.id]);
+
+        mockGoogleThenBnf();
+
+        const res = await withGoogleApiKey("a-test-key", () =>
+            user.agent.post(`/api/rest/book/${book.id}/refresh`).send({overwrite: true})
+        );
+
+        expect(res.body.mode).toBe("overwrite");
+        expect(res.body.changed).toEqual(
+            expect.arrayContaining([
+                {field: "publisher", from: "Stale Publisher", to: "City roman", source: "bnf"},
+            ])
+        );
+    });
+
+    it("leaves stocks and loans alone", async () => {
+        const book = await createDamagedBook();
+        const location = await user.agent.post("/api/rest/location").send({name: "Refresh Shelf", description: ""});
+        await user.agent.post(`/api/rest/book/${book.id}/stock`).send({status: 0, location_id: location.body.id});
+
+        const before = await user.agent.get(`/api/rest/book/${book.id}`);
+        mockGoogleThenBnf();
+
+        await withGoogleApiKey("a-test-key", () => user.agent.post(`/api/rest/book/${book.id}/refresh`));
+
+        const after = await user.agent.get(`/api/rest/book/${book.id}`);
+        expect(after.body.stocks).toEqual(before.body.stocks);
+    });
+
+    it("refuses a book with no ISBN rather than pretending to work", async () => {
+        const created = await user.agent.post("/api/rest/book").field("name", "A book with no barcode");
+
+        const res = await user.agent.post(`/api/rest/book/${created.body}/refresh`);
+
+        expect(res.status).toBe(400);
+        expect(res.body.error).toBe("no_isbn");
+    });
+
+    it("404s for a book that does not exist", async () => {
+        const res = await user.agent.post("/api/rest/book/99999999/refresh");
+        expect(res.status).toBe(404);
+    });
+
+    it("answers with the source breakdown when no source has the ISBN", async () => {
+        const book = await createDamagedBook();
+        alwaysJson({});
+        mockedFetch.mockImplementation((input: string | URL) => {
+            const url = String(input);
+            if (url.includes("catalogue.bnf.fr")) return Promise.resolve(new Response("<records/>"));
+            return Promise.resolve(jsonResponse({}));
+        });
+
+        const res = await user.agent.post(`/api/rest/book/${book.id}/refresh`);
+
+        expect(res.status).toBe(404);
+        expect(res.body.error).toBe("source_not_configured");
+    });
+});
+
+describe("POST /book/refresh (bulk)", () => {
+    async function createAdmin(): Promise<ITestUser> {
+        const admin = await createAuthenticatedUser(app, "Refresh Admin");
+        await appService
+            .getDatabasePool()
+            .query("UPDATE users SET role = 'admin' WHERE code = $1", [admin.userCode]);
+        return admin;
+    }
+
+    it("refuses a non-admin with 403", async () => {
+        const res = await user.agent.post("/api/rest/book/refresh").send({ids: [1]});
+
+        expect(res.status).toBe(403);
+        expect(res.body.sessionExpired).toBeUndefined();
+    });
+
+    it("rejects an empty or oversized id list", async () => {
+        const admin = await createAdmin();
+
+        expect((await admin.agent.post("/api/rest/book/refresh").send({})).status).toBe(400);
+        expect((await admin.agent.post("/api/rest/book/refresh").send({ids: []})).status).toBe(400);
+
+        const tooMany = await admin.agent
+            .post("/api/rest/book/refresh")
+            .send({ids: Array.from({length: 51}, (_, i) => i + 1)});
+        expect(tooMany.status).toBe(400);
+        expect(tooMany.body.error).toBe("too_many_ids");
+    });
+
+    it("rejects every malformed ID without processing the valid subset", async () => {
+        const admin = await createAdmin();
+        for (const invalid of [null, true, "1", "bad", 0, -1, 1.5, 9007199254740992]) {
+            const res = await admin.agent.post("/api/rest/book/refresh").send({ids: [99999999, invalid]});
+            expect(res.status).toBe(400);
+            expect(res.body.error).toBe("invalid_ids");
+        }
+    });
+
+    it("deduplicates explicit IDs before looking up books", async () => {
+        const admin = await createAdmin();
+        const res = await admin.agent.post("/api/rest/book/refresh").send({ids: [99999999, 99999999]});
+        expect(res.status).toBe(200);
+        expect(res.body.results).toHaveLength(1);
+        expect(res.body.results[0]).toMatchObject({bookId: 99999999, status: "not_found"});
+    });
+
+    it("summarises each book by field name and records the run in activity_log", async () => {
+        const admin = await createAdmin();
+        const noIsbn = await user.agent.post("/api/rest/book").field("name", "Bulk book with no barcode");
+
+        mockedFetch.mockImplementation(() => Promise.resolve(jsonResponse({})));
+
+        const res = await admin.agent.post("/api/rest/book/refresh").send({ids: [noIsbn.body]});
+
+        expect(res.status).toBe(200);
+        expect(res.body.results).toEqual([
+            {
+                bookId: noIsbn.body,
+                name: "Bulk book with no barcode",
+                status: "no_isbn",
+                changed: [],
+                stillMissing: [],
+            },
+        ]);
+
+        const {rows} = await appService
+            .getDatabasePool()
+            .query("SELECT metadata FROM activity_log WHERE action = 'books_metadata_refreshed' ORDER BY id DESC LIMIT 1");
+        expect(rows[0].metadata).toMatchObject({mode: "fill", requested: 1});
+    });
+});
+
 describe("normalizeGoogleApiKey", () => {
     it("treats an absent, empty or whitespace variable as not configured", () => {
         expect(normalizeGoogleApiKey(undefined)).toBeUndefined();

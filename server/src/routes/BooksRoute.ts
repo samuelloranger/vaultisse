@@ -31,11 +31,22 @@ import {SearchFilter} from "../types/search/SearchFilter";
 import {SortType} from "../types/search/SortType";
 import {normalizeAndValidateIsbn} from "../utils/IsbnVerification";
 import {
+    BookMetadataProvenance,
     IBookLookupResult,
     fetchOpenLibraryCover,
     lookupBookMetadata,
     normalizeLanguageCode,
 } from "../utils/BookMetadata";
+import {IBookMetadata} from "../types/book/IBookMetadata";
+import {
+    BookMetadataField,
+    IBookMetadataRefreshPlan,
+    IBookMetadataSnapshot,
+    RefreshMode,
+    planMetadataRefresh,
+} from "../utils/BookMetadataRefresh";
+import {requireAdmin} from "../middlewares/AdminMiddleware";
+import {ActivityAction, recordActivity} from "../utils/ActivityLog";
 import {isValidEpub, isValidMobi, isValidPdf} from "../utils/FileSignature";
 import {recordLoan, recordReturn} from "../utils/LoanHistory";
 import {handleUploadError} from "../middlewares/UploadErrorMiddleware";
@@ -947,26 +958,25 @@ router.post(
                 return __respondWithoutMetadata(res, isbnCode, lookup);
             }
 
-            const {
-                title: name,
-                authors,
-                description,
-                categories,
-                publisher,
-                publishedDate,
-                pageCount: pages,
-                language,
-            } = metadata;
-
-            const formattedPublishedDate = formatPublishedDate(publishedDate);
-
             /**
              * IMAGE (whatever a provider handed back → OpenLibrary Covers fallback)
              */
             const imageUrl: string | null = metadata.imageUrl ?? (await fetchOpenLibraryCover(isbnCode));
 
-            const categoryName = truncate(categories?.[0] ?? null, 100);
-            const languageCode = normalizeLanguageCode(language);
+            // The same normalisation the refresh flow uses - truncation to the
+            // VARCHAR widths, YYYY-MM-DD, two-letter language code - so a book
+            // created by a scan and the same book refreshed later land on
+            // identical values instead of differing by a trailing space.
+            const {
+                name,
+                description,
+                categoryName,
+                publisher,
+                publishedDate: formattedPublishedDate,
+                pages,
+                languageCode,
+                authors,
+            } = __snapshotFromMetadata(metadata, imageUrl);
 
             /**
              * =========================
@@ -999,12 +1009,12 @@ router.post(
                 const bookId = await __getOrCreateBook(
                     client,
                     {
-                        name: truncate(name, 255),
+                        name,
                         description,
                         imageUrl,
                         isbnCode,
                         categoryId,
-                        publisher: truncate(publisher, 100),
+                        publisher,
                         formattedPublishedDate,
                         languageCode,
                         pages,
@@ -1015,13 +1025,8 @@ router.post(
                 /**
                  * AUTHORS
                  */
-                if (authors?.length) {
-                    await __ensureAuthors(
-                        client,
-                        bookId,
-                        authors.map((author: string) => truncate(author, 100) ?? author),
-                        userId
-                    );
+                if (authors.length) {
+                    await __ensureAuthors(client, bookId, authors, userId);
                 }
 
                 /**
@@ -1114,6 +1119,465 @@ function __respondWithoutMetadata(res: Response, isbn: string, lookup: IBookLook
         unconfiguredSources: lookup.unconfigured,
         failedSources: lookup.failed,
     });
+}
+
+/**
+ * =========================================================
+ * RE-FETCHING METADATA FOR A BOOK THAT ALREADY EXISTS
+ * =========================================================
+ * `POST /book/isbn/:isbn` only ever fills in a book on the way *in*. Every
+ * title catalogued before the three-source merge landed (`370a3b6`) therefore
+ * still carries whatever the Google-only path produced at the time - which,
+ * on a deployment whose `GOOGLE_BOOKS_API_KEY` was empty, was nothing at all,
+ * and on one where it was set was a book with no publisher and `pages = 0`.
+ *
+ * These two routes run the *same* chain against a book that is already in the
+ * library and write back only what is genuinely missing. They share
+ * `__refreshBookMetadata` below; the chain itself is not forked, reimplemented
+ * or special-cased - it is `lookupBookMetadata`, exactly as the scan uses it.
+ */
+
+/**
+ * POST /book/:id/refresh
+ * ----------------------
+ * Re-fetch one book's metadata from every source and fill in what it is
+ * missing. Intended for books catalogued before the merge existed.
+ *
+ * Auth: required - any member. It is one lookup for one book, no more
+ * expensive than the ISBN scan every member can already run. (The *bulk*
+ * route below is admin-only; see its own note.)
+ *
+ * Path param: `id` {number} - book id.
+ * Body (optional):
+ *  { "overwrite": false }   // default. Writes only fields the book has nothing in.
+ *  { "overwrite": true }    // also replaces fields that already have a value -
+ *                           // except the cover, which is never replaced.
+ *
+ * Nothing outside the book's own bibliographic columns is touched: copies,
+ * loans and `created_by` are not this lookup's business.
+ *
+ * Example response (200):
+ *  {
+ *    "bookId": 4,
+ *    "isbn": "9782824627151",
+ *    "mode": "fill",
+ *    "changed": [
+ *      { "field": "publisher", "from": null, "to": "City roman", "source": "bnf" },
+ *      { "field": "pages", "from": 0, "to": 391, "source": "bnf" }
+ *    ],
+ *    "stillMissing": ["category"],
+ *    "sourcesTried": ["google-books", "bnf"],
+ *    "unconfiguredSources": [],
+ *    "failedSources": []
+ *  }
+ *
+ * `changed: []` is a normal, successful answer: every source was asked and
+ * none of them had anything this book does not already have. `stillMissing`
+ * names the fields that are empty *and* unfillable - no source has them - so
+ * the answer can say that out loud instead of inventing a value.
+ *
+ * Responses: 404 "Book not found" | 400 `{error: "no_isbn"}` when the book has
+ *   no (or a malformed) ISBN - the whole chain is ISBN-keyed, so there is
+ *   nothing to ask | 404/502 with the `__respondWithoutMetadata` body when no
+ *   source has the ISBN | 500 on failure (rolls back).
+ */
+// @ts-ignore
+router.post('/:id/refresh', requireAuth, async (req: Request, res: Response) => {
+    const id = Number(req.params.id);
+
+    if (!Number.isInteger(id)) {
+        return res.status(400).send('No book ID provided');
+    }
+
+    const mode: RefreshMode = req.body?.overwrite === true ? 'overwrite' : 'fill';
+    const userId = appService.getSessionUser(req);
+
+    let outcome: IRefreshOutcome;
+
+    try {
+        outcome = await __refreshBookMetadata(id, mode, userId);
+    } catch (error) {
+        console.error('Error refreshing book metadata:', error);
+        return res.status(500).send('Error refreshing book metadata');
+    }
+
+    switch (outcome.status) {
+        case 'isbn_changed':
+            return res.status(409).json({error: 'isbn_changed', message: 'The ISBN changed during the lookup. Refresh again to use the current ISBN.', bookId: id});
+        case 'not_found':
+            return res.status(404).send('Book not found');
+        case 'no_isbn':
+            return res.status(400).json({
+                error: 'no_isbn',
+                message: 'This book has no usable ISBN, and every metadata source is keyed on one.',
+                bookId: id,
+            });
+        case 'no_metadata':
+            return __respondWithoutMetadata(res, outcome.isbn, outcome.lookup);
+        case 'ok':
+            return res.status(200).json({
+                bookId: id,
+                isbn: outcome.isbn,
+                mode,
+                changed: outcome.plan.changes,
+                stillMissing: outcome.plan.stillMissing,
+                sourcesTried: outcome.lookup.sources,
+                unconfiguredSources: outcome.lookup.unconfigured,
+                failedSources: outcome.lookup.failed,
+            });
+    }
+});
+
+/**
+ * Courtesy gap between two lookups in a bulk run, matching the client's own
+ * `DELAY_BETWEEN_LOOKUPS_MS` in `AddBookIsbnDialog` and `useScanQueue`. Three
+ * rate-limited public catalogues are being asked, under one deployment's
+ * single Google key; hammering them is how a key gets throttled for everybody.
+ */
+const DELAY_BETWEEN_LOOKUPS_MS = 1500;
+
+/** Most books one bulk call will take. Past this the request is long enough to be a job, not a request. */
+const MAX_BULK_REFRESH = 50;
+
+/**
+ * POST /book/refresh
+ * ------------------
+ * Refresh several books in one call, serialised.
+ *
+ * **Admin-only, deliberately.** A single refresh is one member spending one
+ * lookup on one book they are looking at - the same cost as the scan they can
+ * already run. This is N external calls to three rate-limited services, made
+ * under the instance's single `GOOGLE_BOOKS_API_KEY`, on books belonging to
+ * everybody: one member could otherwise burn the shared quota (and rewrite
+ * fifty other people's records) from one button. That is the same reasoning
+ * that moved the lending toggle behind `requireAdmin` - a shared library needs
+ * the instance-wide actions gated even though every member can read and edit
+ * any single book.
+ *
+ * Body:
+ *  {
+ *    "ids": [2, 3, 4, 5],   // required, 1..50 book ids. No "refresh everything"
+ *                           // mode: the caller names the books, so a run is
+ *                           // always bounded and always finishes.
+ *    "overwrite": false     // as for the single route
+ *  }
+ *
+ * Books are processed **one at a time** with `DELAY_BETWEEN_LOOKUPS_MS`
+ * between them. A book that fails does not stop the run - it comes back with
+ * its own `status` - so one dead ISBN cannot cost the other forty-nine.
+ *
+ * Example response (200):
+ *  {
+ *    "mode": "fill",
+ *    "results": [
+ *      { "bookId": 2, "name": "La Femme De Ménage", "status": "ok",
+ *        "changed": ["publisher", "pages"], "stillMissing": ["category"] },
+ *      { "bookId": 9, "name": "A book with no barcode", "status": "no_isbn",
+ *        "changed": [], "stillMissing": [] }
+ *    ]
+ *  }
+ *
+ * Per-book field *names* only, not a field-level diff: a diff of fifty books
+ * is noise, and the single route is there for the one book you care about.
+ *
+ * Responses: 400 when `ids` is missing, empty or longer than 50 |
+ *            401/403 from `requireAdmin` | 500 on failure.
+ */
+// @ts-ignore
+router.post('/refresh', requireAdmin, async (req: Request, res: Response) => {
+    const raw = Array.isArray(req.body?.ids) ? req.body.ids : null;
+
+    if (!raw || raw.length === 0) {
+        return res.status(400).json({
+            error: 'no_ids',
+            message: 'Name the books to refresh in "ids".',
+        });
+    }
+
+    if (raw.length > MAX_BULK_REFRESH) {
+        return res.status(400).json({
+            error: 'too_many_ids',
+            message: `At most ${MAX_BULK_REFRESH} books per call.`,
+        });
+    }
+
+    if (raw.some((id: unknown) => typeof id !== 'number' || !Number.isSafeInteger(id) || id <= 0)) {
+        return res.status(400).json({
+            error: 'invalid_ids',
+            message: 'Every book ID must be a positive integer number.',
+        });
+    }
+
+    const ids = [...new Set<number>(raw)];
+    const mode: RefreshMode = req.body?.overwrite === true ? 'overwrite' : 'fill';
+    const userId = appService.getSessionUser(req);
+
+    const results: {
+        bookId: number;
+        name: string | null;
+        status: IRefreshOutcome["status"] | "error";
+        changed: BookMetadataField[];
+        stillMissing: BookMetadataField[];
+    }[] = [];
+
+    try {
+        for (const [index, id] of ids.entries()) {
+            if (index > 0) {
+                await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_LOOKUPS_MS));
+            }
+
+            let outcome: IRefreshOutcome;
+
+            try {
+                outcome = await __refreshBookMetadata(id, mode, userId);
+            } catch (error) {
+                console.error(`Error refreshing book ${id}:`, error);
+                results.push({bookId: id, name: null, status: 'error', changed: [], stillMissing: []});
+                continue;
+            }
+
+            results.push({
+                bookId: id,
+                name: outcome.status === 'not_found' ? null : outcome.name,
+                status: outcome.status,
+                changed: outcome.status === 'ok' ? outcome.plan.changes.map(change => change.field) : [],
+                stillMissing: outcome.status === 'ok' ? outcome.plan.stillMissing : [],
+            });
+        }
+
+        // Logged for the same reason an instance-settings change is: one admin
+        // spent the shared API quota and rewrote rows the whole household
+        // reads. The single-book route is *not* logged - no other per-book
+        // write (create, edit, delete) is either, and logging one of the four
+        // would be worse than logging none.
+        await recordActivity(appService.getDatabasePool(), userId, ActivityAction.BOOKS_METADATA_REFRESHED, {
+            entityType: 'book',
+            metadata: {
+                mode,
+                requested: ids.length,
+                changed: results.filter(result => result.changed.length > 0).length,
+                bookIds: ids,
+            },
+        });
+
+        return res.status(200).json({mode, results});
+    } catch (error) {
+        console.error('Error refreshing books:', error);
+        return res.status(500).send('Error refreshing books');
+    }
+});
+
+/** What `__refreshBookMetadata` found. `name` is carried so the bulk answer can say which book it means. */
+type IRefreshOutcome =
+    | {status: "not_found"}
+    | {status: "isbn_changed"; name: string}
+    | {status: "no_isbn"; name: string}
+    | {status: "no_metadata"; name: string; isbn: string; lookup: IBookLookupResult}
+    | {status: "ok"; name: string; isbn: string; lookup: IBookLookupResult; plan: IBookMetadataRefreshPlan};
+
+/**
+ * Re-run the provider chain for one existing book and apply what it is allowed
+ * to apply. The single and bulk routes above are both this function plus a
+ * response shape.
+ *
+ * What it will not do, and why:
+ *  - **No stocks, no loans, no `created_by`.** This is bibliographic metadata.
+ *    Who owns a copy, who borrowed it and who catalogued it are nobody's
+ *    business here.
+ *  - **No invention.** A field no source returned stays empty and comes back
+ *    in `plan.stillMissing`. There is no fallback category, no placeholder
+ *    author, no publisher inferred from an imprint.
+ *  - **No write at all when nothing changed**, so `date_updated` does not move
+ *    on a second identical run - which is also what makes this idempotent.
+ */
+async function __refreshBookMetadata(
+    bookId: number,
+    mode: RefreshMode,
+    userId: number
+): Promise<IRefreshOutcome> {
+    const pool = appService.getDatabasePool();
+
+    const selectBook = `SELECT books.id,
+                books.name,
+                books.description,
+                books.image_url,
+                books.isbn,
+                books.publisher,
+                books.published_date,
+                books.language_code,
+                books.pages,
+                categories.name                                                     AS category_name,
+                COALESCE(
+                    array_agg(authors.name) FILTER (WHERE authors.name IS NOT NULL),
+                    '{}'
+                )                                                                   AS author_names
+         FROM books
+                  LEFT JOIN categories ON categories.id = books.category_id
+                  LEFT JOIN book_authors ON book_authors.book_id = books.id
+                  LEFT JOIN authors ON authors.id = book_authors.author_id
+         WHERE books.id = $1
+         GROUP BY books.id, categories.name`;
+    const existing = await pool.query(selectBook, [bookId]);
+
+    if (existing.rowCount !== 1) {
+        return {status: "not_found"};
+    }
+
+    const book = existing.rows[0];
+    const isbnCode = normalizeAndValidateIsbn(book.isbn ?? "");
+
+    if (!isbnCode) {
+        return {status: "no_isbn", name: book.name};
+    }
+
+    const lookup = await lookupBookMetadata(isbnCode, appService.getGoogleApiKey());
+
+    if (!lookup.metadata) {
+        return {status: "no_metadata", name: book.name, isbn: isbnCode, lookup};
+    }
+
+    // The cover of last resort costs a round trip, so it is only worth asking
+    // for when the book has no cover *and* no provider handed one back. A
+    // provenance entry is added by hand because that call is outside the
+    // chain - and this is a cover URL the book did not have, so saying where
+    // it came from is the same courtesy the other fields get.
+    const provenance: BookMetadataProvenance = {...lookup.provenance};
+    let imageUrl = lookup.metadata.imageUrl;
+
+    if (!imageUrl && !book.image_url?.trim()) {
+        imageUrl = await fetchOpenLibraryCover(isbnCode);
+
+        if (imageUrl) {
+            provenance.imageUrl = "open-library";
+        }
+    }
+
+    const incoming = __snapshotFromMetadata(lookup.metadata, imageUrl);
+    const client = await pool.connect();
+
+    try {
+        await client.query('BEGIN');
+
+        // No locks during provider I/O. Lock first, then read the complete
+        // current snapshot in a fresh statement: an edit may have committed
+        // while the catalogues were answering or while this lock was waiting.
+        const locked = await client.query('SELECT id FROM books WHERE id = $1 FOR UPDATE', [bookId]);
+        if (locked.rowCount !== 1) {
+            await client.query('COMMIT');
+            return {status: 'not_found'};
+        }
+        const {rows: [latest]} = await client.query(selectBook, [bookId]);
+        if (normalizeAndValidateIsbn(latest.isbn ?? '') !== isbnCode) {
+            await client.query('COMMIT');
+            return {status: 'isbn_changed', name: latest.name};
+        }
+        const current: IBookMetadataSnapshot = {
+            name: latest.name,
+            description: latest.description,
+            imageUrl: latest.image_url,
+            categoryName: latest.category_name,
+            publisher: latest.publisher,
+            publishedDate: formatPublishedDate(latest.published_date),
+            pages: latest.pages,
+            languageCode: latest.language_code ? String(latest.language_code).trim() : null,
+            authors: latest.author_names ?? [],
+        };
+        const plan = planMetadataRefresh(current, incoming, provenance, mode);
+        if (plan.changes.length === 0) {
+            await client.query('COMMIT');
+            return {status: 'ok', name: latest.name, isbn: isbnCode, lookup, plan};
+        }
+
+        const columns: string[] = [];
+        const values: unknown[] = [];
+
+        const set = (column: string, value: unknown) => {
+            values.push(value);
+            columns.push(`${column} = $${values.length}`);
+        };
+
+        for (const change of plan.changes) {
+            switch (change.field) {
+                case "name":
+                    set("name", change.to);
+                    break;
+                case "description":
+                    set("description", change.to);
+                    break;
+                case "image_url":
+                    set("image_url", change.to);
+                    break;
+                case "publisher":
+                    set("publisher", change.to);
+                    break;
+                case "published_date":
+                    set("published_date", change.to);
+                    break;
+                case "pages":
+                    set("pages", change.to);
+                    break;
+                case "language":
+                    await ensureLanguage(client, String(change.to));
+                    set("language_code", change.to);
+                    break;
+                case "category":
+                    // Find-or-create, exactly as a scan does: a category
+                    // another member already made is reused, not duplicated.
+                    set("category_id", await __ensureCategory(client, String(change.to), userId));
+                    break;
+                case "authors":
+                    // Handled below - it is a link table, not a column.
+                    break;
+            }
+        }
+
+        if (columns.length > 0) {
+            values.push(bookId);
+            await client.query(
+                `UPDATE books SET ${columns.join(", ")}, date_updated = CURRENT_TIMESTAMP WHERE id = $${values.length}`,
+                values
+            );
+        }
+
+        if (plan.authorsToLink.length > 0) {
+            // Additive and ON CONFLICT DO NOTHING, so a second run links nothing twice.
+            await __ensureAuthors(client, bookId, plan.authorsToLink, userId);
+        }
+
+        await client.query('COMMIT');
+        return {status: "ok", name: latest.name, isbn: isbnCode, lookup, plan};
+    } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+    } finally {
+        client.release();
+    }
+
+}
+
+/**
+ * A provider record, normalised to what the `books` columns can actually hold:
+ * VARCHAR widths clipped, the published date reduced to `YYYY-MM-DD`, the
+ * language to a two-letter code, and only the first (most specific) category
+ * kept - `books.category_id` is a single foreign key.
+ *
+ * Used by both the create path and the refresh path on purpose. When the two
+ * normalised separately, a book created by a scan and the same book refreshed
+ * afterwards could differ by a truncation or a date format, and the refresh
+ * would report a "change" that was nothing of the sort.
+ */
+function __snapshotFromMetadata(metadata: IBookMetadata, imageUrl: string | null): IBookMetadataSnapshot {
+    return {
+        name: truncate(metadata.title, 255),
+        description: metadata.description,
+        imageUrl,
+        categoryName: truncate(metadata.categories?.[0] ?? null, 100),
+        publisher: truncate(metadata.publisher, 100),
+        publishedDate: formatPublishedDate(metadata.publishedDate),
+        pages: metadata.pageCount,
+        languageCode: normalizeLanguageCode(metadata.language),
+        authors: (metadata.authors ?? []).map(author => truncate(author, 100) ?? author),
+    };
 }
 
 /**
@@ -1702,8 +2166,21 @@ export function isAllowedImageUrl(url: string): boolean {
     }
 }
 
-function formatPublishedDate(date: string | null | undefined): string | null {
+function formatPublishedDate(date: string | Date | null | undefined): string | null {
     if (!date) return null;
+
+    // `pg` hands a DATE column back as a Date at *local* midnight. Running that
+    // through toISOString() shifts it a day backwards anywhere east of UTC,
+    // which would make the refresh see a difference that isn't there and
+    // rewrite published_date on every run. Local components, then.
+    if (date instanceof Date) {
+        if (Number.isNaN(date.getTime())) return null;
+
+        const month = String(date.getMonth() + 1).padStart(2, "0");
+        const day = String(date.getDate()).padStart(2, "0");
+
+        return `${date.getFullYear()}-${month}-${day}`;
+    }
 
     // Attempt to parse the date and format it to YYYY-MM-DD
     const parsedDate = new Date(date);

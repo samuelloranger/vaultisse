@@ -45,6 +45,19 @@ export enum ActivityAction {
      * with.
      */
     INSTANCE_SETTINGS_CHANGED = "instance_settings_changed",
+    /**
+     * An admin ran the bulk metadata refresh (`POST /book/refresh`). Carries
+     * `entity_type = 'book'` and, in `metadata`, the mode, the ids asked for
+     * and how many of them actually changed.
+     *
+     * The *single-book* refresh is deliberately not logged: no other per-book
+     * write - create, edit, delete - is either, and logging one of the four
+     * would read as an audit trail while being nothing of the sort. What makes
+     * the bulk run different is what makes an instance-settings change
+     * different: one admin spent the deployment's shared metadata quota and
+     * rewrote rows the whole household reads.
+     */
+    BOOKS_METADATA_REFRESHED = "books_metadata_refreshed",
 }
 
 /**
