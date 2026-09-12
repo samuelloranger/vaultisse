@@ -217,6 +217,34 @@ export function useDeleteBookStock(id: number) {
   })
 }
 
+/**
+ * Delete a book whose id is not known when the hook is called.
+ *
+ * {@link useDeleteBook} binds its id at hook time, which is right for the book
+ * screen — it deletes the one book it is showing — and useless to Scan mode's
+ * Undo, where the id belongs to whichever toast was tapped. Same request, same
+ * invalidation, id in the mutation variables instead.
+ */
+export function useDeleteBookById() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (id: number) => deleteBook(id),
+    onSuccess: () => invalidateBookContent(queryClient),
+  })
+}
+
+/** Discard one copy of a book, id supplied per call. See {@link useDeleteBookById}. */
+export function useDeleteBookStockById() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ bookId, stockId }: { bookId: number; stockId: number }) =>
+      deleteBookStock(bookId, stockId),
+    onSuccess: () => invalidateStockContent(queryClient),
+  })
+}
+
 /** Create a book by hand. Resolves to the new book's id. */
 export function useCreateBook() {
   const queryClient = useQueryClient()

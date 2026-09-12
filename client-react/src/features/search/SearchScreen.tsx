@@ -6,6 +6,8 @@ import { Field } from '@/components/Field'
 import { EmptyState, ScreenError, ScreenLoading } from '@/components/ScreenState'
 import { usePolicy } from '@/queries/app'
 import { useSearchBooks } from '@/queries/search'
+import { ScanScreen } from '../scan/ScanScreen'
+import { cameraIsPlausible } from '../scan/useBarcodeScanner'
 import { AddBookIsbnDialog } from './AddBookIsbnDialog'
 import { AddBookManuallyDialog } from './AddBookManuallyDialog'
 import { BookGrid, BookGroup } from './BookGrid'
@@ -106,6 +108,12 @@ export function SearchScreen({
 
   const [isbnOpen, setIsbnOpen] = useState(false)
   const [manualOpen, setManualOpen] = useState(false)
+  const [manualIsbn, setManualIsbn] = useState('')
+  const [scanOpen, setScanOpen] = useState(false)
+  // Asked once, at mount. The answer cannot change without a navigation, and
+  // calling it per render would run a capability probe on every keystroke in
+  // the search box.
+  const [hasCamera] = useState(cameraIsPlausible)
   // Local, not a search param: opening a drawer is not somewhere you navigated
   // to, and putting it in the URL would put it in the history stack and in
   // every link anyone shares.
@@ -175,6 +183,23 @@ export function SearchScreen({
         >
           Add manually
         </Button>
+        {/* Rendered only where a camera could exist. Not disabled-with-a-
+            tooltip: a tooltip never opens on touch, and a control that can
+            never work is noise. The typed path above stays the way in. */}
+        {hasCamera ? (
+          <Button
+            testID="open-scan"
+            onPress={() => setScanOpen(true)}
+            minHeight={44}
+            fontSize={16}
+            borderRadius="$control"
+            backgroundColor="transparent"
+            borderColor="$borderColor"
+            color="$color"
+          >
+            Scan
+          </Button>
+        ) : null}
       </XStack>
 
       <Card gap="$3" testID="search-filters">
@@ -355,6 +380,16 @@ export function SearchScreen({
         open={manualOpen}
         onOpenChange={setManualOpen}
         onBookCreated={onBookCreated}
+        initialIsbn={manualIsbn}
+      />
+
+      <ScanScreen
+        open={scanOpen}
+        onClose={() => setScanOpen(false)}
+        onAddManually={(isbn) => {
+          setManualIsbn(isbn)
+          setManualOpen(true)
+        }}
       />
     </YStack>
   )

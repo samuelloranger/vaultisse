@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Button, Text, TextArea, XStack, YStack } from 'tamagui'
 import { Field } from '@/components/Field'
 import { ResponsiveDialog } from '@/components/ResponsiveDialog'
@@ -20,10 +20,20 @@ export function AddBookManuallyDialog({
   open,
   onOpenChange,
   onBookCreated,
+  initialIsbn,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   onBookCreated?: (id: number) => void
+  /**
+   * Seed the ISBN field when the dialog opens.
+   *
+   * Scan mode's 404 toast — "no metadata found for this ISBN" — offers "add
+   * manually", and arriving at an empty form after the barcode has already been
+   * read is asking someone to type back thirteen digits the app just saw. Not
+   * passed, the field opens empty exactly as before.
+   */
+  initialIsbn?: string
 }) {
   const createBook = useCreateBook()
   const fileInput = useRef<HTMLInputElement>(null)
@@ -32,6 +42,13 @@ export function AddBookManuallyDialog({
   const [description, setDescription] = useState('')
   const [isbn, setIsbn] = useState('')
   const [image, setImage] = useState<File | null>(null)
+
+  // Seeded on open rather than as initial state: the dialog is mounted for the
+  // life of the screen, so its initial state runs once and long before anyone
+  // has scanned anything.
+  useEffect(() => {
+    if (open) setIsbn(initialIsbn ?? '')
+  }, [open, initialIsbn])
 
   const isbnError =
     isbn.trim() !== '' && !isValidIsbn(isbn)
