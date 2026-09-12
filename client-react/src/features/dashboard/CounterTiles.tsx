@@ -51,11 +51,22 @@ function Tile({
 export function CounterTiles({
   dashboard,
   counters,
+  lending,
 }: {
   dashboard: Dashboard
   counters?: BookCounters
+  /** The instance-wide lending switch. Off, and the loan counts come out. */
+  lending: boolean
 }) {
   const trendingUp = dashboard.totalThisMonth >= dashboard.totalLastMonth
+  const counterParts = counters
+    ? [
+        `${counters.total} in the library`,
+        `${counters.recent} added in the last 30 days`,
+        ...(lending ? [`${counters.onLoan} out`] : []),
+        `${counters.noStock} with no copies`,
+      ]
+    : []
 
   return (
     <YStack gap="$2">
@@ -73,19 +84,18 @@ export function CounterTiles({
             )
           }
         />
-        <Tile
-          testID="tile-on-loan"
-          label="On loan"
-          value={dashboard.totalBookedBooks}
-        />
+        {lending ? (
+          <Tile
+            testID="tile-on-loan"
+            label="On loan"
+            value={dashboard.totalBookedBooks}
+          />
+        ) : null}
         <Tile testID="tile-authors" label="Authors" value={dashboard.totalAuthors} />
       </XStack>
 
       {counters ? (
-        <MutedText testID="counters-line">
-          {counters.total} in the library · {counters.recent} added in the last 30 days
-          · {counters.onLoan} out · {counters.noStock} with no copies
-        </MutedText>
+        <MutedText testID="counters-line">{counterParts.join(' · ')}</MutedText>
       ) : null}
     </YStack>
   )

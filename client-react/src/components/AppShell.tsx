@@ -1,6 +1,7 @@
 import { Link } from '@tanstack/react-router'
 import { useState } from 'react'
 import { Button, Sheet, Text, useMedia, XStack, YStack } from 'tamagui'
+import type { Policy } from '@/api/types'
 import { usePolicy } from '@/queries/app'
 import { useColorScheme } from '@/theme/ThemeProvider'
 import { DisplayText } from './Card'
@@ -34,12 +35,28 @@ import {
  * bar is showing and the bottom of the page cannot be reached.
  */
 
+/**
+ * The condition a nav entry is behind, if any.
+ *
+ * One mechanism with two values rather than two booleans, because both values
+ * mean exactly the same thing to the renderer: the row is **absent** when the
+ * condition fails, never present and greyed out. Adding a third gate should be
+ * a line in {@link NAV_GATES}, not a second `…Only` flag on this type.
+ */
+type NavGate = 'admin' | 'lending'
+
 type NavItem = {
   label: string
   to: string
   icon: AppIcon
-  /** Rendered only for an administrator. See `adminOnly` handling in NavList. */
-  adminOnly?: boolean
+  /** Shown only when this gate passes. See {@link NAV_ITEMS}. */
+  gate?: NavGate
+}
+
+/** What each gate reads out of the policy. */
+const NAV_GATES: Record<NavGate, (policy: Policy) => boolean> = {
+  admin: (policy) => policy.user.isAdmin === true,
+  lending: (policy) => policy.user.leasingEnabled === true,
 }
 
 /**
@@ -50,6 +67,20 @@ type NavItem = {
  * server refuses the endpoints either way (403, and the query is never even
  * enabled), so showing a greyed-out Admin row would advertise a door that is
  * not theirs rather than describe one that is coming.
+ *
+ * Loans and Customers are absent for the same reason when lending is off, and
+ * through the same `gate` rather than a parallel mechanism. What differs is who
+ * can change the answer: `leasingEnabled` is `app_settings.leasing_enabled`,
+ * one row for the whole instance (see `features/settings/LendingCard.tsx`), and
+ * anybody can switch it back on from the profile screen. So the rows are not a
+ * door that is not theirs - they are a section this library has turned off, and
+ * a greyed-out row would describe a feature nobody here has asked for.
+ *
+ * Note the gate is cosmetic, not a control: the server does not consult
+ * `leasing_enabled` on `/loans` or `/customer` (both are `requireAuth` and
+ * nothing more), so the data is still reachable by anyone who types the URL of
+ * an API endpoint. This hides a section that is switched off; it does not
+ * protect one.
  */
 const NAV_ITEMS: NavItem[] = [
   { label: 'Dashboard', to: '/', icon: LayoutDashboard },
@@ -57,10 +88,10 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Locations', to: '/locations', icon: MapPin },
   { label: 'Categories', to: '/categories', icon: Tag },
   { label: 'Authors', to: '/authors', icon: UserPen },
-  { label: 'Loans', to: '/loans', icon: BookOpen },
-  { label: 'Customers', to: '/customers', icon: Users },
+  { label: 'Loans', to: '/loans', icon: BookOpen, gate: 'lending' },
+  { label: 'Customers', to: '/customers', icon: Users, gate: 'lending' },
   { label: 'Settings', to: '/settings', icon: Settings },
-  { label: 'Admin', to: '/admin', icon: Shield, adminOnly: true },
+  { label: 'Admin', to: '/admin', icon: Shield, gate: 'admin' },
 ]
 
 const IMPLEMENTED_ROUTES = new Set([
@@ -75,14 +106,26 @@ const IMPLEMENTED_ROUTES = new Set([
   '/admin',
 ])
 
+/**
+ * The rows this policy may see, in order.
+ *
+ * Exported so the filtering can be tested without standing up a router: the
+ * rows themselves are `Link`s, and what is worth asserting here is which items
+ * survive the gates, not how a link renders.
+ */
+export function visibleNavItems(policy: Policy): NavItem[] {
+  return NAV_ITEMS.filter((item) => !item.gate || NAV_GATES[item.gate](policy))
+}
+
 function NavList({ onNavigate }: { onNavigate?: () => void }) {
   // A cache hit, not a fetch: the _app route's loader already awaited this.
+  // It is also live: the lending toggle invalidates the policy key, so flipping
+  // lending adds or drops these rows without a reload (see queries/user.ts).
   const { data: policy } = usePolicy()
-  const isAdmin = policy.user.isAdmin === true
 
   return (
     <YStack gap="$1" padding="$3" role="navigation" aria-label="Main">
-      {NAV_ITEMS.filter((item) => !item.adminOnly || isAdmin).map((item) => {
+      {visibleNavItems(policy).map((item) => {
         const live = IMPLEMENTED_ROUTES.has(item.to)
         const Icon = item.icon
         const content = (

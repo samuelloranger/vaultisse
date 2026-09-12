@@ -45,6 +45,11 @@ export function DashboardScreen() {
 
   const data = dashboard.data
   const shelvesWithBooks = data.categoryShelves.filter((s) => s.books.length > 0)
+  // Same instance-wide switch the Loans and Customers nav rows are behind. The
+  // dashboard's lending surface - the return action and the on-loan list - goes
+  // with them, or turning lending off leaves the section it removed from the
+  // nav sitting on the first screen the user sees.
+  const lending = policy.user.leasingEnabled
 
   return (
     <YStack gap="$4" testID="dashboard-screen">
@@ -55,22 +60,24 @@ export function DashboardScreen() {
         </DisplayText>
       </YStack>
 
-      <CounterTiles dashboard={data} counters={counters.data} />
+      <CounterTiles dashboard={data} counters={counters.data} lending={lending} />
 
-      <XStack>
-        <Button
-          testID="open-return-dialog"
-          onPress={() => setReturnOpen(true)}
-          icon={Undo2}
-          minHeight={44}
-          fontSize={16}
-          borderRadius="$control"
-          backgroundColor="$primary"
-          color="$onPrimary"
-        >
-          Return copies
-        </Button>
-      </XStack>
+      {lending ? (
+        <XStack>
+          <Button
+            testID="open-return-dialog"
+            onPress={() => setReturnOpen(true)}
+            icon={Undo2}
+            minHeight={44}
+            fontSize={16}
+            borderRadius="$control"
+            backgroundColor="$primary"
+            color="$onPrimary"
+          >
+            Return copies
+          </Button>
+        </XStack>
+      ) : null}
 
       <BookShelf title="Recently added" books={data.lastBooks} />
 
@@ -90,35 +97,39 @@ export function DashboardScreen() {
         />
       ))}
 
-      <Card gap="$2" testID="on-loan-card">
-        <XStack alignItems="baseline" gap="$2">
-          <Eyebrow>Currently on loan</Eyebrow>
-          <MutedText>{data.totalBookedBooks}</MutedText>
-        </XStack>
-        {data.currentlyOnLoan.length === 0 ? (
-          <MutedText>Nothing is out at the moment.</MutedText>
-        ) : (
-          <YStack gap="$2">
-            {data.currentlyOnLoan.map((loan) => (
-              <XStack
-                key={`${loan.bookId}-${loan.customerId}`}
-                testID="loan-row"
-                justifyContent="space-between"
-                gap="$3"
-                minHeight={44}
-                alignItems="center"
-              >
-                <Text fontSize={15} color="$color" flex={1} numberOfLines={1}>
-                  {loan.bookName}
-                </Text>
-                <MutedText numberOfLines={1}>{loan.customerName}</MutedText>
-              </XStack>
-            ))}
-          </YStack>
-        )}
-      </Card>
+      {lending ? (
+        <Card gap="$2" testID="on-loan-card">
+          <XStack alignItems="baseline" gap="$2">
+            <Eyebrow>Currently on loan</Eyebrow>
+            <MutedText>{data.totalBookedBooks}</MutedText>
+          </XStack>
+          {data.currentlyOnLoan.length === 0 ? (
+            <MutedText>Nothing is out at the moment.</MutedText>
+          ) : (
+            <YStack gap="$2">
+              {data.currentlyOnLoan.map((loan) => (
+                <XStack
+                  key={`${loan.bookId}-${loan.customerId}`}
+                  testID="loan-row"
+                  justifyContent="space-between"
+                  gap="$3"
+                  minHeight={44}
+                  alignItems="center"
+                >
+                  <Text fontSize={15} color="$color" flex={1} numberOfLines={1}>
+                    {loan.bookName}
+                  </Text>
+                  <MutedText numberOfLines={1}>{loan.customerName}</MutedText>
+                </XStack>
+              ))}
+            </YStack>
+          )}
+        </Card>
+      ) : null}
 
-      <ReturnBooksDialog open={returnOpen} onOpenChange={setReturnOpen} />
+      {lending ? (
+        <ReturnBooksDialog open={returnOpen} onOpenChange={setReturnOpen} />
+      ) : null}
     </YStack>
   )
 }

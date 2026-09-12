@@ -37,10 +37,12 @@ const getDashboardMock = vi.mocked(getDashboard)
 const getBookCountersMock = vi.mocked(getBookCounters)
 const returnBooksMock = vi.mocked(returnBooks)
 
-function renderDashboard() {
+function renderDashboard({ leasingEnabled = true } = {}) {
   const queryClient = createTestQueryClient()
   // What the `_app` route's loader does before this screen ever mounts.
-  queryClient.setQueryData(policyKeys.current(), makePolicy())
+  const policy = makePolicy()
+  policy.user.leasingEnabled = leasingEnabled
+  queryClient.setQueryData(policyKeys.current(), policy)
   return renderWithProviders(<DashboardScreen />, { queryClient })
 }
 
@@ -107,5 +109,32 @@ describe('DashboardScreen', () => {
     expect(await screen.findByTestId('screen-error')).toBeInTheDocument()
     expect(screen.getByText('Error loading dashboard')).toBeInTheDocument()
     expect(screen.getByTestId('screen-error-retry')).toBeInTheDocument()
+  })
+})
+
+/**
+ * The dashboard's lending surface follows the same instance-wide switch as the
+ * Loans and Customers nav rows. Leaving "Return copies" and the on-loan list on
+ * the first screen of the app while the sections they belong to are gone from
+ * the nav would make the toggle look half-applied.
+ */
+describe('DashboardScreen with lending off', () => {
+  it('drops the return action, the on-loan card and the loan counts', async () => {
+    renderDashboard({ leasingEnabled: false })
+
+    expect(await screen.findByTestId('dashboard-screen')).toBeInTheDocument()
+    expect(screen.queryByTestId('open-return-dialog')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('on-loan-card')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('tile-on-loan')).not.toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByTestId('counters-line')).not.toHaveTextContent('out')
+    })
+  })
+
+  it('still shows the library itself', async () => {
+    renderDashboard({ leasingEnabled: false })
+
+    expect(await screen.findByTestId('tile-total')).toHaveTextContent('7')
+    expect(screen.getByText('The Dispossessed')).toBeInTheDocument()
   })
 })
