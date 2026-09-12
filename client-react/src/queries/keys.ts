@@ -99,6 +99,8 @@ export const adminKeys = {
   all: ['admin'] as const,
   /** `GET /admin/users`. Admin-only; 403 for everyone else. */
   users: () => [...adminKeys.all, 'users'] as const,
+  /** `GET /admin/settings` — the single `app_settings` row. Admin-only. */
+  settings: () => [...adminKeys.all, 'settings'] as const,
 }
 
 export const userKeys = {

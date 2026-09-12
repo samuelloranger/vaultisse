@@ -6,7 +6,6 @@ import { ActivityCard } from './ActivityCard'
 import { AppearanceCard } from './AppearanceCard'
 import { ChangePasswordDialog } from './ChangePasswordDialog'
 import { DeleteAccountCard } from './DeleteAccountDialog'
-import { LendingCard } from './LendingCard'
 import { ProfileCard } from './ProfileCard'
 import { SessionsCard } from './SessionsCard'
 import { SettingsSection } from './SettingsControls'
@@ -55,8 +54,6 @@ export function SettingsScreen() {
       <ProfileCard user={user} />
 
       <AppearanceCard />
-
-      <LendingCard leasingEnabled={user.leasingEnabled} />
 
       <SettingsSection
         testID="settings-password"

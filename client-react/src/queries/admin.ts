@@ -8,9 +8,12 @@ import {
   type AdminAccountPatch,
   deleteAdminUser,
   getAdminUsers,
+  getInstanceSettings,
+  type InstanceSettingsPatch,
   updateAdminUser,
+  updateInstanceSettings,
 } from '@/api/admin'
-import { adminKeys } from './keys'
+import { adminKeys, policyKeys } from './keys'
 
 /**
  * The admin panel's server state.
@@ -88,6 +91,64 @@ export function useDeleteAdminUser() {
     mutationFn: (id: number) => deleteAdminUser(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: adminKeys.all })
+    },
+  })
+}
+
+/**
+ * The single `app_settings` row.
+ *
+ * `retry: false` for the same reason the account list has it: this 403s for
+ * every non-admin and a role is not a transient failure.
+ *
+ * Not prefetched by the route, and that is deliberate. The Accounts tab is what
+ * `/app/admin` opens on, so prefetching this would fire a request for a tab
+ * most visits never reach. The two tabs that need it mount their own query when
+ * they are shown — which is the only lazy-loading a `Tabs.Content` needs, since
+ * it renders nothing at all until it is selected.
+ */
+export const adminSettingsQueryOptions = queryOptions({
+  queryKey: adminKeys.settings(),
+  queryFn: ({ signal }) => getInstanceSettings(signal),
+  // One row that only an admin can change, so it is not going to move under
+  // anyone — but two admins *can* be in the panel at once, and this is the
+  // screen where finding out matters.
+  staleTime: 30 * 1000,
+  refetchOnWindowFocus: true,
+  retry: false,
+})
+
+/** The instance settings. Admin-only. */
+export function useAdminSettings() {
+  return useQuery(adminSettingsQueryOptions)
+}
+
+/**
+ * Change one or more instance settings.
+ *
+ * **Invalidating the policy is the point of this mutation, not a tidy-up after
+ * it.** `leasingEnabled` lives in the policy's user object and is what
+ * `AppShell` reads to decide whether the Loans and Customers nav entries exist.
+ * Without the invalidation the switch would flip and the nav would not, until
+ * something else happened to refetch.
+ *
+ * The response carries the full settings object, so it is written straight into
+ * the cache rather than triggering a second round trip — and it has to be the
+ * server's copy, because `registrationApprovalFromEnv` flips to `false` as a
+ * *consequence* of writing the approval toggle. A client-side guess would show
+ * the wrong provenance until the next refetch.
+ *
+ * No optimistic update, for the same reason the account mutations have none: a
+ * switch that flips back a moment later is worse than one that takes 80ms, and
+ * this one is changing what other people see.
+ */
+export function useUpdateInstanceSettings() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (patch: InstanceSettingsPatch) => updateInstanceSettings(patch),
+    onSuccess: (settings) => {
+      queryClient.setQueryData(adminKeys.settings(), settings)
+      queryClient.invalidateQueries({ queryKey: policyKeys.all })
     },
   })
 }

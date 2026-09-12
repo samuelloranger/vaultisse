@@ -15,7 +15,6 @@ import {
   type PasswordChangeInput,
   type ProfileInput,
   revokeSession,
-  setLeasingEnabled,
   setTheme,
   setupTwoFactor,
   type ThemeName,
@@ -25,18 +24,16 @@ import {
 import { policyKeys, userKeys } from './keys'
 
 /**
- * The settings screen's server state: the two lists it reads, and the nine
+ * The profile screen's server state: the two lists it reads, and the eight
  * mutations it fires.
  *
  * ## Why almost everything here invalidates the policy
  *
  * `/app/policy` carries the user object the whole shell renders from — name,
- * avatar, language, `totpEnabled`, and the instance-wide `leasingEnabled` that
- * decides whether the Loans and Customers nav entries exist at all. So a
- * profile save, an avatar change, a 2FA flip and the lending toggle are all
- * *policy* mutations wearing a `/user` path, and none of them are visibly
- * finished until the policy is refetched. The old client kept the singleton in
- * sync by hand and got it wrong; here the mutation names the key.
+ * avatar, language, `totpEnabled`. So a profile save, an avatar change and a
+ * 2FA flip are all *policy* mutations wearing a `/user` path, and none of them
+ * are visibly finished until the policy is refetched. The old client kept the
+ * singleton in sync by hand and got it wrong; here the mutation names the key.
  *
  * ## Why several also invalidate the sessions list
  *
@@ -128,26 +125,14 @@ export function useSetTheme() {
   })
 }
 
-/**
- * The instance-wide lending toggle.
- *
- * Not a personal preference: it is `app_settings.leasing_enabled`, one row for
- * the whole instance, and it decides whether Loans and Customers exist in the
- * nav — for everyone. Invalidating the policy is therefore the entire point of
- * the mutation, not a tidy-up after it.
- *
- * No optimistic update. A switch that flips back a moment later is worse than
- * one that takes 80ms, and this one is changing what other people see.
+/*
+ * `useSetLeasingEnabled` moved to `queries/admin.ts` as
+ * `useUpdateInstanceSettings`, along with the endpoint behind it. It was never
+ * a `/user` mutation: it writes `app_settings.leasing_enabled`, one row for the
+ * whole instance, and it decides whether Loans and Customers exist in the nav
+ * for everyone. It still invalidates `policyKeys.all` from over there — that is
+ * the entire point of the mutation, not a tidy-up after it.
  */
-export function useSetLeasingEnabled() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: (leasingEnabled: boolean) => setLeasingEnabled(leasingEnabled),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: policyKeys.all })
-    },
-  })
-}
 
 /**
  * Change the password.

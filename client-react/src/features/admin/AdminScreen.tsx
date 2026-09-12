@@ -1,33 +1,27 @@
 import { useState } from 'react'
-import { Text, XStack, YStack } from 'tamagui'
-import type { AdminAccount } from '@/api/admin'
+import { Tabs, YStack } from 'tamagui'
 import { DisplayText, Eyebrow, MutedText } from '@/components/Card'
-import { EmptyState, ScreenError, ScreenLoading } from '@/components/ScreenState'
-import { ConfirmDeleteDialog } from '@/features/entityList/ConfirmDeleteDialog'
-import { EntityRow } from '@/features/entityList/EntityRow'
-import type { EntityRowAction } from '@/features/entityList/types'
-import { useAdminUsers, useDeleteAdminUser, useUpdateAdminUser } from '@/queries/admin'
+import { ScreenError } from '@/components/ScreenState'
+import { type ScreenTabDef, ScreenTabs } from '@/components/ScreenTabs'
 import { usePolicy } from '@/queries/app'
+import { AdminAccountsTab } from './AdminAccountsTab'
+import { AdminLibraryTab } from './AdminLibraryTab'
+import { AdminRegistrationTab } from './AdminRegistrationTab'
 
 /**
- * `/app/admin` — account administration.
+ * `/app/admin` — everything one administrator does to an instance, in three
+ * tabs.
  *
- * The one screen in this client with no Vue predecessor: it is new UI against
- * the already-built, already-tested `/api/rest/admin/users`.
+ * ## The three are three because their blast radii are three
  *
- * ## It reuses the catalogue row, not the catalogue screen
+ * - **Accounts** — one person at a time. Was the whole of this screen.
+ * - **Library** — the shared collection, changing the app for everyone *now*.
+ * - **New accounts** — nobody yet; read once, by the next registration.
  *
- * `EntityRow` + `RowActions` + `ConfirmDeleteDialog` are exactly right here —
- * a list of named rows whose actions collapse to one overflow control on a
- * phone — and reusing them is how this screen inherits the hard-won parts
- * (nothing red at rest, 44px targets, every modal a `ResponsiveDialog`) for
- * free.
- *
- * `EntityListScreen` itself is not, and forcing it would be worse than not
- * reusing it: that component is built around create/edit through a field form
- * plus delete, and this resource has **no create at all** (accounts arrive by
- * registration) and an "edit" that is two independent toggles the server may
- * refuse on policy grounds rather than a form to fill in.
+ * That is the distinction an admin actually has to hold in their head before
+ * touching anything here, so it is the one the tabs are cut along. Grouping by
+ * "toggles" versus "lists" would have put the lending switch — which moves six
+ * people's nav — next to a default language that moves nobody.
  *
  * ## A 403 is rendered, never redirected
  *
@@ -35,64 +29,49 @@ import { usePolicy } from '@/queries/app'
  * {sessionExpired: true}` for a dead session and a plain `403` for a valid
  * session that simply is not an admin, and `api/http.ts` only navigates on the
  * first. So a non-admin who types the URL gets told no — they are not bounced
- * to a login page that would not help them.
+ * to a login page that would not help them. The refusal replaces the tabs
+ * rather than sitting inside one, because all three of them are admin-only.
  *
- * The same applies to the guard rails on each action. Their messages are
- * written server-side to be read by the person who hit them ("This is the only
- * administrator left — promote another account first."), so they are shown
- * verbatim rather than replaced with a generic failure.
+ * ## The tab is in the URL
+ *
+ * `?tab=library` is linkable, survives a reload and comes back with the back
+ * button, which is the same treatment the library's filters get (see
+ * `features/search/searchParams.ts`). The route owns the param; this component
+ * takes it as a prop and falls back to local state when it is rendered without
+ * a router, which is what the tests do.
  */
 
-/** Message for an error, preferring the server's own sentence. */
-function refusalMessage(error: unknown): string {
-  if (error instanceof Error) return error.message
-  return 'Something went wrong.'
-}
+const ADMIN_TABS = [
+  { value: 'accounts', label: 'Accounts' },
+  { value: 'library', label: 'Library' },
+  { value: 'new-accounts', label: 'New accounts' },
+] as const satisfies readonly ScreenTabDef<string>[]
 
-function roleLabel(account: AdminAccount): string {
-  return account.role === 'admin' ? 'Administrator' : 'Member'
-}
+export type AdminTab = (typeof ADMIN_TABS)[number]['value']
 
-function AccountMeta({ account }: { account: AdminAccount }) {
-  const pending = account.lastLoginDate === null
-  return (
-    <XStack alignItems="center" gap="$2" flexWrap="wrap">
-      <MutedText fontSize={13}>{account.email}</MutedText>
-      <MutedText fontSize={13}>· {roleLabel(account)}</MutedText>
-      {account.disabled ? (
-        <Text testID="account-disabled" fontSize={13} color="$red10">
-          · Disabled
-        </Text>
-      ) : null}
-      {pending ? (
-        <MutedText fontSize={13} color="$secondary">
-          · Never signed in
-        </MutedText>
-      ) : null}
-      {account.isSelf ? (
-        <Text
-          testID="account-self"
-          fontSize={12}
-          fontFamily="$mono"
-          color="$secondary"
-          textTransform="uppercase"
-          letterSpacing={1}
-        >
-          You
-        </Text>
-      ) : null}
-    </XStack>
-  )
-}
+/** The tab values, in order. The first is the fallback for an unknown `?tab=`. */
+export const ADMIN_TAB_VALUES = ADMIN_TABS.map(
+  (tab) => tab.value
+) as readonly AdminTab[]
 
-export function AdminScreen() {
+export function AdminScreen({
+  tab,
+  onTabChange,
+}: {
+  tab?: AdminTab
+  onTabChange?: (next: AdminTab) => void
+} = {}) {
+  // Always declared, never conditional: `tab` is the router's value when there
+  // is a router and `undefined` when there is not, and a hook cannot be called
+  // one way in one case and another in the other.
+  const [localTab, setLocalTab] = useState<AdminTab>(ADMIN_TABS[0].value)
+  const current = tab ?? localTab
   const { data: policy } = usePolicy()
-  const accounts = useAdminUsers(policy.user.isAdmin)
-  const update = useUpdateAdminUser()
-  const remove = useDeleteAdminUser()
-  const [deleting, setDeleting] = useState<AdminAccount | null>(null)
-  /** The row whose action was last refused, and what the server said. */
-  const [refusal, setRefusal] = useState<{ id: number; message: string } | null>(null)
+
+  function change(next: AdminTab) {
+    setLocalTab(next)
+    onTabChange?.(next)
+  }
 
   // The nav entry is gated on the same flag, but a typed URL bypasses the nav.
   // Rendered as a refusal, never as a redirect: their session is fine.
@@ -119,134 +98,39 @@ export function AdminScreen() {
     )
   }
 
-  function run(
-    account: AdminAccount,
-    patch: { role?: 'admin' | 'user'; disabled?: boolean }
-  ) {
-    setRefusal(null)
-    update.mutate(
-      { id: account.id, patch },
-      {
-        onError: (error) =>
-          setRefusal({ id: account.id, message: refusalMessage(error) }),
-      }
-    )
-  }
-
-  function actionsFor(account: AdminAccount): EntityRowAction[] {
-    const busy = update.isPending
-    return [
-      {
-        key: 'role',
-        label: account.role === 'admin' ? 'Demote to member' : 'Promote to admin',
-        // The server refuses this on yourself regardless; `isSelf` is the only
-        // signal the client has, because the policy deliberately does not carry
-        // the caller's user id.
-        disabled: account.isSelf || busy,
-        onSelect: () =>
-          run(account, { role: account.role === 'admin' ? 'user' : 'admin' }),
-      },
-      {
-        key: 'disabled',
-        label: account.disabled ? 'Enable account' : 'Disable account',
-        disabled: (account.isSelf && !account.disabled) || busy,
-        onSelect: () => run(account, { disabled: !account.disabled }),
-      },
-      {
-        key: 'delete',
-        label: 'Delete account',
-        destructive: true,
-        disabled: account.isSelf,
-        onSelect: () => {
-          remove.reset()
-          setRefusal(null)
-          setDeleting(account)
-        },
-      },
-    ]
-  }
-
-  if (accounts.isPending) return <ScreenLoading label="Loading accounts…" />
-
-  if (accounts.isError) {
-    return (
-      <ScreenError
-        error={accounts.error}
-        onRetry={() => accounts.refetch()}
-        title="Accounts did not load"
-      />
-    )
-  }
-
-  const rows = accounts.data ?? []
-  const pendingApproval = rows.filter((account) => account.disabled).length
-
   return (
     <YStack gap="$4" testID="admin-screen">
       <YStack gap="$1">
         <Eyebrow>Admin</Eyebrow>
         <DisplayText fontSize={26} lineHeight={32}>
-          Accounts
+          Administration
         </DisplayText>
-        <MutedText>
-          {rows.length} {rows.length === 1 ? 'account' : 'accounts'}
-          {pendingApproval > 0 ? ` · ${pendingApproval} disabled` : ''}
-        </MutedText>
+        <MutedText>Everything here affects other people.</MutedText>
       </YStack>
 
-      {rows.length === 0 ? (
-        <EmptyState
-          title="No accounts"
-          description="Accounts appear here as people register."
-        />
-      ) : (
-        <YStack gap="$3">
-          {rows.map((account) => (
-            <YStack key={account.id} gap="$1">
-              <EntityRow
-                testID="admin-row"
-                name={account.name}
-                meta={<AccountMeta account={account} />}
-                actions={actionsFor(account)}
-                expandable={false}
-                expanded={false}
-                onToggleExpand={() => undefined}
-              />
-              {/*
-                The guard rail's own sentence, under the row it refused. Not a
-                toast: the message explains a rule about *this* account, and it
-                has to stay on screen next to it while it is read.
-              */}
-              {refusal?.id === account.id ? (
-                <Text
-                  testID="admin-refusal"
-                  role="alert"
-                  fontSize={14}
-                  color="$red10"
-                  paddingHorizontal="$3"
-                >
-                  {refusal.message}
-                </Text>
-              ) : null}
-            </YStack>
-          ))}
-        </YStack>
-      )}
-
-      {deleting ? (
-        <ConfirmDeleteDialog
-          testID="admin-delete"
-          open
-          onOpenChange={(next) => (next ? undefined : setDeleting(null))}
-          title={`Delete ${deleting.name}?`}
-          description="Their books, copies, authors, locations and loan history stay in the shared library — they only lose the “added by” attribution."
-          onConfirm={() =>
-            remove.mutate(deleting.id, { onSuccess: () => setDeleting(null) })
-          }
-          isPending={remove.isPending}
-          error={remove.isError ? remove.error : null}
-        />
-      ) : null}
+      <ScreenTabs
+        testID="admin-tabs"
+        label="Admin sections"
+        tabs={ADMIN_TABS}
+        value={current}
+        onChange={change}
+      >
+        {/*
+          `Tabs.Content` renders `null` when it is not selected, so each panel's
+          queries start when its tab is opened and not before. Accounts is the
+          first tab and therefore mounts immediately — which is exactly the old
+          behaviour, and what the route's prefetch is for.
+        */}
+        <Tabs.Content value="accounts" width="100%" minWidth={0}>
+          <AdminAccountsTab />
+        </Tabs.Content>
+        <Tabs.Content value="library" width="100%" minWidth={0}>
+          <AdminLibraryTab />
+        </Tabs.Content>
+        <Tabs.Content value="new-accounts" width="100%" minWidth={0}>
+          <AdminRegistrationTab />
+        </Tabs.Content>
+      </ScreenTabs>
     </YStack>
   )
 }

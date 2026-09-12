@@ -104,3 +104,78 @@ export function updateAdminUser(
 export function deleteAdminUser(id: number): Promise<{ message: string }> {
   return request<{ message: string }>(`/admin/users/${id}`, { method: 'DELETE' })
 }
+
+// ---------------------------------------------------------------------------
+// Instance settings
+// ---------------------------------------------------------------------------
+
+/**
+ * `app_settings` — one row for the whole instance.
+ *
+ * Two groups of fields with nothing in common but their blast radius:
+ *
+ *  - **`leasingEnabled`** changes the app *right now*, for everybody. It is the
+ *    setting that decides whether Loans and Customers exist in the nav.
+ *  - **the four `registration*`/`default*` fields** change nothing anybody can
+ *    see. They describe the **next account to register** and are read exactly
+ *    once, by `POST /register`. Changing `defaultLanguage` does not move a
+ *    single existing account off the language it chose.
+ *
+ * That difference is why the admin panel puts them in two different tabs
+ * rather than one "Settings" list: an admin flipping a switch deserves to know
+ * whether they just changed the app for six people or for the seventh.
+ */
+export type InstanceSettings = {
+  /** Adds/removes the Loans and Customers sections, for every account. */
+  leasingEnabled: boolean
+  /** New accounts are created disabled and wait for an admin to enable them. */
+  registrationRequiresApproval: boolean
+  /**
+   * Whether {@link registrationRequiresApproval} is still coming from the
+   * `REGISTRATION_REQUIRES_APPROVAL` environment variable rather than from the
+   * database.
+   *
+   * `app_settings.registration_requires_approval` is nullable, and NULL means
+   * "no admin has decided yet". The UI has to be able to say so: a toggle that
+   * reads "on" is a different promise depending on whether it survives the next
+   * container restart. It stops being true the first time anyone writes it.
+   */
+  registrationApprovalFromEnv: boolean
+  /** `users.language` for the next account. A row in `app_languages`. */
+  defaultLanguage: string
+  /** `users.region` for the next account. Two uppercase letters. */
+  defaultRegion: string
+  /** `users.theme` for the next account. `beige` is light, `library` is dark. */
+  defaultTheme: 'beige' | 'library'
+}
+
+/** `GET /admin/settings`. Admin-only; 403 for everyone else. */
+export function getInstanceSettings(signal?: AbortSignal): Promise<InstanceSettings> {
+  return request<InstanceSettings>('/admin/settings', { signal })
+}
+
+/**
+ * Body of `PATCH /admin/settings`. Every field optional, **at least one
+ * required** — an empty body is a `400`, not a no-op, same contract as
+ * `AdminAccountPatch`.
+ *
+ * `registrationApprovalFromEnv` is deliberately not writable: it is a report
+ * about where the value came from, not a value.
+ */
+export type InstanceSettingsPatch = Partial<
+  Omit<InstanceSettings, 'registrationApprovalFromEnv'>
+>
+
+/**
+ * `PATCH /admin/settings` — change one or more instance settings.
+ *
+ * Answers the full settings object, so the cache is refreshed from the
+ * server's own view rather than from what the client hoped it wrote —
+ * `registrationApprovalFromEnv` in particular flips to `false` as a
+ * *consequence* of writing the approval toggle, which the client cannot guess.
+ */
+export function updateInstanceSettings(
+  patch: InstanceSettingsPatch
+): Promise<InstanceSettings> {
+  return request<InstanceSettings>('/admin/settings', { method: 'PATCH', body: patch })
+}

@@ -10,9 +10,9 @@ import { AppThemeProvider } from '@/theme/ThemeProvider'
 import { SettingsScreen } from './SettingsScreen'
 
 /**
- * The spec's four, plus the three this screen earns on its own: the
- * instance-wide lending toggle, the password change that must *not* log this
- * tab out, and the backup codes that can only be shown once.
+ * The spec's four, plus the two this screen earns on its own: the password
+ * change that must *not* log this tab out, and the backup codes that can only
+ * be shown once.
  *
  * `api/user` is mocked and the query hooks are real, as in the dashboard
  * template — so `userKeys.sessions()`, `policyKeys.all` and the invalidation
@@ -31,7 +31,6 @@ vi.mock('@/api/user', async (importOriginal) => {
     uploadProfileImage: vi.fn(),
     deleteProfileImage: vi.fn(),
     setTheme: vi.fn(),
-    setLeasingEnabled: vi.fn(),
     changePassword: vi.fn(),
     revokeSession: vi.fn(),
     setupTwoFactor: vi.fn(),
@@ -46,7 +45,6 @@ import {
   enableTwoFactor,
   getActivity,
   getSessions,
-  setLeasingEnabled,
   setupTwoFactor,
   updateProfile,
 } from '@/api/user'
@@ -54,7 +52,6 @@ import {
 const getSessionsMock = vi.mocked(getSessions)
 const getActivityMock = vi.mocked(getActivity)
 const updateProfileMock = vi.mocked(updateProfile)
-const setLeasingEnabledMock = vi.mocked(setLeasingEnabled)
 const changePasswordMock = vi.mocked(changePassword)
 const setupTwoFactorMock = vi.mocked(setupTwoFactor)
 const enableTwoFactorMock = vi.mocked(enableTwoFactor)
@@ -124,9 +121,6 @@ beforeEach(() => {
   getSessionsMock.mockResolvedValue(makeSessions())
   getActivityMock.mockResolvedValue(makeActivity())
   updateProfileMock.mockResolvedValue({ message: 'User updated successfully' })
-  setLeasingEnabledMock.mockResolvedValue({
-    message: 'Leasing preference updated successfully',
-  })
   changePasswordMock.mockResolvedValue({
     success: true,
     message: 'Password updated successfully',
@@ -199,16 +193,20 @@ describe('SettingsScreen', () => {
     })
   })
 
-  it('flips the instance-wide lending toggle', async () => {
-    const user = userEvent.setup()
+  /**
+   * The lending toggle used to be here, between Appearance and Password. It is
+   * an instance setting - `app_settings.leasing_enabled`, which moves the Loans
+   * and Customers nav for every account - so it moved to the admin panel's
+   * Library tab along with the endpoint behind it, and its test moved with it
+   * (see `features/admin/AdminScreen.test.tsx`). This is what stays: proof that
+   * nothing instance-wide is left on a screen called "Your account".
+   */
+  it('has nothing instance-wide left on it', async () => {
     renderSettings({ leasingEnabled: true })
-    await screen.findByTestId('settings-lending')
+    await screen.findByTestId('settings-screen')
 
-    await user.click(screen.getByTestId('lending-toggle'))
-
-    await waitFor(() => {
-      expect(setLeasingEnabledMock).toHaveBeenCalledWith(false)
-    })
+    expect(screen.queryByTestId('settings-lending')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('lending-toggle')).not.toBeInTheDocument()
   })
 
   it('changes the password without logging this tab out', async () => {

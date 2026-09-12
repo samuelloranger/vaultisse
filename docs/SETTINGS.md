@@ -66,8 +66,9 @@ request completing, and the locally chosen value wins if the two disagree.
 Everything above is a per-account preference. The settings in this section are
 **not**: they live in the single-row `app_settings` table and describe the
 shared collection, so changing one changes the app for every account on the
-instance. They are read by anyone (the client needs them to draw itself) and
-written only by an admin.
+instance. `leasingEnabled` also remains in every authenticated account's
+`GET /app/policy` payload because the client needs it to draw the shared nav;
+the settings endpoint itself is an admin-only read and write.
 
 **`GET /api/rest/admin/settings`** returns them; **`PATCH
 /api/rest/admin/settings`** changes any subset. Both are behind `requireAdmin`

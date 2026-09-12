@@ -9,6 +9,7 @@ import {
   useUpdateProfile,
   useUploadProfileImage,
 } from '@/queries/user'
+import { REGIONS, UI_LANGUAGES } from './accountOptions'
 import { SelectField, SettingsSection, TextInputField } from './SettingsControls'
 
 /**
@@ -23,41 +24,6 @@ import { SelectField, SettingsSection, TextInputField } from './SettingsControls
  * immediately on pick, because a file chooser that then needs a second
  * confirmation is a step nobody expects.
  */
-
-/**
- * The UI languages this client has labels for.
- *
- * The policy's `languages` list is the *book* language reference list (22
- * entries, from `system_languages`); it is not this. Ported from the old
- * client's `supportedLanguages`, which carried the same distinction and the same
- * four values.
- */
-const UI_LANGUAGES = [
-  { value: 'en', label: 'English' },
-  { value: 'es', label: 'Español' },
-  { value: 'ca', label: 'Català' },
-  { value: 'it', label: 'Italiano' },
-]
-
-/** Ported verbatim from the old settings view. */
-const REGIONS = [
-  { value: 'AU', label: 'Australia' },
-  { value: 'BR', label: 'Brazil' },
-  { value: 'CA', label: 'Canada' },
-  { value: 'CN', label: 'China' },
-  { value: 'FR', label: 'France' },
-  { value: 'DE', label: 'Germany' },
-  { value: 'IT', label: 'Italy' },
-  { value: 'JP', label: 'Japan' },
-  { value: 'MX', label: 'Mexico' },
-  { value: 'PT', label: 'Portugal' },
-  { value: 'RU', label: 'Russia' },
-  { value: 'SA', label: 'Saudi Arabia' },
-  { value: 'ES', label: 'Spain' },
-  { value: 'TW', label: 'Taiwan' },
-  { value: 'GB', label: 'United Kingdom' },
-  { value: 'US', label: 'United States' },
-]
 
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean)

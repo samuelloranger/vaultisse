@@ -68,23 +68,15 @@ export function setTheme(theme: ThemeName): Promise<{ message: string }> {
   })
 }
 
-/**
- * `PATCH /user/leasing` — turn lending on or off **for the whole instance**.
- *
- * The path says `/user` and the value arrives inside the policy's `user`
- * object, but this is not a personal preference: it is
- * `app_settings.leasing_enabled`, a single row shared by every account, and
- * flipping it moves the Loans and Customers nav entries for everybody. See
- * `docs/SETTINGS.md#the-leasing-toggle`. The UI must say so.
+/*
+ * Lending used to be `setLeasingEnabled` here, calling `PATCH /user/leasing`.
+ * It is not a personal preference — it is `app_settings.leasing_enabled`, one
+ * row shared by every account, and flipping it moves the Loans and Customers
+ * nav entries for everybody. It now lives in `api/admin.ts` as part of the
+ * instance settings, behind `requireAdmin`. The *value* still arrives for every
+ * account inside the policy's `user` object, because the nav needs it; only the
+ * write moved.
  */
-export function setLeasingEnabled(
-  leasingEnabled: boolean
-): Promise<{ message: string }> {
-  return request<{ message: string }>('/user/leasing', {
-    method: 'PATCH',
-    body: { leasingEnabled },
-  })
-}
 
 // ---------------------------------------------------------------------------
 // Password
