@@ -20,7 +20,9 @@
     "@tanstack/react-router": "^1.170",
     "@zxing/browser": "^0.2.1",
     "@zxing/library": "^0.23.0",
+    "chart.js": "^4.5.1",
     "react": "^19",
+    "react-chartjs-2": "^5.3.1",
     "react-dom": "^19",
     "react-native-web": "^0.21.0",
     "tamagui": "2.7.7"

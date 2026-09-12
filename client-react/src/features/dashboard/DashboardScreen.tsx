@@ -7,6 +7,7 @@ import { usePolicy } from '@/queries/app'
 import { useBookCounters } from '@/queries/book'
 import { useDashboard } from '@/queries/dashboard'
 import { BookShelf } from './BookShelf'
+import { BooksInTimeChart } from './BooksInTimeChart'
 import { CounterTiles } from './CounterTiles'
 import { ReturnBooksDialog } from './ReturnBooksDialog'
 
@@ -78,6 +79,8 @@ export function DashboardScreen() {
           </Button>
         </XStack>
       ) : null}
+
+      <BooksInTimeChart booksInTime={data.booksInTime} />
 
       <BookShelf title="Recently added" books={data.lastBooks} />
 
