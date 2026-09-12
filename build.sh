@@ -17,8 +17,8 @@ echo ""
 echo "============================================="
 echo "Building client..."
 cd "$ROOT_DIR/client-react"
-npm install
-npm run build
+bun install --frozen-lockfile
+bun run build
 
 # Move client build to root/dist/client
 mv "$ROOT_DIR/client-react/dist" "$DIST_DIR/client"
@@ -30,18 +30,17 @@ echo ""
 echo "============================================="
 echo "Building server..."
 cd "$ROOT_DIR/server"
-npm install
-npx tsc
+bun install --frozen-lockfile
 
-# Move server build to root/dist/server
+# No compile step: Bun executes TypeScript directly, so the sources ship as
+# they are. server/src sits at the same depth server/dist did, which keeps
+# every __dirname lookup resolving the same way - including the assets
+# directory, which no longer needs copying alongside the output.
 mkdir "$DIST_DIR/server"
-cp -r "$ROOT_DIR/server/dist" "$DIST_DIR/server/dist"
+cp -r "$ROOT_DIR/server/src" "$DIST_DIR/server/src"
 cp "$ROOT_DIR/server/package.json" "$DIST_DIR/server/"
-cp "$ROOT_DIR/server/package-lock.json" "$DIST_DIR/server/" || true
-
-# Copy assets
-echo "Copying assets..."
-cp -r "$ROOT_DIR/server/src/assets" "$DIST_DIR/server/dist/assets"
+cp "$ROOT_DIR/server/tsconfig.json" "$DIST_DIR/server/"
+cp "$ROOT_DIR/server/bun.lock" "$DIST_DIR/server/" || true
 
 # (Optional) copy .env if you need it
 # cp "$ROOT_DIR/server/.env" "$DIST_DIR/server/" || true
@@ -49,7 +48,7 @@ cp -r "$ROOT_DIR/server/src/assets" "$DIST_DIR/server/dist/assets"
 # Install server dependencies in dist
 echo "Installing server dependencies in dist..."
 cd "$DIST_DIR/server"
-npm install --production
+bun install --frozen-lockfile --production
 
 echo ""
 echo ""

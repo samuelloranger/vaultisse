@@ -1,4 +1,4 @@
--- Upgrade to v1.2.0 (1 of 1) - schema changes made on 2026-09-11.
+-- Upgrade to v1.2.0 (1 of 2) - schema changes made on 2026-09-11.
 -- Brings an already-installed database in line with the v1.2.0 databaseSchema.sql.
 -- (New installs should use databaseSchema.sql directly and skip this file.)
 --

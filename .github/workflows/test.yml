@@ -1,4 +1,4 @@
-name: Server tests
+name: Tests
 
 # Runs on every push (any branch) and every PR targeting main, so a commit
 # never lands without the suite having run against it - see docs/TESTING.md.
@@ -66,3 +66,33 @@ jobs:
       - name: Run tests
         working-directory: server
         run: bun test
+
+  # The client suite needs no database, so it is its own job rather than a
+  # step queued behind Postgres coming up.
+  client:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+
+      - name: Install dependencies
+        working-directory: client-react
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck
+        working-directory: client-react
+        run: bunx tsc --noEmit
+
+      - name: Run tests
+        working-directory: client-react
+        run: bunx vitest run
+
+      - name: Lint
+        working-directory: client-react
+        run: bunx biome check src
