@@ -20,9 +20,18 @@ UI, or `BooksRoute.ts` on the server, start here.
 
 ## Mental model: a book vs. a stock
 
-Every request in this module is scoped to `books.user_id = <caller>` -
-there's no shared catalog between accounts, each user has their own private
-library.
+There is exactly one library and it is the instance: every account sees the
+same catalog and can add, edit, lend and delete anything in it. No request in
+this module filters by the caller. `books.created_by` records who added a
+title ("added by Camille") and is nullable - deleting an account leaves its
+contributions in place rather than taking the household's books with it. See
+[the shared-library design](superpowers/specs/2026-09-11-shared-library-admin-mobile-design.md)
+for why, including the `ON DELETE SET NULL` reasoning.
+
+`books_isbn_unique` is instance-wide, so a title is entered once: a second
+member scanning the same barcode is told it's already on the shelf (manual
+`POST /book`) or handed the existing book (`POST /book/isbn/:isbn`
+find-or-create).
 
 Two distinct concepts, both under "Library" in the UI:
 

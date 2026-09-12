@@ -13,8 +13,10 @@
  *
  * Every route in this file (except the small pure helper functions at the
  * bottom) requires a valid session - see `requireAuth` in
- * server/src/middlewares/AuthMiddleware.ts. All queries are additionally
- * scoped by `user_id` so one user can never read/modify another user's data.
+ * server/src/middlewares/AuthMiddleware.ts. Nothing is scoped beyond that:
+ * this is one shared library that every account co-manages, so any member can
+ * read and modify any book. `created_by` is stamped on insert as attribution
+ * ("added by Camille") and is never filtered on.
  */
 import {Router, Request, Response} from 'express';
 import {appService} from "../AppService";
@@ -76,7 +78,7 @@ const fileUpload = multer({
 /**
  * GET /book/search
  * -----------------
- * Paginated, filterable search over the current user's books.
+ * Paginated, filterable search over the shared library's books.
  *
  * Auth: required (session cookie).
  *
@@ -126,18 +128,14 @@ router.get('/search', requireAuth, async (req: Request, res: Response) => {
         ? req.query.sort as SortType
         : SortType.NAME_ASC;
 
-    const userId = appService.getSessionUser(req);
-
     const pool = appService.getDatabasePool();
     const client = await pool.connect();
     try {
         const MAX_ROWS = 50;
         const skip = MAX_ROWS * page;
 
-        const params: any[] = [userId];
-        const conditions: String[] = [
-            `books.user_id = $1`
-        ];
+        const params: any[] = [];
+        const conditions: String[] = [];
 
         let sqlStatement = `
             SELECT books.id,
@@ -162,7 +160,16 @@ router.get('/search', requireAuth, async (req: Request, res: Response) => {
 
 
         if (query) {
-            conditions.push(`LOWER(books.name) ILIKE $${params.push(`%${query.toLocaleLowerCase()}%`)} OR LOWER(books.isbn) ILIKE $${params.push(`%${query.toLocaleLowerCase()}%`)}`);
+            // Parenthesised on purpose. `conditions` is joined with ' AND ',
+            // and AND binds tighter than OR - so an unwrapped
+            // `a ILIKE $1 OR b ILIKE $2` here would re-associate as
+            // `(... AND a ILIKE $1) OR (b ILIKE $2)`, letting the ISBN branch
+            // escape every other filter in the list. Upstream ships exactly
+            // that bug, where the escaped predicate was the ownership check
+            // (see the spec's "Upstream security report"); there is no
+            // ownership check left to escape here, but category/date/stock
+            // filters would still be silently ignored for any ISBN match.
+            conditions.push(`(LOWER(books.name) ILIKE $${params.push(`%${query.toLocaleLowerCase()}%`)} OR LOWER(books.isbn) ILIKE $${params.push(`%${query.toLocaleLowerCase()}%`)})`);
         }
 
         if (category_id) {
@@ -178,18 +185,15 @@ router.get('/search', requireAuth, async (req: Request, res: Response) => {
             filters.forEach((filter) => {
                 switch (filter) {
                     case SearchFilter.NO_STOCK: {
-                        conditions.push(`books.id NOT IN (SELECT book_id FROM book_stocks WHERE user_id = $${params.length + 1})`);
-                        params.push(userId);
+                        conditions.push(`books.id NOT IN (SELECT book_id FROM book_stocks)`);
                         break;
                     }
                     case SearchFilter.HAS_STOCK: {
-                        conditions.push(`books.id IN (SELECT book_id FROM book_stocks WHERE user_id = $${params.length + 1})`);
-                        params.push(userId);
+                        conditions.push(`books.id IN (SELECT book_id FROM book_stocks)`);
                         break;
                     }
                     case SearchFilter.ON_LOAN: {
-                        conditions.push(`books.id IN (SELECT book_id FROM book_stocks WHERE user_id = $${params.length + 1} AND status = 2)`);
-                        params.push(userId);
+                        conditions.push(`books.id IN (SELECT book_id FROM book_stocks WHERE status = 2)`);
                         break;
                     }
                     case SearchFilter.RECENT: {
@@ -266,7 +270,7 @@ router.get('/search', requireAuth, async (req: Request, res: Response) => {
 /**
  * GET /book/counters
  * --------------------
- * Lightweight counters for the current user's library, powering the
+ * Lightweight counters for the shared library, powering the
  * "Library" section of the left nav (see `AppMenu.vue`) and its quick
  * filters - cheap enough to fetch on every page load, unlike a full search.
  *
@@ -277,15 +281,14 @@ router.get('/search', requireAuth, async (req: Request, res: Response) => {
  */
 // @ts-ignore
 router.get('/counters', requireAuth, async (req: Request, res: Response) => {
-    const userId = appService.getSessionUser(req);
     const pool = appService.getDatabasePool();
 
     try {
         const [total, recent, onLoan, noStock] = await Promise.all([
-            pool.query(`SELECT COUNT(*) FROM books WHERE user_id = $1`, [userId]),
-            pool.query(`SELECT COUNT(*) FROM books WHERE user_id = $1 AND date_created >= NOW() - INTERVAL '30 days'`, [userId]),
-            pool.query(`SELECT COUNT(*) FROM books WHERE user_id = $1 AND id IN (SELECT book_id FROM book_stocks WHERE user_id = $1 AND status = 2)`, [userId]),
-            pool.query(`SELECT COUNT(*) FROM books WHERE user_id = $1 AND id NOT IN (SELECT book_id FROM book_stocks WHERE user_id = $1)`, [userId]),
+            pool.query(`SELECT COUNT(*) FROM books`),
+            pool.query(`SELECT COUNT(*) FROM books WHERE date_created >= NOW() - INTERVAL '30 days'`),
+            pool.query(`SELECT COUNT(*) FROM books WHERE id IN (SELECT book_id FROM book_stocks WHERE status = 2)`),
+            pool.query(`SELECT COUNT(*) FROM books WHERE id NOT IN (SELECT book_id FROM book_stocks)`),
         ]);
 
         res.status(200).json({
@@ -334,7 +337,7 @@ router.get('/counters', requireAuth, async (req: Request, res: Response) => {
  *    ]
  *  }
  *
- * Response (404): "Book not found" - when no book with that id belongs to the caller.
+ * Response (404): "Book not found" - when no book with that id exists.
  */
 // @ts-ignore
 router.get('/:id', requireAuth, async (req: Request, res: Response) => {
@@ -342,7 +345,6 @@ router.get('/:id', requireAuth, async (req: Request, res: Response) => {
     appService.getLogger().debug(`Get book, id: ${id}`);
     const pool = appService.getDatabasePool();
     const client = await pool.connect();
-    const userId = appService.getSessionUser(req);
     try {
         const result = await client.query(`
             SELECT books.id,
@@ -389,15 +391,21 @@ router.get('/:id', requireAuth, async (req: Request, res: Response) => {
                    'name', authors.name
                )
            ) FILTER(WHERE authors.id IS NOT NULL), '[]') AS authors
+            -- Every join here is on the foreign key alone. Upstream scopes
+            -- exactly one of these six (customers) to the session user and
+            -- leaves the other five open, which is incoherent either way:
+            -- under the old per-user model it was an isolation hole in five
+            -- joins, and the one scoped join would blank out a customer name
+            -- on a row the caller could already see. One shared library makes
+            -- the FK the whole truth.
             FROM books
                      LEFT JOIN book_stocks ON books.id = book_stocks.book_id
                      LEFT JOIN locations ON book_stocks.location_id = locations.id
-                     LEFT JOIN customers ON book_stocks.customer_id = customers.id AND customers.user_id = $2
+                     LEFT JOIN customers ON book_stocks.customer_id = customers.id
                      LEFT JOIN book_authors ON books.id = book_authors.book_id
                      LEFT JOIN authors ON book_authors.author_id = authors.id
                      LEFT JOIN book_files ON books.id = book_files.book_id
             WHERE books.id = $1
-              AND books.user_id = $2
             GROUP BY books.id,
                      books.name,
                      books.description,
@@ -411,7 +419,7 @@ router.get('/:id', requireAuth, async (req: Request, res: Response) => {
                      books.date_updated,
                      books.pages,
                      books.format_id;
-        `, [id, userId]);
+        `, [id]);
 
         if (result.rows.length !== 1) {
             res.status(404).send("Book not found");
@@ -462,7 +470,6 @@ router.get('/:id', requireAuth, async (req: Request, res: Response) => {
 router.put('/:id', requireAuth, async (req: Request, res: Response) => {
     const id = Number(req.params.id);
     appService.getLogger().debug(`Update book, id: ${id}`);
-    const userId = appService.getSessionUser(req);
 
     // Body params
     const {
@@ -489,7 +496,7 @@ router.put('/:id', requireAuth, async (req: Request, res: Response) => {
 
     try {
         // Validate the existence of the book
-        const bookCheck = await client.query('SELECT id FROM books WHERE id = $1 AND user_id = $2', [id, userId]);
+        const bookCheck = await client.query('SELECT id FROM books WHERE id = $1', [id]);
         if (bookCheck.rowCount === 0) {
             return res.status(404).send({error: "Book not found"});
         }
@@ -512,7 +519,6 @@ router.put('/:id', requireAuth, async (req: Request, res: Response) => {
                 pages          = $10,
                 date_updated   = CURRENT_TIMESTAMP
             WHERE id = $11
-              AND user_id = $12
         `;
         const updateValues = [
             name,
@@ -525,8 +531,7 @@ router.put('/:id', requireAuth, async (req: Request, res: Response) => {
             published_date,
             language_code,
             pages,
-            id,
-            userId
+            id
         ];
         await client.query(updateQuery, updateValues);
 
@@ -548,20 +553,20 @@ router.put('/:id', requireAuth, async (req: Request, res: Response) => {
             // Remove authors no longer associated with the book
             for (const authorId of authorsToRemove) {
                 await client.query(
-                    'DELETE FROM book_authors WHERE book_id = $1 AND author_id = $2 AND user_id = $3',
-                    [id, authorId, userId]
+                    'DELETE FROM book_authors WHERE book_id = $1 AND author_id = $2',
+                    [id, authorId]
                 );
             }
 
             // Add new authors to the book
             for (const authorId of authorsToAdd) {
                 // Ensure the author exists in the authors table
-                const authorCheck = await client.query('SELECT id FROM authors WHERE id = $1 AND user_id = $2', [authorId, userId]);
+                const authorCheck = await client.query('SELECT id FROM authors WHERE id = $1', [authorId]);
                 if (authorCheck.rowCount !== 0) {
                     // Associate the author with the book
                     await client.query(
-                        'INSERT INTO book_authors (book_id, author_id, user_id) VALUES ($1, $2, $3)',
-                        [id, authorId, userId]
+                        'INSERT INTO book_authors (book_id, author_id, created_by) VALUES ($1, $2, $3)',
+                        [id, authorId, appService.getSessionUser(req)]
                     );
                 } else {
                     console.warn(`Author with ID ${authorId} not found, skipping association.`);
@@ -602,16 +607,15 @@ router.delete('/:id', requireAuth, async (req: Request, res: Response) => {
     // Database connection
     const pool = appService.getDatabasePool();
     const client = await pool.connect();
-    const userId = appService.getSessionUser(req);
 
     try {
         // Validate the existence of the book
-        const bookCheck = await client.query('SELECT id FROM books WHERE id = $1 AND user_id = $2', [id, userId]);
+        const bookCheck = await client.query('SELECT id FROM books WHERE id = $1', [id]);
         if (bookCheck.rowCount === 0) {
             return res.status(404).send({error: "Book not found"});
         }
 
-        await client.query('DELETE FROM books WHERE id = $1 AND user_id = $2', [id, userId]);
+        await client.query('DELETE FROM books WHERE id = $1', [id]);
 
         res.send({message: "Book deleted successfully"});
     } catch (e) {
@@ -648,12 +652,11 @@ router.post('/:id/image', requireAuth, upload.single("image"), handleUploadError
     }
 
     const pool = appService.getDatabasePool();
-    const userId = appService.getSessionUser(req);
 
     try {
         const updatedBook = await pool.query(
-            "UPDATE books SET image_url = $1 WHERE id = $2 AND user_id = $3",
-            [imageUrl, id, userId]
+            "UPDATE books SET image_url = $1 WHERE id = $2",
+            [imageUrl, id]
         );
 
         res.status(200).json(updatedBook.rowCount);
@@ -723,13 +726,13 @@ router.post('/:id/file', requireAuth, fileUpload.single("file"), handleUploadErr
     const userId = appService.getSessionUser(req);
 
     try {
-        const book = await pool.query("SELECT id FROM books WHERE id = $1 AND user_id = $2", [id, userId]);
+        const book = await pool.query("SELECT id FROM books WHERE id = $1", [id]);
         if (book.rowCount !== 1) {
             return res.status(404).send("Book not found");
         }
 
         const result = await pool.query(
-            `INSERT INTO book_files (book_id, user_id, file_type, file_name, file_size, file_data)
+            `INSERT INTO book_files (book_id, created_by, file_type, file_name, file_size, file_data)
              VALUES ($1, $2, $3, $4, $5, $6)
              ON CONFLICT (book_id, file_type) DO UPDATE
                  SET file_name    = EXCLUDED.file_name,
@@ -763,12 +766,11 @@ router.get('/:id/file/:fileId/download', requireAuth, async (req: Request, res: 
     const id = Number(req.params.id);
     const fileId = Number(req.params.fileId);
     const pool = appService.getDatabasePool();
-    const userId = appService.getSessionUser(req);
 
     try {
         const result = await pool.query(
-            "SELECT file_data, file_name, file_type FROM book_files WHERE id = $1 AND book_id = $2 AND user_id = $3",
-            [fileId, id, userId]
+            "SELECT file_data, file_name, file_type FROM book_files WHERE id = $1 AND book_id = $2",
+            [fileId, id]
         );
 
         if (result.rowCount !== 1) {
@@ -802,12 +804,11 @@ router.delete('/:id/file/:fileId', requireAuth, async (req: Request, res: Respon
     const id = Number(req.params.id);
     const fileId = Number(req.params.fileId);
     const pool = appService.getDatabasePool();
-    const userId = appService.getSessionUser(req);
 
     try {
         const result = await pool.query(
-            "DELETE FROM book_files WHERE id = $1 AND book_id = $2 AND user_id = $3",
-            [fileId, id, userId]
+            "DELETE FROM book_files WHERE id = $1 AND book_id = $2",
+            [fileId, id]
         );
 
         res.status(200).json(result.rowCount === 1);
@@ -826,10 +827,10 @@ router.delete('/:id/file/:fileId', requireAuth, async (req: Request, res: Respon
  * Body: multipart/form-data
  *  - name        {string} required (books.name is NOT NULL)
  *  - description {string} optional
- *  - isbn        {string} optional - rejected with 404 if it already exists for this user
+ *  - isbn        {string} optional - rejected with 404 if it's already in the library
  *  - image       {file}   optional, PNG/JPEG, stored as base64 data: URI
  *
- * Side effect: if the user has exactly one location, the new book
+ * Side effect: if the library has exactly one location, the new book
  * automatically gets one stock entry there (see `__automaticallyAddBookToLocation`).
  *
  * Example request (curl):
@@ -856,8 +857,8 @@ router.post('', requireAuth, upload.single("image"), handleUploadError(maxCoverI
         // If the user give us a isbn code, check if exist
         if (isbn) {
             const existIsbn = await pool.query(
-                'SELECT id FROM books WHERE isbn = $1 AND user_id = $2',
-                [isbn, userId]
+                'SELECT id FROM books WHERE isbn = $1',
+                [isbn]
             );
             if (existIsbn.rowCount == 1) {
                 return res.status(404).send("Book with provided ISBN code already exist");
@@ -865,7 +866,7 @@ router.post('', requireAuth, upload.single("image"), handleUploadError(maxCoverI
         }
 
         const insertBook = await pool.query(
-            "INSERT INTO books (name, description, image_url, isbn, user_id) VALUES ($1, $2, $3, $4, $5) RETURNING id",
+            "INSERT INTO books (name, description, image_url, isbn, created_by) VALUES ($1, $2, $3, $4, $5) RETURNING id",
             [name, description, imageUrl, isbn, userId]
         );
 
@@ -894,7 +895,7 @@ router.post('', requireAuth, upload.single("image"), handleUploadError(maxCoverI
  * Lookup order: Google Books API (needs `GOOGLE_BOOKS_API_KEY`) -> on
  * failure/missing key, falls back to Open Library's search API for metadata
  * and to its covers API for the image. Categories/authors/language rows are
- * created on the fly if they don't already exist for this user
+ * created on the fly if they don't already exist in the shared library
  * (`__ensureCategory`, `__ensureAuthors`, `ensureLanguage`).
  *
  * Auth: required.
@@ -1226,8 +1227,10 @@ async function ensureLanguage(client: any, code: string | null) {
 }
 
 /**
- * Find-or-create a category by name for this user. Returns `null` if `name`
- * is falsy (a book without a detected category is left uncategorized).
+ * Find-or-create a category by name in the shared library. Returns `null` if
+ * `name` is falsy (a book without a detected category is left uncategorized).
+ * The lookup key matches `unique_category_name UNIQUE (name)`, so a category
+ * someone else already created is reused rather than duplicated.
  */
 async function __ensureCategory(
     client: any,
@@ -1237,8 +1240,8 @@ async function __ensureCategory(
     if (!name) return null;
 
     const result = await client.query(
-        'SELECT id FROM categories WHERE name = $1 AND user_id = $2',
-        [name, userId]
+        'SELECT id FROM categories WHERE name = $1',
+        [name]
     );
 
     if (result.rowCount > 0) {
@@ -1246,7 +1249,7 @@ async function __ensureCategory(
     }
 
     const insert = await client.query(
-        'INSERT INTO categories (name, user_id) VALUES ($1, $2) RETURNING id',
+        'INSERT INTO categories (name, created_by) VALUES ($1, $2) RETURNING id',
         [name, userId]
     );
 
@@ -1254,13 +1257,15 @@ async function __ensureCategory(
 }
 
 /**
- * Find-or-create a book by ISBN for this user, so re-scanning the same ISBN
- * never creates a duplicate. Returns the book id either way.
+ * Find-or-create a book by ISBN in the shared library, so re-scanning the same
+ * ISBN never creates a duplicate - including when the person scanning isn't the
+ * person who first added the title. The lookup key matches
+ * `books_isbn_unique UNIQUE (isbn)`. Returns the book id either way.
  */
 async function __getOrCreateBook(client: any, book: any, userId: number) {
     const existing = await client.query(
-        'SELECT id FROM books WHERE isbn = $1 AND user_id = $2',
-        [book.isbnCode, userId]
+        'SELECT id FROM books WHERE isbn = $1',
+        [book.isbnCode]
     );
 
     if (existing.rowCount > 0) {
@@ -1270,7 +1275,7 @@ async function __getOrCreateBook(client: any, book: any, userId: number) {
     const insert = await client.query(
         `INSERT INTO books (
             name, description, image_url, isbn, category_id,
-            publisher, published_date, language_code, pages, user_id
+            publisher, published_date, language_code, pages, created_by
         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
         RETURNING id`,
         [
@@ -1291,8 +1296,11 @@ async function __getOrCreateBook(client: any, book: any, userId: number) {
 }
 
 /**
- * Find-or-create each author by name for this user, then link them all to
- * `bookId` in `book_authors` (idempotent via ON CONFLICT DO NOTHING).
+ * Find-or-create each author by name in the shared library, then link them all
+ * to `bookId` in `book_authors` (idempotent via ON CONFLICT DO NOTHING). The
+ * lookup key matches `unique_author_name UNIQUE (name)`, so two members each
+ * adding "Ursula K. Le Guin" land on one author row and their books don't split
+ * across two.
  */
 async function __ensureAuthors(
     client: any,
@@ -1302,15 +1310,15 @@ async function __ensureAuthors(
 ) {
     for (const author of authors) {
         const result = await client.query(
-            'SELECT id FROM authors WHERE name = $1 AND user_id = $2',
-            [author, userId]
+            'SELECT id FROM authors WHERE name = $1',
+            [author]
         );
 
         let authorId: number;
 
         if (result.rowCount === 0) {
             const insert = await client.query(
-                'INSERT INTO authors (name, user_id) VALUES ($1,$2) RETURNING id',
+                'INSERT INTO authors (name, created_by) VALUES ($1,$2) RETURNING id',
                 [author, userId]
             );
             authorId = insert.rows[0].id;
@@ -1319,7 +1327,7 @@ async function __ensureAuthors(
         }
 
         await client.query(
-            `INSERT INTO book_authors (book_id, author_id, user_id)
+            `INSERT INTO book_authors (book_id, author_id, created_by)
              VALUES ($1,$2,$3)
              ON CONFLICT DO NOTHING`,
             [bookId, authorId, userId]
@@ -1329,8 +1337,8 @@ async function __ensureAuthors(
 
 /**
  * Create a single "available" (status 0) stock entry for `bookId` at
- * `locationId`, silently doing nothing if the location doesn't belong to
- * `userId`. Used by the ISBN auto-create flow when a location is supplied.
+ * `locationId`, silently doing nothing if no such location exists. Used by the
+ * ISBN auto-create flow when a location is supplied.
  */
 async function __addBookToLocation(
     client: any,
@@ -1339,8 +1347,8 @@ async function __addBookToLocation(
     userId: number
 ) {
     const exist = await client.query(
-        'SELECT id FROM locations WHERE id = $1 AND user_id = $2',
-        [locationId, userId]
+        'SELECT id FROM locations WHERE id = $1',
+        [locationId]
     );
 
     if (exist.rowCount !== 1) return;
@@ -1349,7 +1357,7 @@ async function __addBookToLocation(
 
     await client.query(
         `INSERT INTO book_stocks
-         (book_id, code, status, location_id, customer_id, user_id)
+         (book_id, code, status, location_id, customer_id, created_by)
          VALUES ($1,$2,$3,$4,$5,$6)`,
         [bookId, code, 0, locationId, null, userId]
     );
@@ -1364,7 +1372,7 @@ async function __addBookToLocation(
  * Body:
  *  {
  *    "status": 0,            // 0 = available, 1 = sold/loaned, 2 = booked (not allowed here - use PUT stock instead)
- *    "location_id": 2,       // required, must belong to the caller
+ *    "location_id": 2,       // required, must exist in the shared library
  *    "customer_id": null     // optional, sets the copy as already held by a customer
  *  }
  *
@@ -1376,7 +1384,8 @@ async function __addBookToLocation(
  *  { "id": 5, "code": "a1b2c3d4e5", "status": 0, "location_id": 2,
  *    "location_name": "Main shelf", "customer_id": null, "customer_name": null }
  *
- * Responses: 404 "Location not found" | 406 if status is "booked" (2) | 500 on failure.
+ * Responses: 404 "Book not found" | 404 "Location not found" |
+ *            406 if status is "booked" (2) | 500 on failure.
  */
 // @ts-ignore
 router.post('/:id/stock', requireAuth, async (req: Request, res: Response) => {
@@ -1399,9 +1408,21 @@ router.post('/:id/stock', requireAuth, async (req: Request, res: Response) => {
     const userId = appService.getSessionUser(req);
 
     try {
+        // Upstream never checks that :id names a real book at all, so a stock
+        // row could be hung off a nonexistent (there, someone else's) book id.
+        // Sharing the library removes the cross-account half of that, not the
+        // dangling-id half - so check it.
+        const existBook = await pool.query(
+            'SELECT id FROM books WHERE id = $1',
+            [bookId]
+        );
+        if (existBook.rowCount != 1) {
+            return res.status(404).send("Book not found");
+        }
+
         const existLocation = await pool.query(
-            'SELECT id FROM locations WHERE id = $1 AND user_id =$2',
-            [locationId, userId]
+            'SELECT id FROM locations WHERE id = $1',
+            [locationId]
         );
         if (existLocation.rowCount != 1) {
             return res.status(404).send("Location not found");
@@ -1409,8 +1430,8 @@ router.post('/:id/stock', requireAuth, async (req: Request, res: Response) => {
 
         if (customerId) {
             const existCustomer = await pool.query(
-                'SELECT id FROM customers WHERE id = $1 AND user_id = $2',
-                [customerId, userId]
+                'SELECT id FROM customers WHERE id = $1',
+                [customerId]
             );
             if (existCustomer.rowCount != 1) {
                 return res.status(404).send("Customer not found");
@@ -1423,7 +1444,7 @@ router.post('/:id/stock', requireAuth, async (req: Request, res: Response) => {
         const code = await generateBookStockCode();
 
         const insertStock = await client.query(
-            "INSERT INTO book_stocks (book_id, code, status, location_id, customer_id, user_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id",
+            "INSERT INTO book_stocks (book_id, code, status, location_id, customer_id, created_by) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id",
             [bookId, code, status, locationId, customerId, userId]
         );
 
@@ -1439,12 +1460,11 @@ router.post('/:id/stock', requireAuth, async (req: Request, res: Response) => {
                     customers.id   as customer_id,
                     customers.name as customer_name
              FROM book_stocks
-                      LEFT JOIN customers ON book_stocks.customer_id = customers.id AND customers.user_id = $2
+                      LEFT JOIN customers ON book_stocks.customer_id = customers.id
                       LEFT JOIN locations ON book_stocks.location_id = locations.id
              WHERE book_stocks.id = $1
-               AND book_stocks.user_id = $2
             `,
-            [insertStock.rows[0].id, userId]
+            [insertStock.rows[0].id]
         );
 
 
@@ -1478,16 +1498,14 @@ router.delete('/:id/stock/:stock_id', requireAuth, async (req: Request, res: Res
         return res.status(400).send('No book ID or stock ID provided');
     }
 
-    const userId = appService.getSessionUser(req);
-
     const pool = appService.getDatabasePool();
 
     try {
         appService.getLogger().debug(`Removing book stock with status ${stockId} and book id: ${bookId}`);
 
         const deleteQueryResult = await pool.query(
-            'DELETE FROM book_stocks WHERE book_id = $1 AND id = $2 AND user_id = $3',
-            [bookId, stockId, userId]
+            'DELETE FROM book_stocks WHERE book_id = $1 AND id = $2',
+            [bookId, stockId]
         );
 
         res.status(200).json(deleteQueryResult.rowCount === 1);
@@ -1515,7 +1533,7 @@ router.delete('/:id/stock/:stock_id', requireAuth, async (req: Request, res: Res
  *  { "id": 5, "code": "a1b2c3d4e5", "status": 2, "location_id": 2,
  *    "location_name": "Main shelf", "customer_id": 7, "customer_name": "Jane Doe" }
  *
- * Response (404): "Location not found" if `location_id` doesn't belong to the caller.
+ * Response (404): "Location not found" if `location_id` doesn't exist.
  */
 // @ts-ignore
 router.put('/:id/stock/:stock_id', requireAuth, async (req: Request, res: Response) => {
@@ -1524,8 +1542,6 @@ router.put('/:id/stock/:stock_id', requireAuth, async (req: Request, res: Respon
     if (!bookId || !stockId) {
         return res.status(400).send('No book ID or stock ID provided');
     }
-
-    const userId = appService.getSessionUser(req);
 
     // Body params
     const {
@@ -1540,8 +1556,8 @@ router.put('/:id/stock/:stock_id', requireAuth, async (req: Request, res: Respon
         appService.getLogger().debug(`Updating book stock ${stockId}`);
 
         const existLocation = await pool.query(
-            'SELECT id FROM locations WHERE id = $1 AND user_id = $2',
-            [location_id, userId]
+            'SELECT id FROM locations WHERE id = $1',
+            [location_id]
         );
         if (existLocation.rowCount != 1) {
             return res.status(404).send("Location not found");
@@ -1549,8 +1565,8 @@ router.put('/:id/stock/:stock_id', requireAuth, async (req: Request, res: Respon
 
         if (customer_id) {
             const existCustomer = await pool.query(
-                'SELECT id FROM customers WHERE id = $1 AND user_id = $2',
-                [customer_id, userId]
+                'SELECT id FROM customers WHERE id = $1',
+                [customer_id]
             );
             if (existCustomer.rowCount != 1) {
                 return res.status(404).send("Customer not found");
@@ -1561,8 +1577,8 @@ router.put('/:id/stock/:stock_id', requireAuth, async (req: Request, res: Respon
         // since loan_history (unlike loaned_at) can't be updated in the same
         // statement as book_stocks.
         const previousStock = await pool.query(
-            'SELECT status FROM book_stocks WHERE id = $1 AND book_id = $2 AND user_id = $3',
-            [stockId, bookId, userId]
+            'SELECT status FROM book_stocks WHERE id = $1 AND book_id = $2',
+            [stockId, bookId]
         );
         const previousStatus = previousStock.rows[0]?.status;
 
@@ -1585,8 +1601,8 @@ router.put('/:id/stock/:stock_id', requireAuth, async (req: Request, res: Respon
                                  WHEN $1 != 2 THEN NULL
                                  ELSE loaned_at
                  END
-             WHERE book_id = $4 AND id = $5 AND user_id = $6`,
-            [status, location_id, customer_id, bookId, stockId, userId]
+             WHERE book_id = $4 AND id = $5`,
+            [status, location_id, customer_id, bookId, stockId]
         );
 
         if (queryResult.rowCount != 1) {
@@ -1602,20 +1618,21 @@ router.put('/:id/stock/:stock_id', requireAuth, async (req: Request, res: Respon
                     customers.id   as customer_id,
                     customers.name as customer_name
              FROM book_stocks
-                      LEFT JOIN customers ON book_stocks.customer_id = customers.id AND customers.user_id = $2
+                      LEFT JOIN customers ON book_stocks.customer_id = customers.id
                       LEFT JOIN locations ON book_stocks.location_id = locations.id
              WHERE book_stocks.id = $1
-               AND book_stocks.user_id = $2
             `,
-            [stockId, userId]
+            [stockId]
         );
 
         const updatedStock = stockQueryResult.rows[0];
         const newStatus = Number(status);
         if (updatedStock && Number(previousStatus) !== 2 && newStatus === 2) {
-            await recordLoan(pool, userId, updatedStock.code, Number(customer_id));
+            // getSessionUser here only stamps loan_history.created_by - who
+            // lent the copy out - not a scoping predicate.
+            await recordLoan(pool, appService.getSessionUser(req), updatedStock.code, Number(customer_id));
         } else if (updatedStock && Number(previousStatus) === 2 && newStatus !== 2) {
-            await recordReturn(pool, userId, updatedStock.code);
+            await recordReturn(pool, updatedStock.code);
         }
 
         res.status(200).json(stockQueryResult.rows[0]);
@@ -1647,7 +1664,6 @@ router.put('/:id/stock/:stock_id', requireAuth, async (req: Request, res: Respon
 // @ts-ignore
 router.get('/:bookCode/add/md', requireAuth, async (req: Request, res: Response) => {
     const bookCode = String(req.params.bookCode).trim();
-    const userId = appService.getSessionUser(req);
 
     const pool = appService.getDatabasePool();
 
@@ -1664,10 +1680,9 @@ router.get('/:bookCode/add/md', requireAuth, async (req: Request, res: Response)
                        bs.status
                 FROM book_stocks bs
                          INNER JOIN books b ON b.id = bs.book_id
-                WHERE bs.code = $1
-                  AND bs.user_id = $2 LIMIT 1
+                WHERE bs.code = $1 LIMIT 1
             `,
-            [bookCode, userId]
+            [bookCode]
         );
 
         if (stockResult.rows.length == 0) {
@@ -1713,15 +1728,14 @@ router.get('/:bookCode/add/md', requireAuth, async (req: Request, res: Response)
 router.post('/return', requireAuth, upload.single("image"), handleUploadError(maxCoverImageSizeMb), async (req: Request, res: Response) => {
     const books: string[] = req.body.books;
     const pool = appService.getDatabasePool();
-    const userId = appService.getSessionUser(req);
 
     try {
         for (const bookStockCode of books) {
             await pool.query(
-                'UPDATE book_stocks SET customer_id = $1, status = $2, loaned_at = NULL WHERE code = $3 AND user_id = $4',
-                [null, 0, bookStockCode, userId]
+                'UPDATE book_stocks SET customer_id = $1, status = $2, loaned_at = NULL WHERE code = $3',
+                [null, 0, bookStockCode]
             );
-            await recordReturn(pool, userId, bookStockCode);
+            await recordReturn(pool, bookStockCode);
         }
 
         res.status(200).send();
@@ -1808,18 +1822,18 @@ async function generateBookStockCode(): Promise<string> {
 }
 
 /**
- * Try to automatically create a book stock if user has only one location
+ * Try to automatically create a book stock if the shared library has exactly
+ * one location - with nowhere else it could go, asking would be busywork.
  * @param client
  * @param bookId
- * @param userId
+ * @param userId The account adding the book, recorded as the stock's created_by.
  */
 async function __automaticallyAddBookToLocation(client: Pool | PoolClient, bookId: number, userId: number) {
 
     const locations = await client.query(`
         SELECT id
         FROM locations
-        WHERE user_id = $1
-    `, [userId]);
+    `);
 
     if (locations.rowCount != null && locations.rowCount == 1) {
         const locationId = locations.rows[0].id;
@@ -1827,7 +1841,7 @@ async function __automaticallyAddBookToLocation(client: Pool | PoolClient, bookI
         const code = await generateBookStockCode();
 
         await client.query(
-            "INSERT INTO book_stocks (book_id, code, location_id, user_id) VALUES ($1, $2, $3, $4)",
+            "INSERT INTO book_stocks (book_id, code, location_id, created_by) VALUES ($1, $2, $3, $4)",
             [bookId, code, locationId, userId]
         );
     }

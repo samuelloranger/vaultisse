@@ -65,7 +65,7 @@ router.get('/policy', requireAuth, async (req: Request, res: Response) => {
     let appLabels: Record<string, string> = {};
 
     try {
-        categories = await getCategories(userId);
+        categories = await getCategories();
     } catch (e) {
         console.error("Error when getting categories. ", e)
     }
@@ -83,13 +83,13 @@ router.get('/policy', requireAuth, async (req: Request, res: Response) => {
     }
 
     try {
-        locations = await getLocations(userId);
+        locations = await getLocations();
     } catch (e) {
         console.error("Error when getting locations. ", e)
     }
 
     try {
-        customers = await getCustomers(userId);
+        customers = await getCustomers();
     } catch (e) {
         console.error("Error when getting customers. ", e)
     }
@@ -102,7 +102,7 @@ router.get('/policy', requireAuth, async (req: Request, res: Response) => {
 
     const user = await  getUser(userId);
 
-    // Public-institution accounts get a persistent security-measures notice
+    // A public-institution instance shows a persistent security-measures notice
     // after login until they acknowledge it (see SecurityNoticeDialog.vue).
     // Record that it was sent the first time it's actually going to be
     // shown; ON CONFLICT DO NOTHING makes this a no-op on every later fetch.
@@ -137,38 +137,36 @@ router.get('/policy', requireAuth, async (req: Request, res: Response) => {
     });
 });
 
-/** List `{id, name}` for every customer of `userId` - used to populate the policy payload. */
-async function getCustomers(userId: number): Promise<Record<string, any>[]> {
+/** List `{id, name}` for every customer in the shared library - used to populate the policy payload. */
+async function getCustomers(): Promise<Record<string, any>[]> {
     const pool = appService.getDatabasePool();
 
     const query = `
         SELECT id,
                name
         FROM customers
-        WHERE user_id = $1
     `
     // Use a prepared statement to fetch items by name
     appService.getLogger().debug(`executing query: ${query}`);
-    const result = await pool.query(query, [userId]);
+    const result = await pool.query(query);
 
     // Return the result (found rows)
     return result.rows;
 }
 
 
-/** List `{id, name}` for every category of `userId` - used to populate the policy payload. */
-async function getCategories(userId: number): Promise<Record<string, any>[]> {
+/** List `{id, name}` for every category in the shared library - used to populate the policy payload. */
+async function getCategories(): Promise<Record<string, any>[]> {
     const pool = appService.getDatabasePool();
 
     const query = `
         SELECT id,
                name
         FROM categories
-        WHERE user_id = $1
     `
     // Use a prepared statement to fetch items by name
     appService.getLogger().debug(`executing query: ${query}`);
-    const result = await pool.query(query, [userId]);
+    const result = await pool.query(query);
 
     // Return the result (found rows)
      return result.rows;
@@ -208,19 +206,18 @@ async function getFormats(): Promise<Record<string, any>[]> {
     return result.rows;
 }
 
-/** List `{id, name, description}` for every location of `userId` - used to populate the policy payload. */
-async function getLocations(userId: number): Promise<Record<string, any>[]> {
+/** List `{id, name, description}` for every location in the shared library - used to populate the policy payload. */
+async function getLocations(): Promise<Record<string, any>[]> {
     const pool = appService.getDatabasePool();
     const query = `
         SELECT id,
                name,
                description
         FROM locations
-        WHERE user_id = $1
     `
     // Use a prepared statement to fetch items by name
     appService.getLogger().debug(`executing query: ${query}`);
-    const result = await pool.query(query, [userId]);
+    const result = await pool.query(query);
 
     // Return the result (found rows)
     return result.rows;
@@ -255,6 +252,15 @@ async function getAppLabels(userId: number): Promise<Record<string, string>> {
  * Fetch `userId`'s profile fields, converting the stored `image` bytea (if
  * any) into a `data:image/png;base64,...` URL the client can use directly
  * as an `<img src>`. Throws if the user doesn't exist.
+ *
+ * `leasingEnabled` and `isPublicInstitution` are NOT profile fields - they
+ * describe the shared collection and live in the single-row `app_settings`
+ * table (see assets/db/databaseSchema.sql). They're still returned inside the
+ * `user` object so the policy payload's shape is unchanged for the client,
+ * which reads them from there to gate the Loans/Customers nav and the
+ * security-notice dialog. CROSS JOIN, not LEFT JOIN: app_settings always has
+ * exactly one row (its id is pinned to 1 by a CHECK), so there is nothing to
+ * be missing.
  */
 async function getUser(userId: number): Promise<Record<string, any>> {
     const pool = appService.getDatabasePool();
@@ -268,12 +274,13 @@ async function getUser(userId: number): Promise<Record<string, any>> {
                u.image,
                u.theme,
                u.sidebar_rail          AS "sidebarRail",
-               u.leasing_enabled       AS "leasingEnabled",
-               u.is_public_institution AS "isPublicInstitution",
+               s.leasing_enabled       AS "leasingEnabled",
+               s.is_public_institution AS "isPublicInstitution",
                u.totp_enabled          AS "totpEnabled",
                (sn.accepted_date IS NOT NULL) AS "securityNoticeAccepted",
                (tos.accepted_date IS NOT NULL) AS "termsOfServiceAccepted"
         FROM users u
+        CROSS JOIN app_settings s
         LEFT JOIN user_security_notice_acknowledgements sn ON sn.user_id = u.id
         LEFT JOIN user_terms_of_service_acknowledgements tos ON tos.user_id = u.id
         WHERE u.id = $1

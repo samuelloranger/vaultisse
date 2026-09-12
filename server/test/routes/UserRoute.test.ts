@@ -2,6 +2,7 @@ import {generate} from "otplib";
 import request from "supertest";
 import {setupTestApp} from "../helpers/testApp";
 import {createAuthenticatedUser, nextFakeIp, TEST_PASSWORD} from "../helpers/auth";
+import {appService} from "../../src/AppService";
 
 const app = setupTestApp();
 
@@ -55,6 +56,37 @@ describe("PATCH /user/leasing", () => {
         const user = await createAuthenticatedUser(app);
         const res = await user.agent.patch("/api/rest/user/leasing").send({leasingEnabled: true});
         expect(res.status).toBe(200);
+    });
+
+    it("rejects a non-boolean", async () => {
+        const user = await createAuthenticatedUser(app);
+        const res = await user.agent.patch("/api/rest/user/leasing").send({leasingEnabled: "yes"});
+        expect(res.status).toBe(400);
+    });
+
+    /**
+     * Leasing is an instance setting stored in the single-row `app_settings`
+     * table, not a per-account preference: with one shared library, a member
+     * who turned lending off while another had it on would be hiding shared
+     * loan data from themselves. So one account's toggle moves everyone's
+     * policy payload.
+     */
+    it("is an instance setting - one account's toggle moves every account's policy", async () => {
+        const a = await createAuthenticatedUser(app);
+        const b = await createAuthenticatedUser(app);
+
+        await a.agent.patch("/api/rest/user/leasing").send({leasingEnabled: true});
+        expect((await b.agent.get("/api/rest/app/policy")).body.user.leasingEnabled).toBe(true);
+
+        await b.agent.patch("/api/rest/user/leasing").send({leasingEnabled: false});
+        expect((await a.agent.get("/api/rest/app/policy")).body.user.leasingEnabled).toBe(false);
+
+        // ...and it really is the one app_settings row behind it.
+        const {rows} = await appService.getDatabasePool().query("SELECT leasing_enabled FROM app_settings");
+        expect(rows).toHaveLength(1);
+        expect(rows[0].leasing_enabled).toBe(false);
+
+        await a.agent.patch("/api/rest/user/leasing").send({leasingEnabled: true});
     });
 });
 
@@ -213,5 +245,80 @@ describe("DELETE /user (account deletion)", () => {
             .set("X-Forwarded-For", nextFakeIp())
             .send({username: user.userCode, password: TEST_PASSWORD});
         expect(loginRes.status).toBe(401);
+    });
+
+    /**
+     * THE CASCADE TRAP - the regression this whole change exists to prevent.
+     *
+     * Upstream's ten library-data foreign keys are ON DELETE CASCADE, which is
+     * correct when a row belongs to one person. Under a shared library it means
+     * deleting any account silently deletes every book that person ever
+     * contributed - plus its stocks, files and loan history - out of the
+     * collection everyone else is still using. Removing a member must not empty
+     * the household's shelves.
+     *
+     * So `created_by` is nullable with ON DELETE SET NULL: the rows survive and
+     * render as "added by a removed account".
+     */
+    it("leaves the departing account's contributions in the shared library", async () => {
+        const leaver = await createAuthenticatedUser(app);
+        const stayer = await createAuthenticatedUser(app);
+        const stamp = Date.now();
+
+        const bookId = (await leaver.agent.post("/api/rest/book").field("name", `Contributed Book ${stamp}`)).body;
+        const locationId = (await leaver.agent.post("/api/rest/location").send({name: `Contributed Shelf ${stamp}`, description: ""})).body.id;
+        const authorId = (await leaver.agent.post("/api/rest/author").send({name: `Contributed Author ${stamp}`})).body.id;
+        const categoryId = (await leaver.agent.post("/api/rest/category").send({name: `Contributed Category ${stamp}`})).body.id;
+        const customerId = (await leaver.agent.post("/api/rest/customer").send({name: `Contributed Customer ${stamp}`})).body.id;
+        const groupId = (await leaver.agent.post("/api/rest/customer/group").send({name: `Contributed Group ${stamp}`})).body.id;
+
+        const stockCode = (await leaver.agent
+            .post(`/api/rest/book/${bookId}/stock`)
+            .send({status: 0, location_id: locationId})).body.code;
+        // A loan, so loan_history carries a row created by the leaving account too.
+        await leaver.agent.post(`/api/rest/customer/${customerId}/add/books`).send({books: [stockCode]});
+        await leaver.agent.put(`/api/rest/book/${bookId}`).send({name: `Contributed Book ${stamp}`, authors: [authorId]});
+
+        const deleteRes = await leaver.agent
+            .delete("/api/rest/user")
+            .set("X-Forwarded-For", nextFakeIp())
+            .send({password: TEST_PASSWORD});
+        expect(deleteRes.status).toBe(302);
+
+        // Everything is still there, and still reachable by the account that stayed.
+        const bookRes = await stayer.agent.get(`/api/rest/book/${bookId}`);
+        expect(bookRes.status).toBe(200);
+        expect(bookRes.body).toMatchObject({id: bookId, name: `Contributed Book ${stamp}`});
+        expect(bookRes.body.stocks.some((s: any) => s.code === stockCode)).toBe(true);
+        expect(bookRes.body.authors).toEqual([{id: authorId, name: `Contributed Author ${stamp}`}]);
+
+        expect((await stayer.agent.get("/api/rest/location")).body.some((l: any) => l.id === locationId)).toBe(true);
+        expect((await stayer.agent.get("/api/rest/author")).body.some((a: any) => a.id === authorId)).toBe(true);
+        expect((await stayer.agent.get("/api/rest/category")).body.some((c: any) => c.id === categoryId)).toBe(true);
+        expect((await stayer.agent.get("/api/rest/customer")).body.customers.some((c: any) => c.id === customerId)).toBe(true);
+        expect((await stayer.agent.get("/api/rest/customer/group")).body.some((g: any) => g.id === groupId)).toBe(true);
+
+        // The rows survived with their attribution cleared, rather than the FK
+        // having quietly been left as CASCADE and the account not really gone.
+        const pool = appService.getDatabasePool();
+        const {rows: userRows} = await pool.query("SELECT 1 FROM users WHERE code = $1", [leaver.userCode]);
+        expect(userRows).toHaveLength(0);
+
+        for (const [table, column, value] of [
+            ["books", "id", bookId],
+            ["locations", "id", locationId],
+            ["authors", "id", authorId],
+            ["categories", "id", categoryId],
+            ["customers", "id", customerId],
+            ["customer_groups", "id", groupId],
+            ["book_stocks", "code", stockCode],
+            ["book_authors", "book_id", bookId],
+            ["loan_history", "stock_code", stockCode],
+        ] as [string, string, any][]) {
+            const {rows} = await pool.query(`SELECT created_by FROM ${table} WHERE ${column} = $1`, [value]);
+            expect({table, rows: rows.length}).toEqual({table, rows: expect.any(Number)});
+            expect(rows.length).toBeGreaterThan(0);
+            rows.forEach((r: any) => expect(r.created_by).toBeNull());
+        }
     });
 });

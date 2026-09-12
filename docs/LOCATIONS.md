@@ -13,8 +13,9 @@ route file, no sub-concepts.
 
 ## Mental model
 
-A `locations` row is just a name + description (`user_id`-scoped, like
-everything else). Every [`book_stocks`](BOOKS.md#the-stock-lifecycle) row
+A `locations` row is just a name + description - one set of shelves for the
+whole instance, like the rest of the library, so any account can create a
+location and move any copy onto it (`created_by` is attribution only). Every [`book_stocks`](BOOKS.md#the-stock-lifecycle) row
 points at exactly one location via `location_id` - a location doesn't "hold"
 books directly, it's the other side of that foreign key.
 

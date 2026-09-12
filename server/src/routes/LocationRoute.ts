@@ -4,7 +4,9 @@
  * =============================================================================
  * Mounted at `/api/rest/location`. CRUD for physical storage "locations"
  * (shelves, rooms, warehouses, ...) and moving book stocks between them.
- * All routes require auth and are scoped to the caller's `user_id`.
+ * All routes require auth; none are scoped to the caller, since there is one
+ * shared library that every account co-manages. `created_by` is stamped on
+ * insert as attribution only and never filtered on.
  */
 import {Router, Request, Response} from 'express';
 import {requireAuth} from "../middlewares/AuthMiddleware";
@@ -16,8 +18,8 @@ const router = Router();
 /**
  * GET /location
  * -------------
- * List every location the user owns, with a `total_books` count of stocks
- * currently placed there.
+ * List every location in the shared library, with a `total_books` count of
+ * stocks currently placed there.
  *
  * Auth: required.
  *
@@ -28,7 +30,6 @@ const router = Router();
 router.get('', requireAuth, async (req: Request, res: Response) => {
     const pool = appService.getDatabasePool();
     const client = await pool.connect();
-    const userId = appService.getSessionUser(req);
 
     try {
         const result = await client.query(`
@@ -37,8 +38,7 @@ router.get('', requireAuth, async (req: Request, res: Response) => {
                    description,
                    (SELECT COUNT(*) FROM book_stocks WHERE book_stocks.location_id = locations.id) total_books
             FROM locations
-            WHERE user_id = $1
-        `, [userId]);
+        `);
         res.status(200).json(result.rows);
     } catch (err: any) {
         console.error('Error executing query', err.stack);
@@ -66,10 +66,9 @@ router.get('/:id/books', requireAuth, async (req: Request, res: Response) => {
         return res.status(400).send('No location ID provided');
     }
     const pool = appService.getDatabasePool();
-    const userId = appService.getSessionUser(req);
 
     try {
-        const locationBooks = await getLocationBooks(pool, locationId, userId);
+        const locationBooks = await getLocationBooks(pool, locationId);
         res.status(200).json(locationBooks);
     } catch (err: any) {
         console.error('Error executing query', err.stack);
@@ -105,22 +104,21 @@ router.post('/:id/add/books', requireAuth, async (req: Request, res: Response) =
     }
 
     const pool = appService.getDatabasePool();
-    const userId = appService.getSessionUser(req);
 
     try {
-        const exist = await existLocation(pool, locationId, userId);
+        const exist = await existLocation(pool, locationId);
         if (!exist) {
             return res.status(404).send('Location does not exist');
         }
 
         for (const bookStockCode of books) {
             await pool.query(
-                'UPDATE book_stocks SET location_id = $1 WHERE code = $2 AND user_id = $3',
-                [locationId, bookStockCode, userId]
+                'UPDATE book_stocks SET location_id = $1 WHERE code = $2',
+                [locationId, bookStockCode]
             );
         }
 
-        const locationBooks = await getLocationBooks(pool, locationId, userId);
+        const locationBooks = await getLocationBooks(pool, locationId);
 
         res.status(200).json(locationBooks);
     } catch (err: any) {
@@ -151,7 +149,7 @@ router.post('', requireAuth, async (req: Request, res: Response) => {
     try {
         appService.getLogger().debug(`Adding location with name ${name}`);
         const insertLocation = await client.query(
-            "INSERT INTO locations (name, description, user_id) VALUES ($1, $2, $3) RETURNING id",
+            "INSERT INTO locations (name, description, created_by) VALUES ($1, $2, $3) RETURNING id",
             [name, description, userId]
         );
 
@@ -162,9 +160,8 @@ router.post('', requireAuth, async (req: Request, res: Response) => {
                    locations.description,
                    (SELECT COUNT(*) FROM book_stocks WHERE book_stocks.location_id = locations.id) total_books
             FROM locations
-            WHERE locations.id = ${insertLocation.rows[0].id}
-              AND locations.user_id = $1
-        `, [userId])
+            WHERE locations.id = $1
+        `, [insertLocation.rows[0].id])
 
         res.status(200).json(result.rows[0]);
     } catch (error) {
@@ -192,8 +189,6 @@ router.put('/:id', requireAuth, async (req: Request, res: Response) => {
         return res.status(400).send('No location ID provided');
     }
 
-    const userId = appService.getSessionUser(req);
-
     // Body params
     const {
         name,
@@ -206,8 +201,8 @@ router.put('/:id', requireAuth, async (req: Request, res: Response) => {
         appService.getLogger().debug(`Updating location ${locationId}`);
 
         const queryResult = await pool.query(
-            'UPDATE locations SET name = $1, description = $2 WHERE id = $3 AND user_id = $4',
-            [name, description, locationId, userId]
+            'UPDATE locations SET name = $1, description = $2 WHERE id = $3',
+            [name, description, locationId]
         );
 
         if (queryResult.rowCount != 1) {
@@ -221,9 +216,8 @@ router.put('/:id', requireAuth, async (req: Request, res: Response) => {
                     (SELECT COUNT(*) FROM book_stocks WHERE book_stocks.location_id = locations.id) total_books
              FROM locations
              WHERE locations.id = $1
-               AND locations.user_id = $2
             `,
-            [locationId, userId]
+            [locationId]
         );
 
         res.status(200).json(locationQueryResult.rows[0]);
@@ -251,16 +245,14 @@ router.delete('/:id', requireAuth, async (req: Request, res: Response) => {
     const pool = appService.getDatabasePool();
     const client = await pool.connect();
 
-    const userId = appService.getSessionUser(req);
-
     try {
         // Validate the existence of the book
-        const locationCheck = await client.query('SELECT id FROM locations WHERE id = $1 AND user_id = $2', [id, userId]);
+        const locationCheck = await client.query('SELECT id FROM locations WHERE id = $1', [id]);
         if (locationCheck.rowCount === 0) {
             return res.status(404).send({error: "Location not found"});
         }
 
-        await client.query('DELETE FROM locations WHERE id = $1 AND user_id = $2', [id, userId]);
+        await client.query('DELETE FROM locations WHERE id = $1', [id]);
 
         res.send({message: "Location deleted successfully"});
     } catch (e) {
@@ -271,18 +263,18 @@ router.delete('/:id', requireAuth, async (req: Request, res: Response) => {
     }
 });
 
-/** Whether location `locationId` exists and belongs to `userId`. */
-async function existLocation(pool: Pool, locationId: number, userId: number): Promise<boolean> {
+/** Whether location `locationId` exists. */
+async function existLocation(pool: Pool, locationId: number): Promise<boolean> {
     const queryResult = await pool.query(
-        'SELECT id FROM locations WHERE id = $1 AND user_id = $2',
-        [locationId, userId]
+        'SELECT id FROM locations WHERE id = $1',
+        [locationId]
     );
 
     return queryResult.rowCount == 1;
 }
 
 /** Fetch the books (with stock code/status) currently stored at `locationId`. */
-async function getLocationBooks(pool: Pool, locationId: number, userId: number) {
+async function getLocationBooks(pool: Pool, locationId: number) {
     const result = await pool.query(`
             SELECT book_stocks.id,
                    books.name,
@@ -294,8 +286,7 @@ async function getLocationBooks(pool: Pool, locationId: number, userId: number) 
                  books
             WHERE book_stocks.location_id = $1
               AND book_stocks.book_id = books.id
-              AND book_stocks.user_id = $2
-        `, [locationId, userId]);
+        `, [locationId]);
 
     return result.rows;
 }

@@ -48,11 +48,33 @@ describe("location CRUD and book placement", () => {
         expect(shelfABooks.body.some((b: any) => b.code === stockCode)).toBe(false);
     });
 
-    it("404s moving books into a location that doesn't belong to the user", async () => {
+    // Inverted from upstream's "404s moving books into a location that doesn't
+    // belong to the user". One shared library means one set of physical
+    // shelves - any member can move a copy onto any of them, and the shelf
+    // another member created shows up in everyone's list.
+    it("moves a book onto a shelf another account created", async () => {
         const otherUser = await createAuthenticatedUser(app);
-        const otherLocationId = (await otherUser.agent.post("/api/rest/location").send({name: "Not Mine", description: ""})).body.id;
+        const theirShelf = (await otherUser.agent.post("/api/rest/location").send({name: `Theirs ${Date.now()}`, description: ""})).body.id;
 
-        const res = await user.agent.post(`/api/rest/location/${otherLocationId}/add/books`).send({books: ["whatever"]});
+        const listRes = await user.agent.get("/api/rest/location");
+        expect(listRes.body.some((l: any) => l.id === theirShelf)).toBe(true);
+
+        const myShelf = (await user.agent.post("/api/rest/location").send({name: `Mine ${Date.now()}`, description: ""})).body.id;
+        const bookId = (await user.agent.post("/api/rest/book").field("name", "Relocatable Book")).body;
+        const stockCode = (await user.agent.post(`/api/rest/book/${bookId}/stock`).send({status: 0, location_id: myShelf})).body.code;
+
+        const res = await user.agent.post(`/api/rest/location/${theirShelf}/add/books`).send({books: [stockCode]});
+        expect(res.status).toBe(200);
+        expect(res.body.some((b: any) => b.code === stockCode)).toBe(true);
+
+        // ...and the owner of that shelf sees the book that landed on it.
+        const theirBooks = await otherUser.agent.get(`/api/rest/location/${theirShelf}/books`);
+        expect(theirBooks.body.some((b: any) => b.code === stockCode)).toBe(true);
+    });
+
+    // Still 404 - not ownership, just a location id that names nothing.
+    it("404s moving books into a location that doesn't exist", async () => {
+        const res = await user.agent.post(`/api/rest/location/999999999/add/books`).send({books: ["whatever"]});
         expect(res.status).toBe(404);
     });
 });

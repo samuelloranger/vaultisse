@@ -1170,7 +1170,6 @@ CREATE TABLE users
     language        CHAR(2)   DEFAULT 'en',
     region          CHAR(2)   DEFAULT 'US',
     disabled        BOOLEAN  DEFAULT TRUE,
-    is_public_institution BOOLEAN NOT NULL DEFAULT FALSE,
     -- Bumped on password change (and available for a future "log out other
     -- sessions" action). requireAuth rejects any JWT whose token_version
     -- claim doesn't match this, which is what lets a stateless JWT session
@@ -1192,20 +1191,41 @@ CREATE TABLE users
     -- the Settings page (see PATCH /user/sidebar-rail in UserRoute.ts and
     -- AppMenu.vue client-side).
     sidebar_rail    BOOLEAN NOT NULL DEFAULT FALSE,
-    -- Whether the Loans and Customers pages (and their nav items) are shown.
-    -- Off by default - most accounts just track a personal collection and
-    -- don't lend books out. Set from the Settings page (see PATCH
-    -- /user/leasing in UserRoute.ts, AppMenu.vue and Router.ts client-side).
-    leasing_enabled BOOLEAN NOT NULL DEFAULT FALSE,
     FOREIGN KEY (language) REFERENCES app_languages (code) ON DELETE SET NULL
 );
+
+-- Instance-wide settings, exactly one row. This is a single shared library, so
+-- "does this collection lend books out" and "is this a public institution"
+-- describe the instance, not a person - one member toggling lending must not
+-- change the nav for themselves alone while the shared loan data stays visible
+-- to everyone else. Readable by any account, writable by an admin; served to
+-- the client inside GET /app/policy's user payload (see AppRoute.ts).
+--
+-- id is pinned to 1 by a CHECK so a second row can't be inserted even by hand,
+-- which is what lets every reader say "SELECT ... FROM app_settings" with no
+-- WHERE clause.
+CREATE TABLE app_settings
+(
+    id                    INT PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+    -- Whether the Loans and Customers pages (and their nav items) are shown.
+    -- Off by default - plenty of households just track a collection and don't
+    -- lend books out. Set from the Settings page (see PATCH /user/leasing in
+    -- UserRoute.ts, AppMenu.vue and Router.ts client-side).
+    leasing_enabled       BOOLEAN NOT NULL DEFAULT FALSE,
+    -- Whether the public-institution security-measures notice is shown after
+    -- login (see SecurityNoticeDialog.vue and
+    -- user_security_notice_acknowledgements below).
+    is_public_institution BOOLEAN NOT NULL DEFAULT FALSE
+);
+
+INSERT INTO app_settings (id) VALUES (1);
 
 -- Tracks the public-institution security-measures notice shown after login
 -- (see SecurityNoticeDialog.vue / GET /app/policy / POST /user/security-notice/accept).
 -- One row per user: sent_date is set the first time the notice is served to
--- them, accepted_date once they acknowledge it. Only meaningful for accounts
--- with users.is_public_institution = TRUE, but not restricted to them at the
--- schema level in case that flag is set after the fact.
+-- them, accepted_date once they acknowledge it. Only meaningful when
+-- app_settings.is_public_institution is TRUE, but the rows aren't gated on it
+-- at the schema level in case that flag is set after the fact.
 CREATE TABLE user_security_notice_acknowledgements
 (
     id            SERIAL PRIMARY KEY,
@@ -1218,7 +1238,7 @@ CREATE TABLE user_security_notice_acknowledgements
 -- Tracks acceptance of the Terms of Service, required from every account
 -- (see TermsOfServiceDialog.vue / GET /app/policy / POST
 -- /user/terms-of-service/accept) - unlike user_security_notice_acknowledgements
--- above, this isn't gated by users.is_public_institution. One row per user:
+-- above, this isn't gated by app_settings.is_public_institution. One row per user:
 -- sent_date is set the first time the dialog is served to them, accepted_date
 -- once they accept. Doesn't version the document text - re-accepting after a
 -- material Terms change, if ever needed, would need a versioned redesign.
@@ -1299,16 +1319,23 @@ CREATE INDEX idx_activity_log_actor_created ON activity_log (actor_id, created_d
 
 
 -- groups
+--
+-- created_by, here and on the nine tables below, is attribution only ("added by
+-- Camille") - this is one shared library, so no query filters on it. It is
+-- NULLABLE with ON DELETE SET NULL on purpose: under a shared collection,
+-- ON DELETE CASCADE would mean removing one member deletes every row that
+-- member ever contributed out from under everyone else. A row whose creator is
+-- gone renders as "added by a removed account", it does not disappear.
 CREATE TABLE customer_groups
 (
     id          SERIAL PRIMARY KEY,
     name        VARCHAR(100) NOT NULL,
     description TEXT,
-    user_id     INT NOT NULL,
+    created_by  INT,
 
-    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+    CONSTRAINT customer_groups_created_by_fkey FOREIGN KEY (created_by) REFERENCES users (id) ON DELETE SET NULL,
 
-    CONSTRAINT unique_user_customer_group UNIQUE (user_id, name)
+    CONSTRAINT unique_customer_group_name UNIQUE (name)
 );
 
 -- customers table
@@ -1317,8 +1344,8 @@ CREATE TABLE customers
     id      SERIAL PRIMARY KEY,
     name    VARCHAR(100) NOT NULL,
     group_id INT,
-    user_id INT          NOT NULL,
-    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+    created_by INT,
+    CONSTRAINT customers_created_by_fkey FOREIGN KEY (created_by) REFERENCES users (id) ON DELETE SET NULL,
     FOREIGN KEY (group_id) REFERENCES customer_groups (id) ON DELETE SET NULL
 );
 
@@ -1328,8 +1355,8 @@ CREATE TABLE locations
     id          SERIAL PRIMARY KEY,
     name        VARCHAR(100) NOT NULL,
     description TEXT,
-    user_id     INT          NOT NULL,
-    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+    created_by  INT,
+    CONSTRAINT locations_created_by_fkey FOREIGN KEY (created_by) REFERENCES users (id) ON DELETE SET NULL
 );
 
 -- Categories table
@@ -1337,9 +1364,9 @@ CREATE TABLE categories
 (
     id      SERIAL PRIMARY KEY,
     name    VARCHAR(100) NOT NULL,
-    user_id INT NOT NULL,
-    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
-    CONSTRAINT unique_user_category UNIQUE (user_id, name)
+    created_by INT,
+    CONSTRAINT categories_created_by_fkey FOREIGN KEY (created_by) REFERENCES users (id) ON DELETE SET NULL,
+    CONSTRAINT unique_category_name UNIQUE (name)
 );
 
 -- Languages table
@@ -1406,19 +1433,19 @@ CREATE TABLE books
     pages          INT,
     date_updated   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     date_created   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    user_id        INT          NOT NULL,
-    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+    created_by     INT,
+    CONSTRAINT books_created_by_fkey FOREIGN KEY (created_by) REFERENCES users (id) ON DELETE SET NULL,
     FOREIGN KEY (category_id) REFERENCES categories (id) ON DELETE SET NULL,
     FOREIGN KEY (language_code) REFERENCES languages (code) ON DELETE SET NULL,
     FOREIGN KEY (format_id) REFERENCES formats (id) ON DELETE SET NULL,
-    CONSTRAINT books_isbn_user_unique UNIQUE (isbn, user_id)
+    CONSTRAINT books_isbn_unique UNIQUE (isbn)
 );
 
 CREATE TABLE book_stocks
 (
     id          SERIAL PRIMARY KEY,
     book_id     INT                                     NOT NULL,
-    user_id     INT                                     NOT NULL,
+    created_by  INT,
     code        CHAR(10) UNIQUE                         NOT NULL,
     -- 0: available, 1: not available, 2: booked, 3: damaged
     status      SMALLINT CHECK (status IN (0, 1, 2, 3)) NOT NULL DEFAULT 0,
@@ -1438,7 +1465,7 @@ CREATE TABLE book_stocks
         (status != 2 AND customer_id IS NULL)
         ),
 
-    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+    CONSTRAINT book_stocks_created_by_fkey FOREIGN KEY (created_by) REFERENCES users (id) ON DELETE SET NULL,
     FOREIGN KEY (book_id) REFERENCES books (id) ON DELETE CASCADE,
     FOREIGN KEY (location_id) REFERENCES locations (id),
     FOREIGN KEY (customer_id) REFERENCES customers (id)
@@ -1453,7 +1480,7 @@ CREATE TABLE book_stocks
 CREATE TABLE loan_history
 (
     id            SERIAL PRIMARY KEY,
-    user_id       INT          NOT NULL,
+    created_by    INT,
     book_id       INT,
     book_name     VARCHAR(255) NOT NULL,
     stock_id      INT,
@@ -1465,14 +1492,14 @@ CREATE TABLE loan_history
     loaned_at     TIMESTAMP    NOT NULL,
     returned_at   TIMESTAMP,
 
-    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+    CONSTRAINT loan_history_created_by_fkey FOREIGN KEY (created_by) REFERENCES users (id) ON DELETE SET NULL,
     FOREIGN KEY (book_id) REFERENCES books (id) ON DELETE SET NULL,
     FOREIGN KEY (stock_id) REFERENCES book_stocks (id) ON DELETE SET NULL,
     FOREIGN KEY (customer_id) REFERENCES customers (id) ON DELETE SET NULL,
     FOREIGN KEY (group_id) REFERENCES customer_groups (id) ON DELETE SET NULL
 );
 
-CREATE INDEX idx_loan_history_user_loaned_at ON loan_history (user_id, loaned_at DESC);
+CREATE INDEX idx_loan_history_loaned_at ON loan_history (loaned_at DESC);
 
 -- Optional backup of a book's actual ebook file(s), in case the user only
 -- keeps the file itself on an e-reader. A book can have up to one file per
@@ -1484,7 +1511,7 @@ CREATE TABLE book_files
 (
     id           SERIAL PRIMARY KEY,
     book_id      INT                                                    NOT NULL,
-    user_id      INT                                                    NOT NULL,
+    created_by   INT,
     file_type    VARCHAR(4) CHECK (file_type IN ('epub', 'pdf', 'mobi')) NOT NULL,
     file_name    VARCHAR(255)                                           NOT NULL,
     file_size    INT                                                    NOT NULL,
@@ -1492,27 +1519,27 @@ CREATE TABLE book_files
     date_created TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (book_id, file_type),
     FOREIGN KEY (book_id) REFERENCES books (id) ON DELETE CASCADE,
-    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+    CONSTRAINT book_files_created_by_fkey FOREIGN KEY (created_by) REFERENCES users (id) ON DELETE SET NULL
 );
 
 CREATE TABLE authors
 (
     id      SERIAL PRIMARY KEY,
     name    VARCHAR(100) NOT NULL,
-    user_id INT          NOT NULL,
-    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
-    CONSTRAINT unique_user_author UNIQUE (user_id, name)
+    created_by INT,
+    CONSTRAINT authors_created_by_fkey FOREIGN KEY (created_by) REFERENCES users (id) ON DELETE SET NULL,
+    CONSTRAINT unique_author_name UNIQUE (name)
 );
 
 CREATE TABLE book_authors
 (
     book_id   INT NOT NULL,
     author_id INT NOT NULL,
-    user_id   INT NOT NULL,
+    created_by INT,
     PRIMARY KEY (book_id, author_id),
     FOREIGN KEY (book_id) REFERENCES books (id) ON DELETE CASCADE,
     FOREIGN KEY (author_id) REFERENCES authors (id) ON DELETE CASCADE,
-    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+    CONSTRAINT book_authors_created_by_fkey FOREIGN KEY (created_by) REFERENCES users (id) ON DELETE SET NULL
 );
 
 -- triggers

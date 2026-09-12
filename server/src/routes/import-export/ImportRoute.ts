@@ -3,8 +3,10 @@
  * ImportRoute
  * =============================================================================
  * Mounted at `/api/rest/import` (see server/src/routes/Routes.ts). Bulk-loads
- * books into the caller's catalog from a file exported by some other
- * service, instead of adding them one by one through `BooksRoute.ts`.
+ * books into the shared library from a file exported by some other service,
+ * instead of adding them one by one through `BooksRoute.ts`. `created_by` is
+ * stamped on every inserted row as attribution ("imported by Camille") and is
+ * never filtered on.
  *
  * Deliberately split out of `UserRoute.ts`/`BooksRoute.ts` into its own
  * folder (`routes/import-export/`) since "import" and "export" are one
@@ -136,8 +138,9 @@ router.get('/template/:origin', requireAuth, (req: Request, res: Response) => {
  *
  * Each row is inserted independently (its own transaction) - a bad row is
  * skipped and reported rather than failing the whole file. A row whose ISBN
- * (or, lacking one, title) already exists for this user is skipped as a
- * likely duplicate, so re-uploading the same export twice is harmless.
+ * (or, lacking one, title) is already in the library is skipped as a likely
+ * duplicate - so re-uploading the same export twice is harmless, and so is
+ * importing an export that overlaps with what another member already added.
  *
  * Example request (curl):
  *   curl -X POST /api/rest/import/library -F "origin=goodreads" -F "file=@goodreads_library_export.csv"
@@ -193,8 +196,8 @@ router.post('/library', requireAuth, uploadCsv, handleImportUploadError, async (
                 await client.query("BEGIN");
 
                 const isDuplicate = book.isbn
-                    ? await __existsByIsbn(client, book.isbn, userId)
-                    : await __existsByName(client, book.name, userId);
+                    ? await __existsByIsbn(client, book.isbn)
+                    : await __existsByName(client, book.name);
 
                 if (isDuplicate) {
                     await client.query("ROLLBACK");
@@ -215,7 +218,7 @@ router.post('/library', requireAuth, uploadCsv, handleImportUploadError, async (
                 const imageUrl = explicitImageUrl ?? (book.isbn ? await __fetchOpenLibraryCover(book.isbn) : null);
 
                 const insertBook = await client.query(
-                    `INSERT INTO books (name, description, image_url, isbn, category_id, format_id, publisher, published_date, language_code, pages, user_id)
+                    `INSERT INTO books (name, description, image_url, isbn, category_id, format_id, publisher, published_date, language_code, pages, created_by)
                      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
                      RETURNING id`,
                     [
@@ -261,26 +264,26 @@ function truncate(value: string | null, maxLen: number): string | null {
     return value.length > maxLen ? value.substring(0, maxLen) : value;
 }
 
-/** A book with this ISBN already exists for this user (`books_isbn_user_unique`). */
-async function __existsByIsbn(client: any, isbn: string, userId: number): Promise<boolean> {
+/** A book with this ISBN is already in the shared library (`books_isbn_unique`). */
+async function __existsByIsbn(client: any, isbn: string): Promise<boolean> {
     const result = await client.query(
-        "SELECT 1 FROM books WHERE isbn = $1 AND user_id = $2",
-        [isbn, userId]
+        "SELECT 1 FROM books WHERE isbn = $1",
+        [isbn]
     );
     return result.rowCount > 0;
 }
 
 /**
  * Without an ISBN there's no unique key to rely on, so fall back to an
- * exact (case-insensitive) title match among the user's other ISBN-less
+ * exact (case-insensitive) title match among the library's other ISBN-less
  * books - good enough to make re-uploading the same export a no-op without
  * risking a false-positive skip against an unrelated book that happens to
  * share a title.
  */
-async function __existsByName(client: any, name: string, userId: number): Promise<boolean> {
+async function __existsByName(client: any, name: string): Promise<boolean> {
     const result = await client.query(
-        "SELECT 1 FROM books WHERE LOWER(name) = LOWER($1) AND isbn IS NULL AND user_id = $2",
-        [name, userId]
+        "SELECT 1 FROM books WHERE LOWER(name) = LOWER($1) AND isbn IS NULL",
+        [name]
     );
     return result.rowCount > 0;
 }
@@ -320,20 +323,20 @@ async function __findFormatId(client: any, formatName: string | null): Promise<n
     return result.rowCount > 0 ? result.rows[0].id : null;
 }
 
-/** Find-or-create a category by name for this user. `null` if `name` is falsy - imported without a category rather than guessing one. */
+/** Find-or-create a category by name in the shared library (key: `unique_category_name`). `null` if `name` is falsy - imported without a category rather than guessing one. */
 async function __ensureCategory(client: any, name: string | null, userId: number): Promise<number | null> {
     if (!name) return null;
 
     const truncated = truncate(name, 100) as string;
 
     const existing = await client.query(
-        "SELECT id FROM categories WHERE name = $1 AND user_id = $2",
-        [truncated, userId]
+        "SELECT id FROM categories WHERE name = $1",
+        [truncated]
     );
     if (existing.rowCount > 0) return existing.rows[0].id;
 
     const insert = await client.query(
-        "INSERT INTO categories (name, user_id) VALUES ($1, $2) RETURNING id",
+        "INSERT INTO categories (name, created_by) VALUES ($1, $2) RETURNING id",
         [truncated, userId]
     );
     return insert.rows[0].id;
@@ -349,25 +352,25 @@ async function __ensureLanguage(client: any, code: string | null): Promise<void>
     }
 }
 
-/** Find-or-create each author by name for this user, then link them all to `bookId` in `book_authors`. */
+/** Find-or-create each author by name in the shared library (key: `unique_author_name`), then link them all to `bookId` in `book_authors`. */
 async function __ensureAuthors(client: any, bookId: number, authors: string[], userId: number) {
     for (const name of authors) {
         const truncated = name.length > 100 ? name.substring(0, 100) : name;
 
         const existing = await client.query(
-            "SELECT id FROM authors WHERE name = $1 AND user_id = $2",
-            [truncated, userId]
+            "SELECT id FROM authors WHERE name = $1",
+            [truncated]
         );
 
         const authorId = existing.rowCount > 0
             ? existing.rows[0].id
             : (await client.query(
-                "INSERT INTO authors (name, user_id) VALUES ($1, $2) RETURNING id",
+                "INSERT INTO authors (name, created_by) VALUES ($1, $2) RETURNING id",
                 [truncated, userId]
             )).rows[0].id;
 
         await client.query(
-            "INSERT INTO book_authors (book_id, author_id, user_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING",
+            "INSERT INTO book_authors (book_id, author_id, created_by) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING",
             [bookId, authorId, userId]
         );
     }

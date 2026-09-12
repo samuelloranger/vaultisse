@@ -377,6 +377,14 @@ real `JWT_SECRET` — every other production hardening step above still applies.
   ```bash
   docker compose exec -T db psql -U <DB_USER> -d <DB_NAME> < assets/db/upgrade/1.1.0/1.sql
   ```
+  **`1.2.0/1.sql` is not like the others.** Every upgrade file before it only
+  appends labels, columns and tables; that one merges rows (de-duplicating
+  authors, categories, groups and ISBNs across accounts, since those keys stop
+  being per-owner) and rewrites ten foreign keys. It runs as a single
+  transaction and refuses to run twice, so it either lands completely or not
+  at all - but **take the app down and back up the `db-data` volume first**,
+  and expect an `ACCESS EXCLUSIVE` lock for the minute it takes. Its own
+  header comment explains each step.
 - **Postgres major-version bumps are not the same kind of upgrade.** The app-version
   upgrade above is a drop-in restart because the same Postgres major version keeps
   reading the same data files. Bumping `docker-compose.yml`'s `postgres:XX-alpine`

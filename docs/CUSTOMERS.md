@@ -17,8 +17,10 @@ groups. This - along with [LOCATIONS.md](LOCATIONS.md) and
 
 A `customers` row is a borrower - a person (or, loosely, any named
 borrower) a book can be lent to. There's no login, email, or account behind
-a customer; it's just a name the *library owner* tracks, scoped to
-`customers.user_id`.
+a customer; it's just a name the household tracks. Customers, groups and
+loans are shared like the rest of the library: any account can add a
+borrower, lend a copy out, and take it back, and everyone sees the same
+outstanding loans. `customers.created_by` is attribution only.
 
 "Currently has a book on loan" isn't a column on `customers` - it's derived
 from `book_stocks`: a stock is on loan to a customer exactly when its
@@ -78,16 +80,19 @@ see [LOANS.md](LOANS.md) for why that table exists separately from
 ## Leasing is opt-in
 
 The Customers and Loans pages (and their nav items) are hidden by default -
-most accounts just track a personal collection and never lend anything out.
-A user turns this on in **Settings > Features** (`users.leasing_enabled`,
-see [SETTINGS.md](SETTINGS.md)), which:
+plenty of households just track a collection and never lend anything out.
+This is an *instance* setting, not a per-account one: with one shared
+library, a member who turned lending off while another had it on would just
+be hiding shared loan data from themselves. It's turned on in
+**Settings > Features** (`app_settings.leasing_enabled`, see
+[SETTINGS.md](SETTINGS.md)) and applies to everyone, which:
 
 - adds "Customers" and "Loans" to the left nav (`AppMenu.vue`), and
 - lifts a client-side route guard in [`Router.ts`](../client/src/router/Router.ts)
   that otherwise redirects those paths back to the dashboard even if
-  bookmarked/typed directly - defense in depth, not the actual authorization
-  boundary (every request is still scoped by `user_id` server-side
-  regardless of this flag).
+  bookmarked/typed directly - a UI affordance, not an authorization
+  boundary: the loan endpoints stay reachable to any authenticated account
+  regardless of this flag.
 
 ## Where this lives in code
 

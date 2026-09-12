@@ -2,8 +2,10 @@
  * =============================================================================
  * AuthorRoute
  * =============================================================================
- * Mounted at `/api/rest/author`. CRUD + search for the user's `authors`.
- * All routes require auth and are scoped to the caller's `user_id`.
+ * Mounted at `/api/rest/author`. CRUD + search over the instance's shared
+ * `authors`. All routes require auth; none are scoped to the caller, since
+ * there is one shared library that every account co-manages. `created_by` is
+ * stamped on insert as attribution only and never filtered on.
  */
 import { Router, Request, Response } from 'express';
 import {appService} from "../AppService";
@@ -14,7 +16,7 @@ const router = Router();
 /**
  * GET /author
  * ------------
- * List every author belonging to the user.
+ * List every author in the shared library.
  *
  * Auth: required.
  *
@@ -24,15 +26,13 @@ const router = Router();
 router.get('', requireAuth, async (req: Request, res: Response) => {
     const pool = appService.getDatabasePool();
     const client = await pool.connect();
-    const userId = appService.getSessionUser(req);
 
     try {
         const result = await client.query(`
             SELECT id,
                    name
               FROM authors
-               WHERE user_id = $1
-        `, [userId]);
+        `);
         res.status(200).json(result.rows);
     } catch (err: any) {
         console.error('Error executing query', err.stack);
@@ -45,7 +45,7 @@ router.get('', requireAuth, async (req: Request, res: Response) => {
 /**
  * POST /author/search
  * ---------------------
- * Case-insensitive substring search over the user's authors by name -
+ * Case-insensitive substring search over the shared authors by name -
  * used for the author autocomplete/picker when adding a book.
  *
  * Auth: required. Body: { "query": "tolk" }
@@ -58,7 +58,6 @@ router.post('/search', requireAuth, async (req: Request, res: Response) => {
 
     const pool = appService.getDatabasePool();
     const client = await pool.connect();
-    const userId = appService.getSessionUser(req);
 
     try {
         appService.getLogger().debug(`search authors with query ${query}`);
@@ -68,8 +67,7 @@ router.post('/search', requireAuth, async (req: Request, res: Response) => {
                    authors.name
             FROM authors
             WHERE LOWER(authors.name) ILIKE $1
-            AND authors.user_id = $2
-        `, [`%${query.toLocaleLowerCase()}%`, userId])
+        `, [`%${query.toLocaleLowerCase()}%`])
 
         res.status(200).json(result.rows);
     } catch (error) {
@@ -100,7 +98,7 @@ router.post('', requireAuth, async (req: Request, res: Response) => {
     try {
         appService.getLogger().debug(`Adding author with name ${name}`);
         const insertAuthor = await client.query(
-            "INSERT INTO authors (name, user_id) VALUES ($1, $2) RETURNING id",
+            "INSERT INTO authors (name, created_by) VALUES ($1, $2) RETURNING id",
             [name, userId]
         );
 
@@ -109,9 +107,8 @@ router.post('', requireAuth, async (req: Request, res: Response) => {
             SELECT authors.id,
                    authors.name
             FROM authors
-            WHERE authors.id = ${insertAuthor.rows[0].id}
-            AND authors.user_id = $1
-        `, [userId])
+            WHERE authors.id = $1
+        `, [insertAuthor.rows[0].id])
 
         res.status(200).json(result.rows[0]);
     } catch (error) {
@@ -139,8 +136,6 @@ router.put('/:id', requireAuth, async (req: Request, res: Response) => {
         return res.status(400).send('No author ID provided');
     }
 
-    const userId = appService.getSessionUser(req);
-
     // Body params
     const {name} = req.body;
 
@@ -150,8 +145,8 @@ router.put('/:id', requireAuth, async (req: Request, res: Response) => {
         appService.getLogger().debug(`Updating author ${authorId}`);
 
         const queryResult = await pool.query(
-            'UPDATE authors SET name = $1 WHERE id = $2 AND user_id = $3',
-            [name, authorId, userId]
+            'UPDATE authors SET name = $1 WHERE id = $2',
+            [name, authorId]
         );
 
         if(queryResult.rowCount != 1) {
@@ -163,9 +158,8 @@ router.put('/:id', requireAuth, async (req: Request, res: Response) => {
                     authors.name
               FROM authors
              WHERE authors.id = $1
-               AND authors.user_id = $2
                `,
-            [authorId, userId]
+            [authorId]
         );
 
         res.status(200).json(authorQueryResult.rows[0]);
@@ -194,16 +188,14 @@ router.delete('/:id', requireAuth, async (req: Request, res: Response) => {
     const pool = appService.getDatabasePool();
     const client = await pool.connect();
 
-    const userId = appService.getSessionUser(req);
-
     try {
         // Validate the existence of the book
-        const authorCheck = await client.query('SELECT id FROM authors WHERE id = $1 AND user_id = $2', [id, userId]);
+        const authorCheck = await client.query('SELECT id FROM authors WHERE id = $1', [id]);
         if (authorCheck.rowCount === 0) {
             return res.status(404).send({error: "Author not found"});
         }
 
-        await client.query( 'DELETE FROM authors WHERE id = $1 AND user_id = $2', [id, userId]);
+        await client.query( 'DELETE FROM authors WHERE id = $1', [id]);
 
         res.send({message: "Author deleted successfully"});
     } catch (e) {

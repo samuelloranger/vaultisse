@@ -3,7 +3,8 @@
  * LoansRoute
  * =============================================================================
  * Mounted at `/api/rest/loans`. Read-only, paginated/filterable listing of
- * books currently on loan (a `book_stocks` row with `status = 2`), for the
+ * every book currently on loan out of the shared library (a `book_stocks` row
+ * with `status = 2`), for the
  * Loans management view, plus an unpaginated `loan_history` export backing
  * that view's Excel report. Returning a book is handled by the existing
  * `POST /book/return` (see BooksRoute.ts) - this route only lists.
@@ -46,7 +47,6 @@ const router = Router();
 // @ts-ignore
 router.get('', requireAuth, async (req: Request, res: Response) => {
     const pool = appService.getDatabasePool();
-    const userId = appService.getSessionUser(req);
 
     const groupId = req.query.group_id ? Number(req.query.group_id) : null;
     const dateFrom = req.query.date_from ? String(req.query.date_from) : null;
@@ -57,9 +57,8 @@ router.get('', requireAuth, async (req: Request, res: Response) => {
         const MAX_ROWS = 50;
         const skip = MAX_ROWS * page;
 
-        const params: any[] = [userId];
+        const params: any[] = [];
         const conditions: string[] = [
-            `bs.user_id = $1`,
             `bs.status = 2`
         ];
 
@@ -77,9 +76,9 @@ router.get('', requireAuth, async (req: Request, res: Response) => {
 
         const fromClause = `
             FROM book_stocks bs
-                     JOIN books b ON b.id = bs.book_id AND b.user_id = bs.user_id
-                     JOIN customers c ON c.id = bs.customer_id AND c.user_id = bs.user_id
-                     LEFT JOIN customer_groups cg ON cg.id = c.group_id AND cg.user_id = bs.user_id
+                     JOIN books b ON b.id = bs.book_id
+                     JOIN customers c ON c.id = bs.customer_id
+                     LEFT JOIN customer_groups cg ON cg.id = c.group_id
         `;
 
         const totalResult = await pool.query(`SELECT COUNT(*) ${fromClause} ${whereClause}`, params);
@@ -146,7 +145,6 @@ router.get('', requireAuth, async (req: Request, res: Response) => {
 // @ts-ignore
 router.get('/report', requireAuth, async (req: Request, res: Response) => {
     const pool = appService.getDatabasePool();
-    const userId = appService.getSessionUser(req);
 
     const dateFrom = req.query.date_from ? String(req.query.date_from) : null;
     const dateTo = req.query.date_to ? String(req.query.date_to) : null;
@@ -158,11 +156,10 @@ router.get('/report', requireAuth, async (req: Request, res: Response) => {
     }
 
     try {
-        const params: any[] = [userId, dateFrom, dateTo];
+        const params: any[] = [dateFrom, dateTo];
         const conditions: string[] = [
-            `user_id = $1`,
-            `loaned_at >= $2::date`,
-            `loaned_at < $3::date + INTERVAL '1 day'`
+            `loaned_at >= $1::date`,
+            `loaned_at < $2::date + INTERVAL '1 day'`
         ];
 
         if (groupId) {

@@ -1,6 +1,7 @@
 import axios from "axios";
 import {setupTestApp} from "../helpers/testApp";
 import {createAuthenticatedUser, ITestUser} from "../helpers/auth";
+import {appService} from "../../src/AppService";
 
 jest.mock("axios");
 const mockedAxios = axios as jest.Mocked<typeof axios>;
@@ -14,6 +15,25 @@ beforeEach(async () => {
     mockedAxios.get.mockReset();
 });
 
+/**
+ * A fresh, checksum-valid ISBN-13 per call.
+ *
+ * Under one shared library `books_isbn_unique` is instance-wide, so a fixed
+ * ISBN shared between tests in this file would make the second test to run see
+ * the first test's book - a false failure that has nothing to do with what's
+ * being asserted. Each test that cares about ISBNs gets its own.
+ */
+let isbnCounter = 0;
+function freshIsbn(): string {
+    isbnCounter += 1;
+    const body = `978${String(Date.now() % 1e6).padStart(6, "0")}${String(isbnCounter % 1000).padStart(3, "0")}`;
+    let sum = 0;
+    for (let i = 0; i < 12; i++) {
+        sum += (i % 2 === 0 ? 1 : 3) * Number(body[i]);
+    }
+    return body + String((10 - (sum % 10)) % 10);
+}
+
 describe("POST /book (manual create)", () => {
     it("creates a book with just a name", async () => {
         const res = await user.agent.post("/api/rest/book").field("name", "The Hobbit");
@@ -21,22 +41,42 @@ describe("POST /book (manual create)", () => {
         expect(typeof res.body).toBe("number");
     });
 
-    it("rejects a duplicate ISBN for the same user", async () => {
-        await user.agent.post("/api/rest/book").field("name", "Book One").field("isbn", "9780261102217");
-        const res = await user.agent.post("/api/rest/book").field("name", "Book Two").field("isbn", "9780261102217");
+    it("rejects a duplicate ISBN", async () => {
+        const isbn = freshIsbn();
+        await user.agent.post("/api/rest/book").field("name", "Book One").field("isbn", isbn);
+        const res = await user.agent.post("/api/rest/book").field("name", "Book Two").field("isbn", isbn);
         expect(res.status).toBe(404);
     });
 
-    it("allows the same ISBN across different users", async () => {
+    // Inverted from upstream's "allows the same ISBN across different users".
+    // books_isbn_unique is instance-wide now: the household owns one copy of a
+    // title, entered once. A second member scanning the same barcode must be
+    // told it's already on the shelf, not silently given a parallel entry.
+    it("rejects the same ISBN from a different account", async () => {
         const otherUser = await createAuthenticatedUser(app);
-        await user.agent.post("/api/rest/book").field("name", "Shared ISBN Book").field("isbn", "9780261102217");
-        const res = await otherUser.agent.post("/api/rest/book").field("name", "Shared ISBN Book").field("isbn", "9780261102217");
+        const isbn = freshIsbn();
+        const first = await user.agent.post("/api/rest/book").field("name", "Shared ISBN Book").field("isbn", isbn);
+        expect(first.status).toBe(200);
+
+        const res = await otherUser.agent.post("/api/rest/book").field("name", "Shared ISBN Book").field("isbn", isbn);
+        expect(res.status).toBe(404);
+    });
+
+    it("stamps created_by with the account that added the book", async () => {
+        const res = await user.agent.post("/api/rest/book").field("name", "Attributed Book");
         expect(res.status).toBe(200);
+
+        const {rows} = await appService.getDatabasePool().query(
+            "SELECT u.code FROM books b JOIN users u ON u.id = b.created_by WHERE b.id = $1",
+            [res.body]
+        );
+        expect(rows).toHaveLength(1);
+        expect(rows[0].code).toBe(user.userCode);
     });
 });
 
 describe("GET /book/:id", () => {
-    it("fetches a book the user owns", async () => {
+    it("fetches a book", async () => {
         const createRes = await user.agent.post("/api/rest/book").field("name", "The Hobbit");
         const id = createRes.body;
 
@@ -47,13 +87,29 @@ describe("GET /book/:id", () => {
         expect(res.body.stocks).toEqual([]);
     });
 
-    it("404s for a book belonging to another user", async () => {
-        const createRes = await user.agent.post("/api/rest/book").field("name", "Private Book");
+    // Inverted from upstream's "404s for a book belonging to another user".
+    // One shared library: a book any member adds is readable - and editable,
+    // and deletable - by every other member.
+    it("serves a book another account added, and lets them edit it", async () => {
+        const createRes = await user.agent.post("/api/rest/book").field("name", "Shared Book");
         const id = createRes.body;
 
         const otherUser = await createAuthenticatedUser(app);
         const res = await otherUser.agent.get(`/api/rest/book/${id}`);
-        expect(res.status).toBe(404);
+        expect(res.status).toBe(200);
+        expect(res.body).toMatchObject({id, name: "Shared Book"});
+
+        const updateRes = await otherUser.agent.put(`/api/rest/book/${id}`).send({
+            name: "Edited By Someone Else", authors: [],
+        });
+        expect(updateRes.status).toBe(200);
+
+        // The edit lands on the one shared row, not a private copy.
+        const ownerRes = await user.agent.get(`/api/rest/book/${id}`);
+        expect(ownerRes.body).toMatchObject({id, name: "Edited By Someone Else"});
+
+        const deleteRes = await otherUser.agent.delete(`/api/rest/book/${id}`);
+        expect(deleteRes.status).toBe(200);
     });
 
     it("404s for a nonexistent id", async () => {
@@ -96,7 +152,7 @@ describe("PUT /book/:id", () => {
 });
 
 describe("DELETE /book/:id", () => {
-    it("deletes a book the user owns", async () => {
+    it("deletes a book", async () => {
         const createRes = await user.agent.post("/api/rest/book").field("name", "Disposable Book");
         const id = createRes.body;
 
@@ -121,12 +177,35 @@ describe("GET /book/search", () => {
         expect(res.body.books.some((b: any) => b.name === "The Great Gatsby")).toBe(true);
     });
 
-    it("only returns the caller's own books", async () => {
+    // Inverted from upstream's "only returns the caller's own books".
+    it("returns books added by any account", async () => {
         const otherUser = await createAuthenticatedUser(app);
-        await otherUser.agent.post("/api/rest/book").field("name", "Someone Else's Book");
+        const created = await otherUser.agent.post("/api/rest/book").field("name", "Added By Someone Else");
 
-        const res = await user.agent.get("/api/rest/book/search").query({query: "Someone Else's Book"});
-        expect(res.body.books).toEqual([]);
+        const res = await user.agent.get("/api/rest/book/search").query({query: "Added By Someone Else"});
+        expect(res.status).toBe(200);
+        expect(res.body.books.some((b: any) => b.id === created.body)).toBe(true);
+    });
+
+    /**
+     * `conditions` is joined with ' AND ' and the free-text clause contains an
+     * OR. Unparenthesised, AND binds tighter and the ISBN branch escapes every
+     * other filter in the list - upstream's cross-account leak, and here still
+     * a correctness bug: an ISBN match would ignore the category filter.
+     */
+    it("keeps the free-text OR from escaping the other filters", async () => {
+        const categoryRes = await user.agent.post("/api/rest/category").send({name: `Precedence ${Date.now()}`});
+        const categoryId = categoryRes.body.id;
+
+        const isbn = freshIsbn();
+        // Carries the searched-for ISBN but is NOT in the filtered category.
+        const outsider = await user.agent
+            .post("/api/rest/book").field("name", "Outside The Category").field("isbn", isbn);
+
+        const res = await user.agent.get("/api/rest/book/search").query({query: isbn, category_id: categoryId});
+        expect(res.status).toBe(200);
+        expect(res.body.books.some((b: any) => b.id === outsider.body)).toBe(false);
+        expect(res.body.total).toBe(0);
     });
 
     it("filters by category_id", async () => {
@@ -144,11 +223,26 @@ describe("GET /book/search", () => {
 });
 
 describe("GET /book/counters", () => {
-    it("counts the caller's books", async () => {
+    it("counts the shared library's books", async () => {
+        const before = await user.agent.get("/api/rest/book/counters");
+        expect(before.status).toBe(200);
+
         await user.agent.post("/api/rest/book").field("name", "Counted Book");
+
         const res = await user.agent.get("/api/rest/book/counters");
         expect(res.status).toBe(200);
-        expect(res.body.total).toBeGreaterThanOrEqual(1);
+        expect(res.body.total).toBe(before.body.total + 1);
+    });
+
+    // Counters describe the collection, not the caller's contributions.
+    it("counts a book another account added", async () => {
+        const contributor = await createAuthenticatedUser(app);
+        const before = await user.agent.get("/api/rest/book/counters");
+
+        await contributor.agent.post("/api/rest/book").field("name", "Counted Someone Else's Book");
+
+        const after = await user.agent.get("/api/rest/book/counters");
+        expect(after.body.total).toBe(before.body.total + 1);
     });
 });
 
@@ -188,7 +282,7 @@ describe("POST /book/isbn/:isbn (external metadata lookup)", () => {
     it("creates a book from a mocked Open Library response", async () => {
         mockOpenLibraryMetadata();
 
-        const res = await user.agent.post("/api/rest/book/isbn/9780261102217");
+        const res = await user.agent.post(`/api/rest/book/isbn/${freshIsbn()}`);
         expect(res.status).toBe(200);
         const id = res.body;
 
@@ -199,10 +293,27 @@ describe("POST /book/isbn/:isbn (external metadata lookup)", () => {
 
     it("reuses the existing book on a second lookup of the same ISBN (find-or-create)", async () => {
         mockOpenLibraryMetadata({title: "Repeatable Book"});
+        const isbn = freshIsbn();
 
-        const first = await user.agent.post("/api/rest/book/isbn/9780261102217");
-        const second = await user.agent.post("/api/rest/book/isbn/9780261102217");
+        const first = await user.agent.post(`/api/rest/book/isbn/${isbn}`);
+        const second = await user.agent.post(`/api/rest/book/isbn/${isbn}`);
         expect(second.text).toBe(first.text);
+    });
+
+    // Find-or-create is keyed on books_isbn_unique, which is instance-wide now:
+    // a second member scanning the same barcode lands on the existing book
+    // rather than creating a duplicate entry for the same physical title.
+    it("reuses a book another account created when they scan the same ISBN", async () => {
+        mockOpenLibraryMetadata({title: "Scanned By Two People"});
+        const isbn = freshIsbn();
+
+        const first = await user.agent.post(`/api/rest/book/isbn/${isbn}`);
+        expect(first.status).toBe(200);
+
+        const otherUser = await createAuthenticatedUser(app);
+        const second = await otherUser.agent.post(`/api/rest/book/isbn/${isbn}`);
+        expect(second.status).toBe(200);
+        expect(second.body).toBe(first.body);
     });
 
     it("rejects a malformed ISBN", async () => {
@@ -212,7 +323,7 @@ describe("POST /book/isbn/:isbn (external metadata lookup)", () => {
 
     it("404s when no metadata is found anywhere", async () => {
         mockedAxios.get.mockResolvedValue({data: {}}); // No `docs` in the Open Library response.
-        const res = await user.agent.post("/api/rest/book/isbn/9780261102217");
+        const res = await user.agent.post(`/api/rest/book/isbn/${freshIsbn()}`);
         expect(res.status).toBe(404);
     });
 });
@@ -266,8 +377,13 @@ describe("book stock lifecycle", () => {
         expect(loanRes.status).toBe(200);
         expect(loanRes.body).toMatchObject({status: 2, customer_id: customerId});
 
+        // Find this stock by id rather than taking stocks[0]: with one shared
+        // library, POST /book auto-places a copy whenever the library happens
+        // to have exactly one location (__automaticallyAddBookToLocation), so
+        // the book can carry a second stock this test never created.
         const afterLoanRes = await user.agent.get(`/api/rest/book/${bookId}`);
-        expect(afterLoanRes.body.stocks[0]).toMatchObject({status: 2, customer_id: customerId});
+        const loanedStock = afterLoanRes.body.stocks.find((s: any) => s.id === stockId);
+        expect(loanedStock).toMatchObject({status: 2, customer_id: customerId});
 
         const returnRes = await user.agent
             .put(`/api/rest/book/${bookId}/stock/${stockId}`)
@@ -285,12 +401,31 @@ describe("book stock lifecycle", () => {
         expect(entry.returnedAt).not.toBeNull();
     });
 
-    it("404s adding a stock at a location that doesn't belong to the user", async () => {
+    // Inverted from upstream's "404s adding a stock at a location that doesn't
+    // belong to the user". There is one set of shelves; any member can place a
+    // copy on any of them.
+    it("adds a stock at a location another account created", async () => {
         const bookRes = await user.agent.post("/api/rest/book").field("name", "Another Stocked Book");
         const otherUser = await createAuthenticatedUser(app);
-        const otherLocationId = await createLocation(otherUser.agent, "Someone Else's Shelf");
+        const otherLocationId = await createLocation(otherUser.agent, `Someone Else's Shelf ${Date.now()}`);
 
         const res = await user.agent.post(`/api/rest/book/${bookRes.body}/stock`).send({status: 0, location_id: otherLocationId});
+        expect(res.status).toBe(200);
+        expect(res.body).toMatchObject({location_id: otherLocationId, status: 0});
+    });
+
+    // Still 404 - not because of ownership, but because the id names nothing.
+    it("404s adding a stock at a location that doesn't exist", async () => {
+        const bookRes = await user.agent.post("/api/rest/book").field("name", "Unplaceable Book");
+        const res = await user.agent.post(`/api/rest/book/${bookRes.body}/stock`).send({status: 0, location_id: 999999999});
+        expect(res.status).toBe(404);
+    });
+
+    // Upstream never checks that :id names a real book before inserting the
+    // stock row (see the spec's upstream security report).
+    it("404s adding a stock to a book that doesn't exist", async () => {
+        const locationId = await createLocation(user.agent, `Orphan Shelf ${Date.now()}`);
+        const res = await user.agent.post(`/api/rest/book/999999999/stock`).send({status: 0, location_id: locationId});
         expect(res.status).toBe(404);
     });
 });

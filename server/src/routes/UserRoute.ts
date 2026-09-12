@@ -245,10 +245,17 @@ router.patch("/sidebar-rail", requireAuth, async (req: Request, res: Response) =
 /**
  * PATCH /user/leasing
  * ----------------------
- * Update whether the current user's Loans and Customers pages (and their
- * nav items) are shown (see AppMenu.vue and Router.ts on the client). Off
- * by default - most accounts just track a personal collection and don't
- * lend books out.
+ * Update whether the Loans and Customers pages (and their nav items) are shown
+ * (see AppMenu.vue and Router.ts on the client). Off by default - plenty of
+ * households just track a collection and don't lend books out.
+ *
+ * NOT a per-account preference, despite living under `/user` for the client's
+ * sake: this is one shared library, so the setting describes the collection and
+ * is stored in the single-row `app_settings` table. One member turning lending
+ * on turns it on for everyone, which is the point - otherwise they'd be looking
+ * at loan data the rest of the household can't reach. The route and its request
+ * shape are unchanged so the Settings page keeps working; gating it to admins
+ * belongs with the admin panel (section 2 of the shared-library spec).
  *
  * Auth: required. Body: { "leasingEnabled": true | false }.
  * Responses: 200 {"message": "Leasing preference updated successfully"} |
@@ -262,14 +269,13 @@ router.patch("/leasing", requireAuth, async (req: Request, res: Response) => {
     }
 
     const pool = appService.getDatabasePool();
-    const userId = appService.getSessionUser(req);
 
     try {
         await pool.query(
-            `UPDATE users
+            `UPDATE app_settings
              SET leasing_enabled = $1
-             WHERE id = $2`,
-            [leasingEnabled, userId]
+             WHERE id = 1`,
+            [leasingEnabled]
         );
 
         res.status(200).json({message: "Leasing preference updated successfully"});

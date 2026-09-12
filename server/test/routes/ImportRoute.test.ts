@@ -23,6 +23,25 @@ const GOODREADS_CSV = [
     `2,No ISBN Book,Anne Frank,"Frank, Anne",,"=""""","=""""",2.0,Bantam Books,Mass Market Paperback,256,1994,1947,,2026/09/11,to-read,"to-read (#2)",to-read,,,,0,0`,
 ].join("\n");
 
+/**
+ * A fresh, checksum-valid ISBN-13 per call. `books_isbn_unique` is
+ * instance-wide now, so an ISBN reused between tests in this file would make
+ * the second import skip the row as a duplicate - a false failure unrelated to
+ * what's being asserted. The checksum matters: `VaultisseCsvParser` runs every
+ * ISBN through `normalizeAndValidateIsbn` and silently drops a malformed one,
+ * which would take the cover-lookup branch with it.
+ */
+let isbnCounter = 0;
+function freshIsbn(): string {
+    isbnCounter += 1;
+    const body = `978${String(Date.now() % 1e6).padStart(6, "0")}${String(isbnCounter % 1000).padStart(3, "0")}`;
+    let sum = 0;
+    for (let i = 0; i < 12; i++) {
+        sum += (i % 2 === 0 ? 1 : 3) * Number(body[i]);
+    }
+    return body + String((10 - (sum % 10)) % 10);
+}
+
 describe("GET /import/template/:origin", () => {
     it("downloads the vaultisse template as a CSV attachment", async () => {
         const res = await user.agent.get("/api/rest/import/template/vaultisse");
@@ -166,7 +185,7 @@ describe("POST /import/library - vaultisse origin", () => {
     it("rejects a disallowed cover host and falls back to an ISBN lookup instead", async () => {
         const csv = [
             VAULTISSE_CSV_HEADER,
-            "Disallowed Cover Book,Someone,9780261102217,,,,,,,,https://evil.example.com/tracker.png",
+            `Disallowed Cover Book,Someone,${freshIsbn()},,,,,,,,https://evil.example.com/tracker.png`,
         ].join("\n");
 
         const res = await user.agent
@@ -185,7 +204,7 @@ describe("POST /import/library - vaultisse origin", () => {
 
     it("leaves the cover empty when the ISBN fallback lookup finds nothing", async () => {
         mockedAxios.get.mockResolvedValue({status: 404, headers: {}});
-        const csv = [VAULTISSE_CSV_HEADER, "No Cover Book,Someone,9780261102217,,,,,,,,"].join("\n");
+        const csv = [VAULTISSE_CSV_HEADER, `No Cover Book,Someone,${freshIsbn()},,,,,,,,`].join("\n");
 
         const res = await user.agent
             .post("/api/rest/import/library")
@@ -195,5 +214,31 @@ describe("POST /import/library - vaultisse origin", () => {
 
         const bookRes = await user.agent.get("/api/rest/book/search").query({query: "No Cover Book"});
         expect(bookRes.body.books[0].image_url).toBeFalsy();
+    });
+
+    // The duplicate check is instance-wide now: an import that overlaps with
+    // what another member already added skips those rows instead of building a
+    // second copy of the same titles in the shared library.
+    it("skips a row another account already imported, and shares what it does import", async () => {
+        const isbn = freshIsbn();
+        const csv = [VAULTISSE_CSV_HEADER, `Cross Account Import,Someone,${isbn},,,,,,,,`].join("\n");
+
+        const first = await user.agent
+            .post("/api/rest/import/library")
+            .field("origin", "vaultisse")
+            .attach("file", Buffer.from(csv), "lib.csv");
+        expect(first.body.imported).toBe(1);
+
+        const otherUser = await createAuthenticatedUser(app);
+        const second = await otherUser.agent
+            .post("/api/rest/import/library")
+            .field("origin", "vaultisse")
+            .attach("file", Buffer.from(csv), "lib.csv");
+        expect(second.body.imported).toBe(0);
+        expect(second.body.skipped).toBe(1);
+
+        // The one imported copy is visible to the account that didn't import it.
+        const theirSearch = await otherUser.agent.get("/api/rest/book/search").query({query: "Cross Account Import"});
+        expect(theirSearch.body.books.some((b: any) => b.isbn === isbn)).toBe(true);
     });
 });

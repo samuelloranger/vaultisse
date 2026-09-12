@@ -53,9 +53,16 @@ neither blocks on the request completing.
 
 ## The leasing toggle
 
-**`PATCH /user/leasing`** - `{ "leasingEnabled": true | false }`, persisted
-as `users.leasing_enabled`. Off by default: most accounts just track a
-personal collection and never lend books to anyone.
+**`PATCH /user/leasing`** - `{ "leasingEnabled": true | false }`. Off by
+default: plenty of households just track a collection and never lend books
+to anyone.
+
+Despite living under `/user` (and being served to the client inside the
+policy payload's `user` object, so the router guard and menu gating didn't
+have to change), this is **not** a per-account preference. It's persisted as
+`app_settings.leasing_enabled` in a single-row table, and flipping it moves
+the nav for every account - which is the point, since the loan data itself is
+shared. Same for `app_settings.is_public_institution`.
 
 Flipping this on/off changes what the rest of the app shows, not just a
 Settings checkbox - see
@@ -65,16 +72,23 @@ route-guard behavior this controls.
 ## Deleting an account
 
 **`DELETE /user`** removes the `users` row outright and redirects to
-`/login`. Everything else the account owns - books, stocks, locations,
-customers, activity log, sessions - cascades via database foreign keys;
-there's no soft-delete, export prompt, or confirmation step at the API
-level (the client is expected to confirm before calling this).
+`/login`. There's no soft-delete, export prompt, or confirmation step at the
+API level (the client is expected to confirm before calling this).
+
+**It does not delete the account's contributions.** The account's own data -
+sessions, backup codes, acknowledgements - cascades away with it, but the ten
+library tables reference it through a nullable `created_by` with
+`ON DELETE SET NULL`, so its books, stocks, files, locations, customers and
+loan history stay in the shared library and simply lose their attribution.
+Under one shared collection the alternative would mean removing a member
+empties the household's shelves - see
+[the shared-library design](superpowers/specs/2026-09-11-shared-library-admin-mobile-design.md#the-cascade-trap).
 
 ## Security notice acknowledgement
 
 **`POST /user/security-notice/accept`** - idempotent acknowledgement of the
-security-measures notice shown after login to accounts flagged as a public
-institution (`users.is_public_institution`). `GET /app/policy` reports
+security-measures notice shown after login when the instance is flagged as a
+public institution (`app_settings.is_public_institution`). `GET /app/policy` reports
 whether it's still pending as `user.securityNoticeAccepted`; see
 `SecurityNoticeDialog.vue` for the UI and `AppRoute.ts`'s `getUser()`/
 `recordSecurityNoticeSent()` for how the "first time shown" timestamp is

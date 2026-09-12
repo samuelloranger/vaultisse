@@ -34,11 +34,41 @@ describe("author CRUD and search", () => {
         expect(res.status).toBe(404);
     });
 
-    it("keeps authors private to the user who created them", async () => {
+    // Inverted from upstream's "keeps authors private to the user who created
+    // them". One shared library: an author one member adds is on the shared
+    // shelf, and the search that backs the author picker finds it too - which
+    // is what stops the second member creating a duplicate row.
+    it("shares an author with every other account, including in search", async () => {
         const otherUser = await createAuthenticatedUser(app);
-        const createRes = await user.agent.post("/api/rest/author").send({name: "Private Author"});
+        const createRes = await user.agent.post("/api/rest/author").send({name: "Shared Author"});
+        const id = createRes.body.id;
 
         const otherListRes = await otherUser.agent.get("/api/rest/author");
-        expect(otherListRes.body).not.toEqual(expect.arrayContaining([expect.objectContaining({id: createRes.body.id})]));
+        expect(otherListRes.body).toEqual(expect.arrayContaining([{id, name: "Shared Author"}]));
+
+        const otherSearchRes = await otherUser.agent.post("/api/rest/author/search").send({query: "shared author"});
+        expect(otherSearchRes.body).toEqual(expect.arrayContaining([{id, name: "Shared Author"}]));
+
+        const otherRenameRes = await otherUser.agent.put(`/api/rest/author/${id}`).send({name: "Renamed By Someone Else"});
+        expect(otherRenameRes.status).toBe(200);
+
+        const otherDeleteRes = await otherUser.agent.delete(`/api/rest/author/${id}`);
+        expect(otherDeleteRes.status).toBe(200);
+    });
+
+    // unique_author_name is instance-wide now: two members each typing
+    // "Ursula K. Le Guin" must not produce two author rows with their books
+    // split across them.
+    it("rejects a duplicate author name added by a different account", async () => {
+        const otherUser = await createAuthenticatedUser(app);
+        const name = `Duplicate Author ${Date.now()}`;
+
+        const first = await user.agent.post("/api/rest/author").send({name});
+        expect(first.status).toBe(200);
+
+        const second = await otherUser.agent.post("/api/rest/author").send({name});
+        expect(second.status).toBe(500);
+
+        await user.agent.delete(`/api/rest/author/${first.body.id}`);
     });
 });

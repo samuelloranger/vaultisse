@@ -50,4 +50,36 @@ describe("GET /app/policy", () => {
         // see the MAX_IMPORT_FILE_SIZE_MB feature this guards against drifting.
         expect(res.body.maxImportFileSizeMb).toBe(10);
     });
+
+    /**
+     * leasingEnabled / isPublicInstitution moved out of the users row into the
+     * single-row `app_settings` table, but stay inside the policy payload's
+     * `user` object so the client's router guard and menu gating keep reading
+     * them from exactly where they always did.
+     */
+    it("serves the instance settings inside the user payload", async () => {
+        const {agent} = await createAuthenticatedUser(app);
+        const res = await agent.get("/api/rest/app/policy");
+
+        expect(res.status).toBe(200);
+        expect(typeof res.body.user.leasingEnabled).toBe("boolean");
+        expect(typeof res.body.user.isPublicInstitution).toBe("boolean");
+    });
+
+    // The reference lists in the payload cover the whole shared library, not
+    // the caller's own rows - this is what hydrates everyone's dropdowns.
+    it("includes reference rows another account created", async () => {
+        const contributor = await createAuthenticatedUser(app);
+        const viewer = await createAuthenticatedUser(app);
+        const stamp = Date.now();
+
+        const categoryId = (await contributor.agent.post("/api/rest/category").send({name: `Policy Category ${stamp}`})).body.id;
+        const locationId = (await contributor.agent.post("/api/rest/location").send({name: `Policy Shelf ${stamp}`, description: ""})).body.id;
+        const customerId = (await contributor.agent.post("/api/rest/customer").send({name: `Policy Customer ${stamp}`})).body.id;
+
+        const res = await viewer.agent.get("/api/rest/app/policy");
+        expect(res.body.categories.some((c: any) => c.id === categoryId)).toBe(true);
+        expect(res.body.locations.some((l: any) => l.id === locationId)).toBe(true);
+        expect(res.body.customers.some((c: any) => c.id === customerId)).toBe(true);
+    });
 });

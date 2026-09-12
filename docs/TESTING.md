@@ -100,17 +100,35 @@ Open Library fallback path is what tests mock.
 
 Mirror an existing one close to what you're testing -
 [`CategoriesRoute.test.ts`](../server/test/routes/CategoriesRoute.test.ts)
-is the simplest full example (list/create/rename/delete plus a per-user
-isolation check). Conventions worth keeping:
+is the simplest full example (list/create/rename/delete plus a
+shared-visibility check). Conventions worth keeping:
 
 - One `describe` per endpoint or feature; a fresh user per test (or per
   `describe`, via `beforeAll`) rather than sharing one across unrelated
   assertions.
 - Assert the *response*, not implementation details - status code and body
   shape a client would actually see.
-- If a test needs several distinct accounts (e.g. checking one user can't
-  see another's data), call `createAuthenticatedUser()` again - it's cheap
-  and keeps tests independent.
+- If a test needs several distinct accounts (e.g. checking one account sees
+  what another added), call `createAuthenticatedUser()` again - it's cheap.
+
+**A fresh account is no longer a fresh library.** There is one shared
+collection per instance, and every test file runs against the same database,
+so a new user inherits whatever every other test already created. Two
+consequences for new tests:
+
+- Don't assert absolute totals ("this account has 1 book"). Read the counter
+  first and assert the *delta*, as `DashboardRoute.test.ts` does.
+- Don't use a bare literal for anything with an instance-wide unique
+  constraint - a book ISBN, or a category / author / customer-group name.
+  Another file's fixture will eventually claim it and the collision will look
+  like a failure in your test. Give it a run-unique suffix (see the
+  `freshIsbn()` helpers in `BooksRoute.test.ts` / `ImportRoute.test.ts`).
+
+The one thing worth testing carefully by hand is account deletion: the ten
+library tables reference `users` through a nullable `created_by` with
+`ON DELETE SET NULL`, and getting that wrong silently deletes the shared
+library. `UserRoute.test.ts`'s "leaves the departing account's contributions
+in the shared library" is the regression test for it.
 
 ## What's covered, what isn't
 

@@ -16,9 +16,13 @@ delivery mechanism: the app-policy bootstrap.
 
 ## Two kinds of reference data
 
-- **Per-user** (`categories`, `authors`): each user has their own list,
-  scoped by `user_id`, full CRUD. Two users can both have a "Fantasy"
-  category with different ids and no relationship to each other.
+- **Shared** (`categories`, `authors`): one list for the whole instance,
+  full CRUD, editable by any account. Names are unique instance-wide
+  (`unique_category_name`, `unique_author_name`), so two members each adding
+  "Fantasy" - or "Ursula K. Le Guin" - land on the same row rather than
+  creating parallel ones the books then split across. `created_by` records
+  who added it and is never filtered on; see
+  [the shared-library design](superpowers/specs/2026-09-11-shared-library-admin-mobile-design.md).
 - **Global** (`languages`, `formats`): one shared table for the whole
   deployment, read-only from the client's perspective - there's no
   `POST`/`PUT`/`DELETE` for either in the REST API today. New language rows
