@@ -13,6 +13,23 @@ import path from "path"; // Middleware to limit repeated requests
 import {blockWritesInDemo} from "./middlewares/DemoModeMiddleware"; // Rejects writes when DEMO_MODE=true
 import "./types/express"; // Request.sessionId/sessionKey ambient augmentation - imported for its side effect, see that file's comment
 
+/**
+ * `GOOGLE_BOOKS_API_KEY` as the rest of the app should see it: a usable key,
+ * or `undefined`.
+ *
+ * This was `String(process.env.GOOGLE_BOOKS_API_KEY)`, which turns an absent
+ * variable into the nine-character string `"undefined"` - truthy, so it sails
+ * past every `if (!apiKey)` guard and gets sent to Google as `key=undefined`,
+ * which 400s. Production happened to have the variable present-but-empty,
+ * which took the honest "not configured" path; a deployment that simply
+ * omitted the line got the confusing one. Empty, whitespace and the literal
+ * `"undefined"` all mean the same thing here: not configured.
+ */
+export function normalizeGoogleApiKey(raw: string | undefined): string | undefined {
+    const key = raw?.trim();
+    return !key || key === "undefined" ? undefined : key;
+}
+
 interface DatabaseConf {
     host: string;
     port: number;
@@ -210,7 +227,7 @@ export class AppService {
         this.m_sessionTime  = Number(process.env.SESSION_TIME);
         this.m_allowDevAuth = process.env.ALLOW_DEV_AUTH === "true";
 
-        this.m_googleApiKey = String(process.env.GOOGLE_BOOKS_API_KEY)
+        this.m_googleApiKey = normalizeGoogleApiKey(process.env.GOOGLE_BOOKS_API_KEY);
 
         const parsedMaxImportFileSizeMb = Number(process.env.MAX_IMPORT_FILE_SIZE_MB);
         this.m_maxImportFileSizeMb = Number.isFinite(parsedMaxImportFileSizeMb) && parsedMaxImportFileSizeMb > 0
@@ -240,6 +257,18 @@ export class AppService {
         });
 
         this.m_server = server;
+
+        // Once at startup, not once per lookup. `fetchBookData` used to log
+        // "Missing GOOGLE_BOOKS_API_KEY" on every single ISBN scanned, which
+        // buried the fact that it is a deployment step nobody took - and told
+        // the operator nothing at the one moment they are reading the log.
+        if (!this.m_googleApiKey) {
+            const notice =
+                "GOOGLE_BOOKS_API_KEY is not set - ISBN lookups will use only the BnF catalogue " +
+                "and Open Library, which means no cover images and thinner metadata for most books.";
+            console.warn(notice);
+            this.m_logger.warn(notice);
+        }
 
         // Log server start
         this.m_logger.info(`Server running on port ${this.m_port};`)
