@@ -61,6 +61,25 @@ export type EntityListScreenProps<T, TInput> = {
   /** Cross from the form's strings to the API's body. */
   toInput: (values: EntityValues) => TInput
 
+  /**
+   * A strip between the title row and the list: tabs, filters, a counter.
+   *
+   * Added for the customers screen, which is two of these lists — borrowers and
+   * groups — behind one nav entry and therefore needs a switch that belongs to
+   * neither of them. It sits above the empty state as well as above a populated
+   * list, because a screen whose list is empty is exactly when you want the
+   * control that takes you to the other one.
+   */
+  toolbar?: React.ReactNode
+  /**
+   * What the expand toggle is called, when it is not opening a list of books.
+   *
+   * The wording is on screen twice — as the row's meta-line hint and as the
+   * labelled entry in the actions menu, which is the only place a touch user
+   * ever reads it — so it has to be able to say "Show members" for a screen
+   * whose rows are not shelves.
+   */
+  expandLabels?: { show: string; hide: string }
   /** The muted second line. Omit for entities with nothing to say there. */
   renderMeta?: (item: T) => React.ReactNode
   /** Presence makes rows expandable. Rendered only while a row is open. */
@@ -88,6 +107,8 @@ export function EntityListScreen<T, TInput>({
   getName,
   toValues,
   toInput,
+  toolbar,
+  expandLabels = { show: 'Show books', hide: 'Hide books' },
   renderMeta,
   renderExpanded,
   extraActions,
@@ -142,7 +163,7 @@ export function EntityListScreen<T, TInput>({
     if (renderExpanded) {
       actions.push({
         key: 'expand',
-        label: expandedIds.includes(id) ? 'Hide books' : 'Show books',
+        label: expandedIds.includes(id) ? expandLabels.hide : expandLabels.show,
         onSelect: () => toggleExpand(id),
       })
     }
@@ -177,15 +198,26 @@ export function EntityListScreen<T, TInput>({
     </Button>
   )
 
-  if (query.isPending) return <ScreenLoading label={loadingLabel} />
-
-  if (query.isError) {
+  if (query.isPending || query.isError) {
     return (
-      <ScreenError
-        error={query.error}
-        onRetry={() => query.refetch()}
-        title={errorTitle}
-      />
+      // The toolbar renders here too: when it carries a tab switch, it is the
+      // only way off a tab whose list failed to load.
+      //
+      // Deliberately *not* `testID` — that one marks the loaded screen, and a
+      // test or a Playwright step that waits for it must not be satisfied by a
+      // spinner wearing the same name.
+      <YStack gap="$4" testID={`${testID}-state`}>
+        {toolbar}
+        {query.isPending ? (
+          <ScreenLoading label={loadingLabel} />
+        ) : (
+          <ScreenError
+            error={query.error}
+            onRetry={() => query.refetch()}
+            title={errorTitle}
+          />
+        )}
+      </YStack>
     )
   }
 
@@ -209,6 +241,8 @@ export function EntityListScreen<T, TInput>({
         {items.length > 0 ? addButton : null}
       </XStack>
 
+      {toolbar}
+
       {items.length === 0 ? (
         <EmptyState
           title={emptyTitle}
@@ -231,7 +265,11 @@ export function EntityListScreen<T, TInput>({
                 expanded={expanded}
                 onToggleExpand={() => toggleExpand(id)}
                 expandHint={
-                  renderExpanded ? (expanded ? 'Hide books' : 'Show books') : undefined
+                  renderExpanded
+                    ? expanded
+                      ? expandLabels.hide
+                      : expandLabels.show
+                    : undefined
                 }
               >
                 {renderExpanded && expanded ? renderExpanded(item) : null}
