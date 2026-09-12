@@ -1,21 +1,19 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { SettingsScreen } from '@/features/settings/SettingsScreen'
-import { activityQueryOptions, sessionsQueryOptions } from '@/queries/user'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 
 /**
- * `/app/settings`.
+ * `/app/settings` — the old path, kept as a redirect to `/app/profile`.
  *
- * The screen's own content comes from the policy, which the `_app` layout has
- * already awaited, so it renders complete on the first frame. The two lists
- * that do *not* come from the policy — active sessions and recent activity —
- * are prefetched rather than awaited: both have their own loading state inside
- * their card, and holding the whole navigation for them would blank the page
- * for the sake of two rows near the bottom of it.
+ * The screen was renamed, not moved: everything on it is still here. A route
+ * that only redirects is the cheapest way to keep a bookmark, a link in an old
+ * email and anything a browser autocompleted from history working, and it costs
+ * a file with no component in it.
+ *
+ * `replace` so the redirect does not sit in the history stack — without it,
+ * Back from the profile screen lands on `/settings`, which redirects forward
+ * again and traps the user.
  */
 export const Route = createFileRoute('/_app/settings')({
-  loader: ({ context }) => {
-    void context.queryClient.prefetchQuery(sessionsQueryOptions)
-    void context.queryClient.prefetchQuery(activityQueryOptions)
+  beforeLoad: () => {
+    throw redirect({ to: '/profile', replace: true })
   },
-  component: SettingsScreen,
 })

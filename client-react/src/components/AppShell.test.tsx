@@ -44,7 +44,7 @@ describe('visibleNavItems', () => {
       'Locations',
       'Categories',
       'Authors',
-      'Settings',
+      'Profile',
       'Admin',
     ])
   })

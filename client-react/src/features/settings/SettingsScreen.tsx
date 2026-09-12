@@ -13,7 +13,7 @@ import { SettingsSection } from './SettingsControls'
 import { TwoFactorCard } from './TwoFactorCard'
 
 /**
- * `/app/settings` — the account screen.
+ * `/app/profile` — the account screen, reached from the nav's "Profile" row.
  *
  * ## Order is the design
  *
@@ -42,7 +42,7 @@ export function SettingsScreen() {
   return (
     <YStack gap="$4" testID="settings-screen">
       <YStack gap="$1">
-        <Eyebrow>Settings</Eyebrow>
+        <Eyebrow>Profile</Eyebrow>
         <DisplayText fontSize={26} lineHeight={32}>
           Your account
         </DisplayText>

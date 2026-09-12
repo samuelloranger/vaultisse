@@ -17,6 +17,7 @@ import { Route as AppCategoriesRouteImport } from './routes/_app/categories'
 import { Route as AppCustomersRouteImport } from './routes/_app/customers'
 import { Route as AppLoansRouteImport } from './routes/_app/loans'
 import { Route as AppLocationsRouteImport } from './routes/_app/locations'
+import { Route as AppProfileRouteImport } from './routes/_app/profile'
 import { Route as AppSettingsRouteImport } from './routes/_app/settings'
 import { Route as AppBookBook_idRouteImport } from './routes/_app/book.$book_id'
 import { Route as AppLibrarySearchRouteImport } from './routes/_app/library.search'
@@ -60,6 +61,11 @@ const AppLocationsRoute = AppLocationsRouteImport.update({
   path: '/locations',
   getParentRoute: () => AppRoute,
 } as any)
+const AppProfileRoute = AppProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppSettingsRoute = AppSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -84,6 +90,7 @@ export interface FileRoutesByFullPath {
   '/customers': typeof AppCustomersRoute
   '/loans': typeof AppLoansRoute
   '/locations': typeof AppLocationsRoute
+  '/profile': typeof AppProfileRoute
   '/settings': typeof AppSettingsRoute
   '/book/$book_id': typeof AppBookBook_idRoute
   '/library/search': typeof AppLibrarySearchRoute
@@ -95,6 +102,7 @@ export interface FileRoutesByTo {
   '/customers': typeof AppCustomersRoute
   '/loans': typeof AppLoansRoute
   '/locations': typeof AppLocationsRoute
+  '/profile': typeof AppProfileRoute
   '/settings': typeof AppSettingsRoute
   '/': typeof AppIndexRoute
   '/book/$book_id': typeof AppBookBook_idRoute
@@ -109,6 +117,7 @@ export interface FileRoutesById {
   '/_app/customers': typeof AppCustomersRoute
   '/_app/loans': typeof AppLoansRoute
   '/_app/locations': typeof AppLocationsRoute
+  '/_app/profile': typeof AppProfileRoute
   '/_app/settings': typeof AppSettingsRoute
   '/_app/': typeof AppIndexRoute
   '/_app/book/$book_id': typeof AppBookBook_idRoute
@@ -124,6 +133,7 @@ export interface FileRouteTypes {
     | '/customers'
     | '/loans'
     | '/locations'
+    | '/profile'
     | '/settings'
     | '/book/$book_id'
     | '/library/search'
@@ -135,6 +145,7 @@ export interface FileRouteTypes {
     | '/customers'
     | '/loans'
     | '/locations'
+    | '/profile'
     | '/settings'
     | '/'
     | '/book/$book_id'
@@ -148,6 +159,7 @@ export interface FileRouteTypes {
     | '/_app/customers'
     | '/_app/loans'
     | '/_app/locations'
+    | '/_app/profile'
     | '/_app/settings'
     | '/_app/'
     | '/_app/book/$book_id'
@@ -216,6 +228,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppLocationsRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/profile': {
+      id: '/_app/profile'
+      path: '/profile'
+      fullPath: '/profile'
+      preLoaderRoute: typeof AppProfileRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/settings': {
       id: '/_app/settings'
       path: '/settings'
@@ -247,6 +266,7 @@ interface AppRouteChildren {
   AppCustomersRoute: typeof AppCustomersRoute
   AppLoansRoute: typeof AppLoansRoute
   AppLocationsRoute: typeof AppLocationsRoute
+  AppProfileRoute: typeof AppProfileRoute
   AppSettingsRoute: typeof AppSettingsRoute
   AppIndexRoute: typeof AppIndexRoute
   AppBookBook_idRoute: typeof AppBookBook_idRoute
@@ -260,6 +280,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppCustomersRoute: AppCustomersRoute,
   AppLoansRoute: AppLoansRoute,
   AppLocationsRoute: AppLocationsRoute,
+  AppProfileRoute: AppProfileRoute,
   AppSettingsRoute: AppSettingsRoute,
   AppIndexRoute: AppIndexRoute,
   AppBookBook_idRoute: AppBookBook_idRoute,

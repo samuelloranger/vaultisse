@@ -90,7 +90,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Authors', to: '/authors', icon: UserPen },
   { label: 'Loans', to: '/loans', icon: BookOpen, gate: 'lending' },
   { label: 'Customers', to: '/customers', icon: Users, gate: 'lending' },
-  { label: 'Settings', to: '/settings', icon: Settings },
+  { label: 'Profile', to: '/profile', icon: Settings },
   { label: 'Admin', to: '/admin', icon: Shield, gate: 'admin' },
 ]
 
@@ -102,7 +102,7 @@ const IMPLEMENTED_ROUTES = new Set([
   '/authors',
   '/customers',
   '/loans',
-  '/settings',
+  '/profile',
   '/admin',
 ])
 
