@@ -5,9 +5,9 @@ ARG BUN_VERSION=1.4-alpine
 # ---------------------------------------------------------------------------
 FROM oven/bun:${BUN_VERSION} AS client-build
 WORKDIR /app/client
-COPY client/package.json client/bun.lock ./
+COPY client-react/package.json client-react/bun.lock ./
 RUN bun install --frozen-lockfile
-COPY client/ ./
+COPY client-react/ ./
 RUN bun run build
 
 # ---------------------------------------------------------------------------

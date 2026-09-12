@@ -72,9 +72,9 @@ async function consumeBackupCode(userId: number, code: string): Promise<boolean>
     return false;
 }
 
-// Compiled Vue app: alongside the server in production (Docker image),
-// under client/dist during local development.
-const clientDistPath = process.env.NODE_ENV === "production" ?  path.join(__dirname, "../../../client") : path.join(__dirname, '../../../client/dist')
+// Compiled React app: alongside the server in production (Docker image),
+// under client-react/dist during local development.
+const clientDistPath = process.env.NODE_ENV === "production" ?  path.join(__dirname, "../../../client") : path.join(__dirname, '../../../client-react/dist')
 
 /**
  * GET /app/assets/*  (static)

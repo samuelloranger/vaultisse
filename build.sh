@@ -16,12 +16,12 @@ echo ""
 echo ""
 echo "============================================="
 echo "Building client..."
-cd "$ROOT_DIR/client"
+cd "$ROOT_DIR/client-react"
 npm install
 npm run build
 
 # Move client build to root/dist/client
-mv "$ROOT_DIR/client/dist" "$DIST_DIR/client"
+mv "$ROOT_DIR/client-react/dist" "$DIST_DIR/client"
 
 # --- Build SERVER ---
 echo ""
