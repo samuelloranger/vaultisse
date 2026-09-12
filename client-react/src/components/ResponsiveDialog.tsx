@@ -1,5 +1,5 @@
-import { useEffect } from 'react'
 import { Dialog, Sheet, useMedia, XStack, YStack } from 'tamagui'
+import { SheetFocusScope } from './SheetFocusScope'
 import { useMountedWhileOpen } from './useMountedWhileOpen'
 
 /**
@@ -26,6 +26,9 @@ import { useMountedWhileOpen } from './useMountedWhileOpen'
  *    children mounted and parked below the viewport, still focusable; the body
  *    and the action row are therefore mounted only while the dialog is open
  *    (plus its exit animation). See `useMountedWhileOpen`.
+ *  - **An open dialog contains the tab order.** The `Dialog` branch gets that
+ *    from Tamagui; the `Sheet` branch has no focus handling at all and gets it
+ *    from `SheetFocusScope`, which also owns the Escape key.
  *
  * Every modal in this client goes through this component. If one needs
  * something this does not offer, extend this rather than hand-rolling a
@@ -95,20 +98,6 @@ export function ResponsiveDialog({
   // already unmounts, so this changes nothing there, and one rule beats two.
   const mounted = useMountedWhileOpen(open)
 
-  // Tamagui's `Dialog` closes on Escape; its `Sheet` does not. Since this
-  // component swaps between them on width alone, without this the same modal
-  // would be dismissable by keyboard on a desktop and not on a narrow window —
-  // and a keyboard user in that window would be stuck behind a live overlay.
-  // Verified by Playwright: before this, Escape left the overlay up.
-  useEffect(() => {
-    if (!isSheet || !open) return
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onOpenChange(false)
-    }
-    document.addEventListener('keydown', onKeyDown)
-    return () => document.removeEventListener('keydown', onKeyDown)
-  }, [isSheet, open, onOpenChange])
-
   if (isSheet) {
     return (
       <Sheet
@@ -135,20 +124,22 @@ export function ResponsiveDialog({
           maxHeight="92dvh"
           paddingTop="$3"
         >
-          <YStack flex={1} minHeight={0}>
-            <YStack paddingHorizontal="$4" paddingBottom="$2" gap="$1">
-              <Dialog.Title fontFamily="$heading" fontSize={20} color="$color">
-                {title}
-              </Dialog.Title>
-              {description ? (
-                <Dialog.Description fontSize={14} color="$colorMuted">
-                  {description}
-                </Dialog.Description>
-              ) : null}
+          <SheetFocusScope open={open} onClose={() => onOpenChange(false)}>
+            <YStack testID="dialog-focus-scope" flex={1} minHeight={0}>
+              <YStack paddingHorizontal="$4" paddingBottom="$2" gap="$1">
+                <Dialog.Title fontFamily="$heading" fontSize={20} color="$color">
+                  {title}
+                </Dialog.Title>
+                {description ? (
+                  <Dialog.Description fontSize={14} color="$colorMuted">
+                    {description}
+                  </Dialog.Description>
+                ) : null}
+              </YStack>
+              <Body>{mounted ? children : null}</Body>
+              <Actions>{mounted ? actions : null}</Actions>
             </YStack>
-            <Body>{mounted ? children : null}</Body>
-            <Actions>{mounted ? actions : null}</Actions>
-          </YStack>
+          </SheetFocusScope>
         </Sheet.Frame>
       </Sheet>
     )

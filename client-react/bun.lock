@@ -6,6 +6,7 @@
       "name": "vaultisse-client-react",
       "dependencies": {
         "@tamagui/config": "2.7.7",
+        "@tamagui/focus-scope": "2.7.7",
         "@tamagui/lucide-icons": "2.0.0-rc.26",
         "@tanstack/react-query": "^5.102",
         "@tanstack/react-router": "^1.170",

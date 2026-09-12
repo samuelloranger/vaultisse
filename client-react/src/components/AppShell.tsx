@@ -21,6 +21,7 @@ import {
   Users,
   X,
 } from './icons'
+import { SheetFocusScope } from './SheetFocusScope'
 import { useMountedWhileOpen } from './useMountedWhileOpen'
 
 /**
@@ -350,26 +351,36 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         />
         <Sheet.Handle />
         <Sheet.Frame backgroundColor="$navBg" paddingTop="$2">
-          {drawerMounted ? (
-            <>
-              <XStack alignItems="center" justifyContent="space-between">
-                <Brand />
-                <Button
-                  testID="close-nav"
-                  aria-label="Close navigation"
-                  onPress={() => setDrawerOpen(false)}
-                  icon={X}
-                  minWidth={44}
-                  minHeight={44}
-                  marginRight="$2"
-                  backgroundColor="transparent"
-                  color="$navText"
-                  borderWidth={0}
-                />
-              </XStack>
-              <NavList onNavigate={() => setDrawerOpen(false)} />
-            </>
-          ) : null}
+          {/* The drawer is a Sheet, so it had the same open-and-not-modal
+              problem as every other one: Tab walked out of it into the page it
+              was covering. */}
+          <SheetFocusScope
+            open={drawerOpen && !media.sm}
+            onClose={() => setDrawerOpen(false)}
+          >
+            <YStack testID="drawer-focus-scope" flex={1} minHeight={0}>
+              {drawerMounted ? (
+                <>
+                  <XStack alignItems="center" justifyContent="space-between">
+                    <Brand />
+                    <Button
+                      testID="close-nav"
+                      aria-label="Close navigation"
+                      onPress={() => setDrawerOpen(false)}
+                      icon={X}
+                      minWidth={44}
+                      minHeight={44}
+                      marginRight="$2"
+                      backgroundColor="transparent"
+                      color="$navText"
+                      borderWidth={0}
+                    />
+                  </XStack>
+                  <NavList onNavigate={() => setDrawerOpen(false)} />
+                </>
+              ) : null}
+            </YStack>
+          </SheetFocusScope>
         </Sheet.Frame>
       </Sheet>
     </XStack>

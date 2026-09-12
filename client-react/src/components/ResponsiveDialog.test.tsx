@@ -1,4 +1,5 @@
 import { screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { Button, Input } from 'tamagui'
 import { describe, expect, it } from 'vitest'
@@ -76,6 +77,38 @@ describe('ResponsiveDialog', () => {
     // Not immediately: the body has to outlive the exit animation, or the
     // sheet slides an empty rectangle down the screen.
     expect(screen.getByTestId('dialog-field')).toBeInTheDocument()
+
+    await waitFor(
+      () => {
+        expect(screen.queryByTestId('dialog-field')).not.toBeInTheDocument()
+      },
+      { timeout: 2000 }
+    )
+  })
+
+  /**
+   * The complementary half of the bug above: a dialog that *is* open has to
+   * contain the tab order, and `Sheet` has no focus handling at all — see
+   * `SheetFocusScope`. What is asserted here is the structural contract, which
+   * jsdom can answer deterministically; that Tab actually cycles is asserted in
+   * Chrome, by walking the tab order and reading `document.activeElement` (25
+   * tabs, 0 escapes, against 16 escapes before the fix).
+   */
+  it('wraps an open dialog in a focus scope', async () => {
+    renderWithProviders(<Harness startOpen />)
+    expect(await screen.findByTestId('dialog-focus-scope')).toBeInTheDocument()
+  })
+
+  it('closes on Escape', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<Harness startOpen />)
+    await screen.findByTestId('dialog-field')
+
+    // `Dialog` closes on Escape by itself; `Sheet` does not, and this component
+    // swaps between them on width alone — so without this the same modal is
+    // dismissable by keyboard on a desktop and not in a narrow window, leaving
+    // a keyboard user sealed behind a live overlay now that focus is trapped.
+    await user.keyboard('{Escape}')
 
     await waitFor(
       () => {
