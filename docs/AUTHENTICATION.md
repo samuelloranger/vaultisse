@@ -16,6 +16,7 @@ instead - this document is architecture, not a reporting policy.
 - [`token_version`: revoke everywhere](#token_version-revoke-everywhere)
 - [`user_sessions`: revoke one device](#user_sessions-revoke-one-device)
 - [What the client does when a session dies](#what-the-client-does-when-a-session-dies)
+- [Roles and the admin panel](#roles-and-the-admin-panel)
 - [`activity_log`: the audit trail](#activity_log-the-audit-trail)
 - [Two-factor authentication](#two-factor-authentication)
 - [Passwords](#passwords)
@@ -206,6 +207,57 @@ For the server-rendered `/app` and `/app/*` routes (a hard refresh, not an
 API call), `requireAuthPage` redirects to `/login` directly on *any* failure
 instead of returning JSON - there's no page on screen yet to show an error in.
 
+## Roles and the admin panel
+
+`users.role` is `'admin'` or `'user'` (a `CHECK`, not a Postgres ENUM - see
+`assets/db/databaseSchema.sql`). There are deliberately **no library-level
+roles**: this fork is one shared library, so every account that can log in
+can add, edit, lend and return books. Application role is the only axis.
+
+**Bootstrapping.** The first account to register becomes `admin`
+(`POST /register`). The decision is made in SQL under a Postgres advisory
+lock (`utils/AdvisoryLocks.ts`), not by a count-then-insert in Node: two
+simultaneous first registrations each read a snapshot in which the other's
+row doesn't exist yet, so both would otherwise come out admin. An
+already-populated database being upgraded promotes its lowest-id account
+instead (`assets/db/upgrade/1.2.0/2.sql`), for the same reason - an instance
+with zero admins has no in-app way to make one.
+
+**The gate.** `requireAdmin` (`middlewares/AdminMiddleware.ts`) wraps the
+same `resolveSession()` as `requireAuth` - it does not re-derive a session
+from the cookie - and then asks one further question: is this account's
+`role` (read live from the DB on every request, never from a JWT claim, so a
+demotion takes effect immediately) `'admin'`?
+
+It fails in two distinguishable ways, which matters for the client:
+
+| Case | Response |
+|---|---|
+| No session, or a session that no longer validates | `401 {"message": "Unauthorized", "sessionExpired": true}` - the client redirects to `/login`, exactly as for `requireAuth`. |
+| A valid session belonging to a non-admin | `403 {"message": "Forbidden"}`, **no** `sessionExpired` flag - their session was never the problem, and logging back in would not help. |
+
+**What an admin can do** (`/api/rest/admin/users`, AdminUsersRoute.ts): list
+accounts, enable/disable one, promote/demote it, delete it. Three invariants
+are enforced server-side, not by the UI hiding buttons:
+
+1. An admin cannot demote, disable or delete **themselves**.
+2. The instance can never reach **zero usable admins** (`role = 'admin'` and
+   not disabled). Serialized by the `ADMIN_SET` advisory lock, so two admins
+   demoting each other simultaneously can't both succeed.
+3. Disabling or deleting an account **kills its live sessions immediately**:
+   `users.token_version` is bumped and every `user_sessions` row revoked, so
+   a held JWT stops working on its very next request - and, just as
+   importantly, does not start working again if the account is later
+   re-enabled.
+
+Deleting an account does **not** delete what it contributed to the shared
+library: those foreign keys are `created_by ... ON DELETE SET NULL`, so the
+books stay and lose only their "added by" attribution.
+
+The client learns its own role from `GET /app/policy`
+(`user.role` / `user.isAdmin`) purely to decide whether to show the Admin nav
+entry. That is a UI hint; the server re-checks on every request.
+
 ## `activity_log`: the audit trail
 
 A generic, append-only table - not auth-specific by design, so future
@@ -216,14 +268,16 @@ new table per feature. Only auth events are written today, via
 | Column | Purpose |
 |---|---|
 | `actor_id` | Who did it. `NULL` for a failed login whose username didn't match any account (see [Logging in](#logging-in)) - `ON DELETE SET NULL`, so history outlives a deleted account. |
-| `action` | `login`, `login_failed`, `logout`, or `password_changed` today. |
-| `entity_type`, `entity_id` | Unused for auth events; reserved for "which book/loan/etc." once data-change logging exists. |
+| `action` | Auth events (`login`, `login_failed`, `logout`, `password_changed`) and admin actions on an account (`user_enabled`, `user_disabled`, `user_role_changed`, `user_deleted`). |
+| `entity_type`, `entity_id` | Unused for auth events. Admin actions set them to `'user'` + the target account id - the use those two generic columns were reserved for. There is no FK on `entity_id`, so a `user_deleted` row outlives the account it names (the account's code is kept in `metadata` so the entry stays readable). |
 | `metadata` | Free-form JSONB - an IP address, an attempted username, which stage of login failed, and so on. |
 
 `GET /user/activity` (Settings > Recent logins) returns *only* the calling
 user's own rows, newest first, filtered to auth actions specifically
-(`action = ANY(Object.values(ActivityAction))` - reads the enum rather than
-a separately maintained SQL list, so the two can't drift). A failed login
+(`action = ANY(AUTH_ACTIVITY_ACTIONS)` - reads a named subset of the enum
+rather than a separately maintained SQL list, so the two can't drift; admin
+actions are excluded, since that list answers "what happened to my session",
+not "what did I do to other people's accounts"). A failed login
 against your account (wrong password from *somewhere else*) shows up here
 too - deliberately: "someone tried your password and failed" is exactly the
 kind of thing this list exists to surface.
@@ -257,10 +311,20 @@ but every login lookup filters on `disabled = FALSE` (see
 AuthRoute.ts), so the account simply can't authenticate until someone flips
 that column back to `FALSE`.
 
-There's no admin role or UI in the app for this - Vaultisse has no concept
-of an application-level admin, only the person operating the deployment. See
-"Approving a new registration" in [DEPLOYMENT.md](DEPLOYMENT.md) for the SQL
-to run.
+Approving one is `PATCH /api/rest/admin/users/:id` with
+`{"disabled": false}` from the admin panel (see
+[Roles and the admin panel](#roles-and-the-admin-panel)). This fork replaces
+the hand-written `UPDATE users SET disabled = FALSE` that DEPLOYMENT.md used
+to document as the only way.
+
+**The first account to register is exempt**, and is created enabled even with
+`REGISTRATION_REQUIRES_APPROVAL=true`. Approval means "an admin has to enable
+you", and at that moment there is no admin - holding the first account would
+produce an instance nobody can ever log into, with no in-app way out.
+
+Disabling an account from the admin panel is the same column in the other
+direction, plus immediate session revocation - see
+[the section below](#roles-and-the-admin-panel).
 
 ## Other defenses
 
@@ -307,6 +371,9 @@ to run.
 |---|---|
 | Login, register, logout, 2FA login step | `server/src/routes/AuthRoute.ts` |
 | Per-request validation (`requireAuth`/`requireAuthPage`) | `server/src/middlewares/AuthMiddleware.ts` |
+| Admin gate (`requireAdmin`) | `server/src/middlewares/AdminMiddleware.ts` |
+| Admin account management (list/enable/disable/promote/delete) | `server/src/routes/admin/AdminUsersRoute.ts` |
+| Advisory-lock keys (first-account bootstrap, admin-set invariant) | `server/src/utils/AdvisoryLocks.ts` |
 | JWT signing/verification, bcrypt helpers | `server/src/AppService.ts` |
 | Session list / revoke / recent-activity endpoints, password change, 2FA setup/enable/disable | `server/src/routes/UserRoute.ts` |
 | Writing `user_sessions` rows | `server/src/utils/UserSessions.ts` |

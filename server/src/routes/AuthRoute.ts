@@ -26,6 +26,7 @@ import {requireAuth, requireAuthPage} from "../middlewares/AuthMiddleware";
 import {verifyTotpCode, normalizeBackupCode} from "../utils/TwoFactorAuth";
 import {createUserSession} from "../utils/UserSessions";
 import {recordActivity, ActivityAction} from "../utils/ActivityLog";
+import {AdvisoryLock} from "../utils/AdvisoryLocks";
 
 const router = express.Router();
 
@@ -369,8 +370,12 @@ router.get("/register", (req: Request, res: Response) => {
  * `REGISTRATION_REQUIRES_APPROVAL=true` (.env, default false) creates the
  * account with `disabled = TRUE` instead of the normal `FALSE`: it exists in
  * the DB but can't log in (see the `disabled = FALSE` clause everywhere
- * AuthRoute/AuthMiddleware look up a user) until an admin flips that column
- * by hand - there's no in-app admin role/UI for this, see AUTHENTICATION.md.
+ * AuthRoute/AuthMiddleware look up a user) until an admin enables it from the
+ * admin panel (PATCH /api/rest/admin/users/:id).
+ *
+ * The FIRST account to register on an instance is created as `role = 'admin'`
+ * and enabled regardless of that setting - see the comment on the insert
+ * below and docs/AUTHENTICATION.md.
  *
  * Example response (201):
  *  { "success": true, "message": "Register successful", "redirectUrl": "/login" }
@@ -409,21 +414,64 @@ router.post("/register", authLimiter, async (req: Request, res: Response) => {
 
         const requiresApproval = process.env.REGISTRATION_REQUIRES_APPROVAL === "true";
 
-        // Use INSERT with unique constraints to avoid race conditions
-        const insertQuery = `
-            INSERT INTO users (name, code, email, password, disabled)
-            VALUES ($1, $2, $3, $4, $5)
-            RETURNING id
-        `;
+        // FIRST-ACCOUNT BOOTSTRAP.
+        //
+        // The first account on an instance becomes the admin. Without that,
+        // a fresh install has no admin and no way to make one except the
+        // hand-written UPDATE the admin panel exists to replace.
+        //
+        // Decided in SQL, not in JS: "SELECT count, then INSERT" from Node
+        // is two statements against two snapshots, and two people hitting
+        // register at the same instant would both read an empty table and
+        // both come out admin. The advisory lock (see utils/AdvisoryLocks.ts)
+        // serializes the decision; whoever waits then sees the other's
+        // committed row and is created as a plain user. It's taken as the
+        // transaction's first statement and is the only lock held, so there
+        // is nothing to deadlock against, and it's released by COMMIT or
+        // ROLLBACK either way.
+        //
+        // The EXISTS subquery is evaluated against the statement's own
+        // snapshot, i.e. before this INSERT's row is visible - so the very
+        // first registration sees an empty table and takes the 'admin' branch.
+        //
+        // REGISTRATION_REQUIRES_APPROVAL is also ignored for that first
+        // account, on purpose: approval means "an admin has to enable you",
+        // and when there is no admin yet that leaves an instance nobody can
+        // ever log into, with no in-app way out. Every account after the
+        // first is gated normally.
+        const client = await pool.connect();
+        let created;
 
-        await pool.query(insertQuery, [name, userName, email, hashedPassword, requiresApproval]);
+        try {
+            await client.query("BEGIN");
+            await client.query("SELECT pg_advisory_xact_lock($1)", [AdvisoryLock.REGISTRATION_BOOTSTRAP]);
+
+            const insertResult = await client.query(
+                `INSERT INTO users (name, code, email, password, disabled, role)
+                 SELECT $1, $2, $3, $4,
+                        $5::boolean AND EXISTS (SELECT 1 FROM users),
+                        CASE WHEN EXISTS (SELECT 1 FROM users) THEN 'user' ELSE 'admin' END
+                 RETURNING id, role, disabled`,
+                [name, userName, email, hashedPassword, requiresApproval]
+            );
+
+            await client.query("COMMIT");
+            created = insertResult.rows[0];
+        } catch (err) {
+            await client.query("ROLLBACK").catch(() => undefined);
+            throw err; // the duplicate-email/username handler below still owns 23505.
+        } finally {
+            client.release();
+        }
 
         return res.status(201).json({
             success: true,
-            message: requiresApproval
+            message: created.disabled
                 ? "Registration successful. An administrator needs to review and approve your account before you can log in."
                 : "Registration successful. You can now log in.",
-            requiresApproval,
+            // Reports what actually happened to THIS account rather than
+            // echoing the env var - they differ for the bootstrap admin above.
+            requiresApproval: created.disabled,
             redirectUrl: "/login",
         });
 

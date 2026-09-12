@@ -1545,3 +1545,46 @@
 [2026-09-11T16:19:28.943Z] [INFO]: Serving DEVELOPMENT token
 [2026-09-11T16:19:28.949Z] [INFO]: Serving DEVELOPMENT token
 [2026-09-11T16:19:29.438Z] [INFO]: Serving DEVELOPMENT token
+[2026-09-12T00:35:20.247Z] [INFO]: Server running on port 3010;
+[2026-09-12T00:35:46.313Z] [DEBUG]: Handle login authentication
+[2026-09-12T00:35:46.508Z] [DEBUG]: Updating last login date for user:alice
+[2026-09-12T00:35:46.519Z] [DEBUG]: Setting session and cookie for user:alice
+[2026-09-12T00:35:46.527Z] [DEBUG]: Redirecting to /app for user:alice
+[2026-09-12T00:35:46.546Z] [DEBUG]: Handle login authentication
+[2026-09-12T00:35:46.728Z] [DEBUG]: Updating last login date for user:bob
+[2026-09-12T00:35:46.738Z] [DEBUG]: Setting session and cookie for user:bob
+[2026-09-12T00:35:46.742Z] [DEBUG]: Redirecting to /app for user:bob
+[2026-09-12T00:36:00.600Z] [DEBUG]: executing query: 
+        SELECT id,
+               name
+        FROM categories
+    
+[2026-09-12T00:36:00.601Z] [DEBUG]: executing query: 
+        SELECT code,
+               name
+        FROM languages
+    
+[2026-09-12T00:36:00.602Z] [DEBUG]: executing query: 
+        SELECT id,
+               name
+        FROM formats
+    
+[2026-09-12T00:36:00.603Z] [DEBUG]: executing query: 
+        SELECT id,
+               name,
+               description
+        FROM locations
+    
+[2026-09-12T00:36:00.604Z] [DEBUG]: executing query: 
+        SELECT id,
+               name
+        FROM customers
+    
+[2026-09-12T00:36:00.605Z] [DEBUG]: executing query: 
+        SELECT app_labels.code, app_labels.text
+          FROM app_labels, users
+         WHERE users.id = $1
+           AND app_labels.language = users.language
+    
+[2026-09-12T00:36:00.658Z] [DEBUG]: Handle login authentication
+[2026-09-12T00:36:00.659Z] [DEBUG]: No user found for:bob

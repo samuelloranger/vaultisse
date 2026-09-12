@@ -72,6 +72,18 @@ Integration tests share this one database, so `jest.config.js` sets
 `maxWorkers: 1` - test *files* run serially. Each file's own tests still run
 at normal speed.
 
+One file opts out:
+[`AuthRegisterBootstrap.test.ts`](../server/test/routes/AuthRegisterBootstrap.test.ts)
+tests what happens when the **first** account on an instance registers (it
+becomes the admin), which needs a genuinely empty `users` table - and the
+shared database has accounts in it from whichever files ran earlier, an order
+no test may assume. So it creates its own `vaultisse_test_bootstrap` database
+from the same schema file, points a freshly-required `AppService` at it (hence
+the `require` inside `beforeAll` - the singleton reads `DB_NAME` when its
+module is first loaded), and drops it again in `afterAll`. Reach for this only
+when a test genuinely needs an empty instance; everything else belongs in the
+shared database.
+
 ## Real login, not a shortcut
 
 Auth-related tests go through the actual `POST /register` + `POST /login`

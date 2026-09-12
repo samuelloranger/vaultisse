@@ -8,17 +8,49 @@
 import {Pool, PoolClient} from "pg";
 
 /**
- * Auth events currently written - keep in sync with GET /user/activity's
- * filter (which reads `Object.values(ActivityAction)` rather than
- * duplicating this list, so the two can't drift). The `action` DB column
- * itself is a plain VARCHAR with no CHECK constraint.
+ * Every event written to `activity_log`. The `action` DB column itself is a
+ * plain VARCHAR with no CHECK constraint, so this enum is the only place the
+ * vocabulary is defined.
+ *
+ * Two groups, deliberately kept in one enum (one table, one vocabulary, one
+ * writer) but read back separately:
+ *
+ *  - **Auth events** - things an account did to its own session. Surfaced to
+ *    that account in Settings > Recent logins via `GET /user/activity`, which
+ *    filters on `AUTH_ACTIVITY_ACTIONS` below rather than duplicating the list.
+ *  - **Admin events** - things an admin did to *someone else's* account from
+ *    `/api/rest/admin/users` (AdminUsersRoute.ts). These carry
+ *    `entity_type = 'user'` / `entity_id = <target account>`, which is exactly
+ *    what those two generic columns were reserved for. They are excluded from
+ *    Settings > Recent logins: that list is "what happened to my session",
+ *    and an admin's actions on other people's accounts are neither auth events
+ *    nor something the *target* should learn about through their own feed.
  */
 export enum ActivityAction {
     LOGIN = "login",
     LOGIN_FAILED = "login_failed",
     LOGOUT = "logout",
     PASSWORD_CHANGED = "password_changed",
+    USER_ENABLED = "user_enabled",
+    USER_DISABLED = "user_disabled",
+    USER_ROLE_CHANGED = "user_role_changed",
+    USER_DELETED = "user_deleted",
 }
+
+/**
+ * The subset of {@link ActivityAction} that describes the actor's *own*
+ * session - what Settings > Recent logins shows (`GET /user/activity`).
+ *
+ * Spelled out rather than derived by excluding the admin ones, so adding a new
+ * action is a conscious decision about whether a user should see it in their
+ * own security feed instead of silently opting in.
+ */
+export const AUTH_ACTIVITY_ACTIONS: ActivityAction[] = [
+    ActivityAction.LOGIN,
+    ActivityAction.LOGIN_FAILED,
+    ActivityAction.LOGOUT,
+    ActivityAction.PASSWORD_CHANGED,
+];
 
 export interface RecordActivityOptions {
     entityType?: string | null;

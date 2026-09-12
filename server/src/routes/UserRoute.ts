@@ -20,7 +20,7 @@ import {
     verifyTotpCode,
     generateBackupCodes
 } from "../utils/TwoFactorAuth";
-import {recordActivity, ActivityAction} from "../utils/ActivityLog";
+import {recordActivity, ActivityAction, AUTH_ACTIVITY_ACTIONS} from "../utils/ActivityLog";
 import {handleUploadError} from "../middlewares/UploadErrorMiddleware";
 
 const router = Router();
@@ -542,9 +542,11 @@ router.delete("/sessions/:id", requireAuth, async (req: Request, res: Response) 
  * ---------------------
  * List the current user's recent auth activity (sign-ins, failed sign-ins,
  * sign-outs, password changes), for Settings > Security's "Recent logins"
- * list. Scoped to auth events only - the underlying `activity_log` table is
- * generic and may later carry data-change events (books, loans, ...) too,
- * which this endpoint deliberately excludes.
+ * list. Scoped to auth events only (`AUTH_ACTIVITY_ACTIONS`) - the underlying
+ * `activity_log` table is generic and already carries admin actions on other
+ * people's accounts (AdminUsersRoute.ts), and may later carry data-change
+ * events (books, loans, ...) too, both of which this endpoint deliberately
+ * excludes.
  *
  * Auth: required. Query: `?limit=20` (default 20, capped at 50).
  *
@@ -565,7 +567,7 @@ router.get("/activity", requireAuth, async (req: Request, res: Response) => {
                AND action = ANY($2)
              ORDER BY created_date DESC
              LIMIT $3`,
-            [userId, Object.values(ActivityAction), limit]
+            [userId, AUTH_ACTIVITY_ACTIONS, limit]
         );
 
         res.status(200).json(result.rows);

@@ -53,13 +53,21 @@ There's no separate admin setup step and no seeded default account. Once the `ap
 container is up (any scenario below), open `FRONT_END_URL` + `/register` (e.g.
 `https://your-domain.com/register`) and create an account the normal way — it's a
 plain, always-available page and works regardless of `ALLOW_DEV_AUTH`, which has
-nothing to do with registration and should stay `false` as noted above. There's no
-separate admin role; every account has the same access to the whole catalog.
+nothing to do with registration and should stay `false` as noted above.
 
-If `REGISTRATION_REQUIRES_APPROVAL=true` (see `.env.example`), the account is created
-disabled and can't log in until approved (see "Approving a new registration" under
-[Common operations](#common-operations-all-scenarios)) — for the first account on a
-fresh instance you almost always want this left `false`.
+**That first account becomes the instance's administrator** (`users.role = 'admin'`),
+which is what unlocks the admin panel at `/app/admin`: listing accounts, approving
+pending registrations, enabling/disabling, deleting, and promoting/demoting. Every
+account after it registers as a plain user; an admin promotes the ones that should
+be. Roles are application-level only — there are no per-library roles, because there
+is one shared library and every account that can log in can add, edit, lend and
+return books.
+
+If `REGISTRATION_REQUIRES_APPROVAL=true` (see `.env.example`), accounts are created
+disabled and can't log in until an admin approves them (see "Approving a new
+registration" under [Common operations](#common-operations-all-scenarios)). The
+**first** account is exempt and is always created enabled — there would otherwise be
+no admin to approve it, and the instance would be unreachable for everyone.
 
 ---
 
@@ -402,14 +410,20 @@ real `JWT_SECRET` — every other production hardening step above still applies.
   the volume directly or run `docker compose exec db pg_dump -U <DB_USER> <DB_NAME>`
   on a schedule.
 - **Approving a new registration**: with `REGISTRATION_REQUIRES_APPROVAL=true` (see
-  `.env.example`), new accounts are created disabled and can't log in until you
-  enable them - there's no admin UI for this, run:
+  `.env.example`), new accounts are created disabled and can't log in until an
+  admin enables them. Do it in the app: log in as an admin, open the admin panel
+  (`/app/admin`), and enable the account. No psql, and nothing to get wrong by hand.
+  See [AUTHENTICATION.md](AUTHENTICATION.md#registration-approval) for why this
+  exists, and [Roles and the admin panel](AUTHENTICATION.md#roles-and-the-admin-panel)
+  for what else an admin can do.
+
+  The one case that still needs SQL is an instance left with **no** admin at all -
+  only possible if the sole admin's account was removed outside the app, since the
+  API refuses to leave zero admins:
   ```bash
   docker compose exec -T db psql -U <DB_USER> -d <DB_NAME> \
-    -c "UPDATE users SET disabled = FALSE WHERE code = '<their username>';"
+    -c "UPDATE users SET role = 'admin', disabled = FALSE WHERE code = '<their username>';"
   ```
-  See [AUTHENTICATION.md](AUTHENTICATION.md#registration-approval) for why this
-  exists.
 
 ## Security checklist
 

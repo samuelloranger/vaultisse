@@ -43,7 +43,7 @@ router.get('/version', (req: Request, res: Response) => {
  *    "user": { "code": "jdoe", "name": "Jane Doe", "email": "jane@example.com",
  *               "language": "en", "region": "US", "image": null, "isPublicInstitution": false,
  *               "leasingEnabled": false, "totpEnabled": false, "securityNoticeAccepted": false,
- *               "termsOfServiceAccepted": false },
+ *               "termsOfServiceAccepted": false, "role": "admin", "isAdmin": true },
  *    "categories": [{ "id": 3, "name": "Fantasy" }],
  *    "languages": [{ "code": "en", "name": "English" }],
  *    "formats": [{ "id": 1, "name": "Paperback" }],
@@ -253,6 +253,13 @@ async function getAppLabels(userId: number): Promise<Record<string, string>> {
  * any) into a `data:image/png;base64,...` URL the client can use directly
  * as an `<img src>`. Throws if the user doesn't exist.
  *
+ * `role`/`isAdmin` come straight from `users.role` and are what the client
+ * uses to show (or hide) the Admin nav entry - the server still enforces it
+ * independently on every `/api/rest/admin/*` request (see requireAdmin), so
+ * this is a UI hint, never the access control itself. Read live on each
+ * policy fetch rather than cached in the session token, so a demotion takes
+ * effect as soon as the client refetches.
+ *
  * `leasingEnabled` and `isPublicInstitution` are NOT profile fields - they
  * describe the shared collection and live in the single-row `app_settings`
  * table (see assets/db/databaseSchema.sql). They're still returned inside the
@@ -274,6 +281,8 @@ async function getUser(userId: number): Promise<Record<string, any>> {
                u.image,
                u.theme,
                u.sidebar_rail          AS "sidebarRail",
+               u.role,
+               (u.role = 'admin')      AS "isAdmin",
                s.leasing_enabled       AS "leasingEnabled",
                s.is_public_institution AS "isPublicInstitution",
                u.totp_enabled          AS "totpEnabled",

@@ -35,14 +35,19 @@ import {appService} from "../AppService";
 /** Sentinel `sid` for the fake ALLOW_DEV_AUTH token - never matches a real `user_sessions` row. Exported so handlers reissuing a token (e.g. password change) can fall back to it when `req.sessionKey` is unset. */
 export const DEV_SESSION_KEY = "dev";
 
-type SessionResolution = "ok" | "no-token" | "unauthorized";
+export type SessionResolution = "ok" | "no-token" | "unauthorized";
 
 /**
  * Does the actual work: resolves (and, on success, attaches to `req`/
  * refreshes the cookie on) the caller's session, without deciding how a
  * failure should be reported - that's each exported middleware's job.
+ *
+ * Exported so other gates can be layered on top of the *same* validation
+ * (see `requireAdmin` in AdminMiddleware.ts, which needs a valid session but
+ * fails differently from both variants below). Nothing outside this file
+ * should re-derive a session from the cookie by hand.
  */
-async function resolveSession(req: Request, res: Response): Promise<SessionResolution> {
+export async function resolveSession(req: Request, res: Response): Promise<SessionResolution> {
     const pool = appService.getDatabasePool();
 
     // only development

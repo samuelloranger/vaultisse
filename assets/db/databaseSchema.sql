@@ -1191,6 +1191,22 @@ CREATE TABLE users
     -- the Settings page (see PATCH /user/sidebar-rail in UserRoute.ts and
     -- AppMenu.vue client-side).
     sidebar_rail    BOOLEAN NOT NULL DEFAULT FALSE,
+    -- Application-level role. 'admin' unlocks /api/rest/admin/users (see
+    -- requireAdmin in middlewares/AdminMiddleware.ts and routes/admin/
+    -- AdminUsersRoute.ts): listing accounts, approving/disabling them, deleting
+    -- them, and promoting/demoting. There are deliberately no library-level
+    -- roles - this is one shared library, so every account that can log in can
+    -- add, edit, lend and return books; role is the only axis there is.
+    --
+    -- The first account to register is promoted to 'admin' automatically
+    -- (POST /register, AuthRoute.ts), so a fresh instance is never left with no
+    -- way to reach the admin panel. Everyone after that defaults to 'user'.
+    --
+    -- Declared last on purpose: the upgrade path (assets/db/upgrade/1.2.0/2.sql)
+    -- adds it with ALTER TABLE ADD COLUMN, which appends, so keeping it last
+    -- here is what makes a fresh install and an upgraded database identical
+    -- under pg_dump --schema-only.
+    role            VARCHAR(10) NOT NULL DEFAULT 'user' CHECK (role IN ('admin', 'user')),
     FOREIGN KEY (language) REFERENCES app_languages (code) ON DELETE SET NULL
 );
 
@@ -1300,8 +1316,14 @@ CREATE INDEX idx_user_sessions_user ON user_sessions (user_id);
 -- list (Settings > Security) and, later, an admin/audit view - kept
 -- generic (entity_type/entity_id/metadata) so future data-change logging
 -- (books, loans, ...) can reuse this same table instead of growing a new
--- one per feature. Only auth events (login/login_failed/logout/
--- password_changed) are written today - see utils/ActivityLog.ts.
+-- one per feature. Two kinds of event are written today - see
+-- utils/ActivityLog.ts:
+--   * auth events (login/login_failed/logout/password_changed), which carry
+--     no entity and are the only ones GET /user/activity shows;
+--   * admin actions on an account (user_enabled/user_disabled/
+--     user_role_changed/user_deleted, from AdminUsersRoute.ts), which are
+--     what entity_type='user' + entity_id were reserved for. There is no FK
+--     on entity_id, so a user_deleted row outlives the account it names.
 CREATE TABLE activity_log
 (
     id           BIGSERIAL PRIMARY KEY,
