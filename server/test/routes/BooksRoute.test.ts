@@ -679,6 +679,35 @@ describe("POST /book/:id/refresh (re-fetch an existing book)", () => {
         expect(after.body.pages).toBe(0);
     });
 
+    it("reports an ISBN change during a no-metadata lookup instead of a stale source gap", async () => {
+        const book = await createDamagedBook();
+        mockedFetch.mockImplementation(async (input: string | URL) => {
+            if (String(input).includes("googleapis.com")) {
+                await appService.getDatabasePool().query("UPDATE books SET isbn = NULL WHERE id = $1", [book.id]);
+            }
+            return jsonResponse({});
+        });
+        const res = await withGoogleApiKey("a-test-key", () => user.agent.post(`/api/rest/book/${book.id}/refresh`));
+        expect(res.status).toBe(409);
+        expect(res.body.error).toBe("isbn_changed");
+        const after = await user.agent.get(`/api/rest/book/${book.id}`);
+        expect(after.body.publisher).toBeNull();
+        expect(after.body.pages).toBe(0);
+    });
+
+    it("reports deletion during a no-metadata lookup instead of a stale source gap", async () => {
+        const book = await createDamagedBook();
+        mockedFetch.mockImplementation(async (input: string | URL) => {
+            if (String(input).includes("googleapis.com")) {
+                await appService.getDatabasePool().query("DELETE FROM books WHERE id = $1", [book.id]);
+            }
+            return jsonResponse({});
+        });
+        const res = await withGoogleApiKey("a-test-key", () => user.agent.post(`/api/rest/book/${book.id}/refresh`));
+        expect(res.status).toBe(404);
+        expect(res.text).toBe("Book not found");
+    });
+
     // The truth the owner has to be told rather than papered over: Google
     // returns no categories for these titles and the BnF record carries no 606
     // subject heading, so there is no category to be had. It stays NULL and

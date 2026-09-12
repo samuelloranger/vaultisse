@@ -1432,19 +1432,15 @@ async function __refreshBookMetadata(
 
     const lookup = await lookupBookMetadata(isbnCode, appService.getGoogleApiKey());
 
-    if (!lookup.metadata) {
-        return {status: "no_metadata", name: book.name, isbn: isbnCode, lookup};
-    }
-
     // The cover of last resort costs a round trip, so it is only worth asking
     // for when the book has no cover *and* no provider handed one back. A
     // provenance entry is added by hand because that call is outside the
     // chain - and this is a cover URL the book did not have, so saying where
     // it came from is the same courtesy the other fields get.
     const provenance: BookMetadataProvenance = {...lookup.provenance};
-    let imageUrl = lookup.metadata.imageUrl;
+    let imageUrl = lookup.metadata?.imageUrl ?? null;
 
-    if (!imageUrl && !book.image_url?.trim()) {
+    if (lookup.metadata && !imageUrl && !book.image_url?.trim()) {
         imageUrl = await fetchOpenLibraryCover(isbnCode);
 
         if (imageUrl) {
@@ -1452,7 +1448,6 @@ async function __refreshBookMetadata(
         }
     }
 
-    const incoming = __snapshotFromMetadata(lookup.metadata, imageUrl);
     const client = await pool.connect();
 
     try {
@@ -1471,6 +1466,13 @@ async function __refreshBookMetadata(
             await client.query('COMMIT');
             return {status: 'isbn_changed', name: latest.name};
         }
+        // A source gap is about this ISBN only while the current row still
+        // has it. All lookup outcomes share the same existence/ISBN recheck.
+        if (!lookup.metadata) {
+            await client.query('COMMIT');
+            return {status: 'no_metadata', name: latest.name, isbn: isbnCode, lookup};
+        }
+        const incoming = __snapshotFromMetadata(lookup.metadata, imageUrl);
         const current: IBookMetadataSnapshot = {
             name: latest.name,
             description: latest.description,
