@@ -50,3 +50,61 @@ export const loanKeys = {
   list: (filters: Record<string, unknown> = {}) =>
     [...loanKeys.all, 'list', filters] as const,
 }
+
+/**
+ * The remaining resources, declared up front rather than as each screen is
+ * built. Cross-resource invalidation is the norm in a shared library - adding
+ * a book touches authors, categories and locations - so a screen needs to name
+ * keys it does not own yet. Declaring them here keeps that possible without
+ * every screen editing this file.
+ */
+
+export const searchKeys = {
+  all: ['search'] as const,
+  /** `GET /book/search`. Filters are part of the key so each result set caches separately. */
+  results: (filters: Record<string, unknown> = {}) =>
+    [...searchKeys.all, 'results', filters] as const,
+}
+
+export const authorKeys = {
+  all: ['author'] as const,
+  list: () => [...authorKeys.all, 'list'] as const,
+  detail: (id: number) => [...authorKeys.all, 'detail', id] as const,
+}
+
+export const categoryKeys = {
+  all: ['category'] as const,
+  list: () => [...categoryKeys.all, 'list'] as const,
+  detail: (id: number) => [...categoryKeys.all, 'detail', id] as const,
+}
+
+export const locationKeys = {
+  all: ['location'] as const,
+  list: () => [...locationKeys.all, 'list'] as const,
+  detail: (id: number) => [...locationKeys.all, 'detail', id] as const,
+  /** Books shelved at one location. */
+  books: (id: number) => [...locationKeys.all, 'detail', id, 'books'] as const,
+}
+
+export const customerKeys = {
+  all: ['customer'] as const,
+  list: () => [...customerKeys.all, 'list'] as const,
+  detail: (id: number) => [...customerKeys.all, 'detail', id] as const,
+  /** Books currently lent to one borrower. */
+  books: (id: number) => [...customerKeys.all, 'detail', id, 'books'] as const,
+  groups: () => [...customerKeys.all, 'groups'] as const,
+}
+
+export const adminKeys = {
+  all: ['admin'] as const,
+  /** `GET /admin/users`. Admin-only; 403 for everyone else. */
+  users: () => [...adminKeys.all, 'users'] as const,
+}
+
+export const userKeys = {
+  all: ['user'] as const,
+  /** `GET /user/sessions` - this device plus every other active login. */
+  sessions: () => [...userKeys.all, 'sessions'] as const,
+  /** `GET /user/activity` - auth events only, newest first. */
+  activity: () => [...userKeys.all, 'activity'] as const,
+}
