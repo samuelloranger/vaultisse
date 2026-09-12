@@ -81,31 +81,116 @@ sequenceDiagram
     participant Client
     participant Server
     participant Google as Google Books API
+    participant BnF as BnF SRU catalogue
     participant OL as Open Library
 
-    Client->>Server: POST /book/isbn/9780261102217
+    Client->>Server: POST /book/isbn/9782824627151
     Server->>Server: normalizeAndValidateIsbn() - reject malformed input
     Server->>Google: GET /volumes?q=isbn:...&key=GOOGLE_BOOKS_API_KEY
-    alt Google succeeds
-        Google-->>Server: title, authors, description, category, publisher...
-    else Google fails, rate-limited, or no API key configured
+    Google-->>Server: title, authors, description, cover... (or nothing)
+    alt still missing fields, and a French-group ISBN (978-2 / 979-10)
+        Server->>BnF: GET /api/SRU?query=bib.isbn all "..."&recordSchema=unimarcxchange
+        BnF-->>Server: publisher, page count, subject heading, French blurb
+    end
+    alt still missing fields
         Server->>OL: GET /search.json?isbn=...
         OL-->>Server: title, authors, subjects, publisher... (metadata only)
-        Server->>OL: GET /b/isbn/....-M.jpg (cover, only if Google had none)
     end
+    Server->>OL: GET /b/isbn/....-M.jpg (cover, only if no source gave one)
     Server->>Server: ensureLanguage / __ensureCategory / __getOrCreateBook / __ensureAuthors (one transaction)
     Server-->>Client: book id
 ```
 
+The lookup itself lives in `server/src/utils/BookMetadata.ts`
+(`lookupBookMetadata`); the BnF's UNIMARC parsing is in
+`server/src/utils/BnfUnimarc.ts`.
+
+### Three sources, merged rather than chained
+
+It used to be a two-step fallback: Google Books, and on *any* failure, Open
+Library. That is the wrong shape for what the providers actually return.
+Measured on `9782824627151` (*Le boyfriend*, City roman, 2025) with a working
+Google key:
+
+| field | Google Books | Open Library | BnF |
+|---|---|---|---|
+| title / authors | yes | - | yes |
+| description | yes | never any | yes (French blurb) |
+| cover | yes | - | never any |
+| language | `fr` | - | `fre` |
+| publisher | **missing** | - | `City roman` |
+| categories | **missing** | - | sometimes (`606$a`) |
+| page count | **`0`** | - | `391` |
+
+Open Library has nothing at all for it (`numFound: 0`), and its French trade
+coverage is poor in general rather than transient. Google *finds* the book but
+returns it full of holes - so a chain that only falls back when the primary
+comes up empty would never have asked anyone else, and would have written
+`pages = 0` and no publisher into the database.
+
+So every provider is normalized into one `IBookMetadata` shape and merged
+field by field, first writer wins (`mergeBookMetadata`).
+
+### Order, and not paying for what you don't need
+
+**Google Books -> BnF (French ISBNs) -> Open Library.**
+
+- **Google leads** even for French books, despite being the weakest of the
+  three on them, because it is the only one of the three that returns a
+  **cover**, and it answers in ~200ms. Leading with the BnF would mean either
+  stopping there and losing the cover, or calling Google straight afterwards
+  anyway - no request saved and a worse result.
+- **The BnF is second for a French-group ISBN** (`978-2`, which is French *as
+  a language* - France, Belgium, Québec, Romandy - or `979-10`, France only),
+  where it is strong and Open Library is empty. For any other ISBN it is
+  skipped entirely unless nothing was found at all: its `bib.isbn` index is
+  built from French legal deposit and returns zero records for `978-0` and
+  `978-3` ISBNs, so a round trip there is latency for nothing - and Scan mode
+  fires these back-to-back.
+- **A provider is skipped once there is nothing left to fill**
+  (`isBookMetadataComplete`). A book Google has whole costs exactly one
+  request. `categories` and the cover are deliberately *not* part of
+  "complete": two of the three sources never return either, so requiring them
+  would run the whole chain every time and still come up short.
+
 Details worth knowing:
 
 - **Google Books needs `GOOGLE_BOOKS_API_KEY`** (see the root README's
-  Prerequisites). Without it, or on any Google failure, the server falls
-  back to Open Library's free search API automatically - no client-visible
-  difference except which fields make it through (Open Library's `search.json`
-  doesn't return a description, for instance).
-- **429 from Google is retried** up to 3 times with linear backoff
-  (`fetchBookData`'s `retries` param) before falling back.
+  Prerequisites). Without it the server warns **once at startup** - not once
+  per scan - and runs the lookup on the BnF and Open Library alone, which in
+  practice means no cover images and thinner metadata for most books.
+- **429 and 5xx from Google are retried**, up to 3 attempts. A 429 backs off
+  in whole seconds (the quota needs time); a 5xx backs off in 300ms steps (it
+  does not, and a scan is waiting). Google returns `503 Service temporarily
+  unavailable` often enough to matter, and a 503 used to fall straight through
+  to the fallback - turning a book Google has into a book nobody has.
+- **`pageCount: 0` means "unknown", not "a book with no pages".** Google
+  returns it for most French titles. It is collapsed to `null` at the edge, so
+  the merge can be a plain `??` and the BnF's `391` wins.
+- **The BnF returns no cover.** `856$u` holds an internal image id, not a URL.
+  Covers come from whichever provider gave one, else Open Library's covers
+  API - which for a French trade title often has none either. Uploading one by
+  hand is the intended answer.
+- **UNIMARC, not Dublin Core.** The same endpoint serves `dublincore`, which
+  glues the cataloguing statement of responsibility onto everything
+  (`"Le boyfriend / Freida McFadden ; traduit de l\'anglais par Karine
+  Xaragai"`). UNIMARC keeps title, author and translator in separate
+  subfields. **No XML dependency was added**: the payload is flat, generated
+  marcxchange, and a scanner that simply matches fewer fields on a malformed
+  body degrades better here than a strict parser that throws on one.
+- **Translators are not authors.** `7XX$4` is a relator code - `070` author,
+  `730` translator, `340` scholarly editor, `205` collaborator - and only an
+  author allowlist is imported. Where a record carries no role code at all,
+  the tag decides (`700`/`701` are authors, `702` is "secondary
+  responsibility"), and an unqualified `702` is accepted only when nothing
+  else in the record qualified. That last rule is what keeps Freida McFadden
+  on *L'intruse*, whose BnF record files her under `702` with no role beside a
+  `702` translator marked `$c Traducteur`.
+- **Page counts are parsed defensively.** `215$a` is free text
+  (`"1 vol. (391 p.)"`, `"1 volume 362 p"`, `"2 vol. (823, 846 p.)"`,
+  `"1 vol. (non paginé)"`). Anything that does not pin down a single figure -
+  more than one volume, more than one page figure, an explicit "non paginé" -
+  yields `null` rather than a wrong number.
 - **Find-or-create everywhere**: category (`__ensureCategory`), author(s)
   (`__ensureAuthors`), and the book itself (`__getOrCreateBook`, matched by
   ISBN) are all find-or-create rather than blind inserts - re-scanning the
@@ -115,12 +200,49 @@ Details worth knowing:
   category/author names are all silently clipped to fit their columns rather
   than failing the whole insert.
 - **`language_code` is normalized** to a bare 2-letter code
-  (`normalizeLanguageCode`) - anything else (missing, "unknown", a 3-letter
-  ISO 639-2 code) is dropped rather than stored, since `languages.code` is
-  `CHAR(2)`.
+  (`normalizeLanguageCode`). Both the BnF (`101$a`) and Open Library
+  (`language: ["eng"]`) emit **ISO 639-2/B**, the *bibliographic* variant
+  whose codes come from the English or French name of the language - `fre`
+  not `fra`, `ger` not `deu`, `dut` not `nld`. Those are mapped now; three-
+  letter codes used to be dropped outright, which quietly cost every
+  BnF-sourced and Open-Library-sourced book its language. Anything still
+  unrecognised is dropped rather than overflowing `languages.code` (`CHAR(2)`).
 - The whole DB side (language/category/book/authors/location) runs in **one
   transaction** - a partial book (e.g. authors linked but the book row
   missing) can't happen.
+
+### When nothing is found
+
+A missing API key and a genuine data gap used to be indistinguishable: both
+arrived as a bare `404 "Book not found"`, and an operator who had never set
+`GOOGLE_BOOKS_API_KEY` saw "No metadata found for this ISBN" with no way to
+learn that the strongest source was never asked.
+
+The status codes are unchanged - `404`, or `502` when every source that ran
+failed outright - but the body now says which case it is:
+
+```json
+{
+  "error": "source_not_configured",
+  "message": "No metadata found, and these sources are not configured: google-books",
+  "isbn": "9782824627151",
+  "sourcesTried": [],
+  "unconfiguredSources": ["google-books"],
+  "failedSources": []
+}
+```
+
+`error` is one of `no_metadata` (every configured source was asked and none
+has this ISBN), `source_not_configured` (nothing found *and* a source was
+skipped for want of configuration - an operator problem, not a data gap) or
+`source_unavailable` (every source that ran failed; `502`, because trying
+again may well work).
+
+The client keys on the status code alone today, so this is purely additive.
+To use it, `client-react` would read `ApiError.body.error` and, on
+`source_not_configured`, say so instead of the current "No metadata found for
+this ISBN. Add it manually instead." (`AddBookIsbnDialog`'s `OUTCOME_TEXT`,
+`useScanQueue`'s 404 branch and `ScanSummary`).
 
 ## The stock lifecycle
 

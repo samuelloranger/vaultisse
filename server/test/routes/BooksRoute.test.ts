@@ -1,7 +1,28 @@
-import {imageResponse, jsonResponse, mockedFetch, useMockedFetch} from "../helpers/fetchMock";
+import fs from "fs";
+import path from "path";
+import {alwaysJson, imageResponse, jsonResponse, mockedFetch, useMockedFetch} from "../helpers/fetchMock";
 import {setupTestApp} from "../helpers/testApp";
 import {createAuthenticatedUser, ITestUser} from "../helpers/auth";
-import {appService} from "../../src/AppService";
+import {appService, normalizeGoogleApiKey} from "../../src/AppService";
+
+/**
+ * Run `body` with a Google Books key configured on the shared `appService`.
+ *
+ * `test/setup/preload.ts` forces GOOGLE_BOOKS_API_KEY empty for the whole run
+ * so that no test silently depends on a developer's own key, which leaves the
+ * *configured* branch of the lookup otherwise unreachable. The field is
+ * `readonly` to TypeScript only; this sets it for the duration of one test
+ * and always puts it back.
+ */
+async function withGoogleApiKey<T>(key: string | undefined, body: () => Promise<T>): Promise<T> {
+    const previous = appService.getGoogleApiKey();
+    (appService as any).m_googleApiKey = key;
+    try {
+        return await body();
+    } finally {
+        (appService as any).m_googleApiKey = previous;
+    }
+}
 
 
 const app = setupTestApp();
@@ -320,9 +341,206 @@ describe("POST /book/isbn/:isbn (external metadata lookup)", () => {
     });
 
     it("404s when no metadata is found anywhere", async () => {
-        mockedFetch.mockResolvedValue(jsonResponse({})); // No `docs` in the Open Library response.
+        alwaysJson({}); // No `docs` in the Open Library response, no record in the BnF one.
         const res = await user.agent.post(`/api/rest/book/isbn/${freshIsbn()}`);
         expect(res.status).toBe(404);
+    });
+
+    /**
+     * A missing API key and a genuine data gap both used to arrive as a bare
+     * `404 "Book not found"`, so an operator who had never set
+     * GOOGLE_BOOKS_API_KEY saw "no metadata found for this ISBN" and had no
+     * way to learn the strongest source was never asked. The status is
+     * unchanged - the client keys on that and nothing else today - but the
+     * body now says which it was.
+     */
+    it("names the unconfigured source in the 404 body", async () => {
+        alwaysJson({});
+
+        const res = await user.agent.post(`/api/rest/book/isbn/${freshIsbn()}`);
+
+        expect(res.status).toBe(404);
+        expect(res.body).toMatchObject({
+            error: "source_not_configured",
+            unconfiguredSources: ["google-books"],
+            sourcesTried: [],
+        });
+    });
+
+    it("calls it a data gap, not a misconfiguration, when the key is present", async () => {
+        await withGoogleApiKey("a-test-key", async () => {
+            alwaysJson({docs: []});
+
+            const res = await user.agent.post(`/api/rest/book/isbn/${freshIsbn()}`);
+
+            expect(res.status).toBe(404);
+            expect(res.body).toMatchObject({error: "no_metadata", unconfiguredSources: []});
+        });
+    });
+
+    it("502s when every source was reachable-but-broken rather than empty", async () => {
+        alwaysJson({error: "boom"}, 500);
+
+        const res = await user.agent.post(`/api/rest/book/isbn/${freshIsbn()}`);
+
+        expect(res.status).toBe(502);
+        expect(res.body).toMatchObject({error: "source_unavailable"});
+    });
+});
+
+/**
+ * The reason the BnF is in the chain at all, end to end.
+ *
+ * These use the measured Google Books answers for the ISBNs in question (a
+ * real key was configured on production while this was written) and the
+ * recorded BnF SRU responses in `test/fixtures/bnf/`.
+ */
+describe("POST /book/isbn/:isbn (BnF gap-filling)", () => {
+    function bnfFixture(name: string): string {
+        return fs.readFileSync(path.join(__dirname, "..", "fixtures", "bnf", `${name}.xml`), "utf-8");
+    }
+
+    /** A fresh, checksum-valid ISBN-13 in the French-language group (978-2). */
+    let frenchCounter = 0;
+    function freshFrenchIsbn(): string {
+        frenchCounter += 1;
+        const body = `9782${String(Date.now() % 1e5).padStart(5, "0")}${String(frenchCounter % 1000).padStart(3, "0")}`;
+        let sum = 0;
+        for (let i = 0; i < 12; i++) {
+            sum += (i % 2 === 0 ? 1 : 3) * Number(body[i]);
+        }
+        return body + String((10 - (sum % 10)) % 10);
+    }
+
+    /**
+     * Google's real answer for 9782824627151: it *finds* the book, so the old
+     * "fall back only when the primary returns nothing" shape would never
+     * have asked anyone else - and would have written `pages = 0` and no
+     * publisher into the database.
+     */
+    const googlePartial = {
+        items: [
+            {
+                volumeInfo: {
+                    title: "Le boyfriend",
+                    authors: ["Freida McFadden"],
+                    publishedDate: "2025-10-08",
+                    description: "Comme beaucoup de femmes célibataires de New York...",
+                    language: "fr",
+                    imageLinks: {thumbnail: "https://books.google.com/books/content?id=abc"},
+                    pageCount: 0,
+                },
+            },
+        ],
+    };
+
+    it("takes the publisher and page count from the BnF when Google has neither", async () => {
+        await withGoogleApiKey("a-test-key", async () => {
+            mockedFetch.mockImplementation((input: string | URL) => {
+                const url = String(input);
+                if (url.includes("googleapis.com")) return Promise.resolve(jsonResponse(googlePartial));
+                if (url.includes("catalogue.bnf.fr")) {
+                    return Promise.resolve(new Response(bnfFixture("le-boyfriend-9782824627151")));
+                }
+                return Promise.resolve(jsonResponse({}));
+            });
+
+            const res = await user.agent.post(`/api/rest/book/isbn/${freshFrenchIsbn()}`);
+            expect(res.status).toBe(200);
+
+            const book = await user.agent.get(`/api/rest/book/${res.body}`);
+            expect(book.body).toMatchObject({
+                name: "Le boyfriend",
+                publisher: "City roman",
+                pages: 391,
+                // Google's "fr", not the BnF's "fre" - Google answered first.
+                language_code: "fr",
+            });
+            expect(book.body.authors).toEqual([{id: expect.any(Number), name: "Freida McFadden"}]);
+        });
+    });
+
+    it("maps the BnF's three-letter language code into the CHAR(2) column", async () => {
+        mockedFetch.mockImplementation((input: string | URL) => {
+            const url = String(input);
+            if (url.includes("catalogue.bnf.fr")) {
+                return Promise.resolve(new Response(bnfFixture("la-prof-9782824629094")));
+            }
+            return Promise.resolve(jsonResponse({}));
+        });
+
+        const res = await user.agent.post(`/api/rest/book/isbn/${freshFrenchIsbn()}`);
+        expect(res.status).toBe(200);
+
+        const book = await user.agent.get(`/api/rest/book/${res.body}`);
+        // 101$a is "fre" in the record.
+        expect(book.body).toMatchObject({name: "La prof", pages: 388, language_code: "fr"});
+    });
+
+    it("makes no BnF request for a book Google already has whole", async () => {
+        await withGoogleApiKey("a-test-key", async () => {
+            mockedFetch.mockImplementation((input: string | URL) =>
+                Promise.resolve(
+                    String(input).includes("googleapis.com")
+                        ? jsonResponse({
+                              items: [
+                                  {
+                                      volumeInfo: {
+                                          title: "The Lord of the Rings",
+                                          authors: ["J.R.R. Tolkien"],
+                                          publisher: "HarperCollins",
+                                          publishedDate: "1991",
+                                          description: "One ring to rule them all.",
+                                          categories: ["Fiction"],
+                                          pageCount: 1178,
+                                          language: "en",
+                                          imageLinks: {thumbnail: "https://books.google.com/books/content?id=xyz"},
+                                      },
+                                  },
+                              ],
+                          })
+                        : jsonResponse({})
+                )
+            );
+
+            const res = await user.agent.post(`/api/rest/book/isbn/${freshIsbn()}`);
+            expect(res.status).toBe(200);
+
+            const urls = mockedFetch.mock.calls.map((call: unknown[]) => String(call[0]));
+            expect(urls.some(url => url.includes("catalogue.bnf.fr"))).toBe(false);
+            expect(urls.some(url => url.includes("openlibrary.org"))).toBe(false);
+
+            const book = await user.agent.get(`/api/rest/book/${res.body}`);
+            expect(book.body).toMatchObject({
+                name: "The Lord of the Rings",
+                publisher: "HarperCollins",
+                pages: 1178,
+                language_code: "en",
+            });
+        });
+    });
+});
+
+/**
+ * `String(process.env.GOOGLE_BOOKS_API_KEY)` turned an *absent* variable into
+ * the nine-character string "undefined" - truthy, so it passed every
+ * `if (!apiKey)` guard and was sent to Google as `key=undefined`, which 400s.
+ * The deployment that had the variable present-but-empty took the honest
+ * path; one that simply omitted the line did not.
+ */
+describe("normalizeGoogleApiKey", () => {
+    it("treats an absent, empty or whitespace variable as not configured", () => {
+        expect(normalizeGoogleApiKey(undefined)).toBeUndefined();
+        expect(normalizeGoogleApiKey("")).toBeUndefined();
+        expect(normalizeGoogleApiKey("   ")).toBeUndefined();
+    });
+
+    it("treats the literal string 'undefined' as not configured", () => {
+        expect(normalizeGoogleApiKey(String(undefined))).toBeUndefined();
+    });
+
+    it("keeps a real key, trimmed", () => {
+        expect(normalizeGoogleApiKey(" AIzaSyRealLookingKey ")).toBe("AIzaSyRealLookingKey");
     });
 });
 

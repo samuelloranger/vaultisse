@@ -43,6 +43,21 @@ export function jsonResponse(body: unknown, status = 200): Response {
 }
 
 /**
+ * Answer every request with the same JSON body, as a **fresh** `Response`
+ * each time.
+ *
+ * `mockedFetch.mockResolvedValue(jsonResponse(...))` hands the identical
+ * Response object to every caller, and a body can only be read once - so the
+ * moment a route consults more than one provider (the ISBN lookup asks up to
+ * three), the second one gets `ERR_BODY_ALREADY_USED` rather than the empty
+ * answer the test meant to stage, and the route reports a provider outage
+ * instead of a miss.
+ */
+export function alwaysJson(body: unknown, status = 200): void {
+    mockedFetch.mockImplementation(() => Promise.resolve(jsonResponse(body, status)));
+}
+
+/**
  * A cover-image probe answer. The routes only look at the status and the
  * content type - they never read the bytes - so the body is a placeholder.
  */

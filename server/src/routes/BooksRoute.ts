@@ -7,7 +7,8 @@
  * Owns everything related to a user's book catalog:
  *  - searching/listing/reading/updating/deleting `books`
  *  - creating books either manually or automatically from an ISBN lookup
- *    (Google Books API, with an Open Library fallback for metadata + cover)
+ *    (Google Books + the BnF catalogue + Open Library, merged - see
+ *    server/src/utils/BookMetadata.ts)
  *  - managing physical copies of a book ("book stocks": add/update/remove,
  *    and bulk "return" of loaned/sold copies)
  *
@@ -29,6 +30,12 @@ import {Pool, PoolClient} from "pg";
 import {SearchFilter} from "../types/search/SearchFilter";
 import {SortType} from "../types/search/SortType";
 import {normalizeAndValidateIsbn} from "../utils/IsbnVerification";
+import {
+    IBookLookupResult,
+    fetchOpenLibraryCover,
+    lookupBookMetadata,
+    normalizeLanguageCode,
+} from "../utils/BookMetadata";
 import {isValidEpub, isValidMobi, isValidPdf} from "../utils/FileSignature";
 import {recordLoan, recordReturn} from "../utils/LoanHistory";
 import {handleUploadError} from "../middlewares/UploadErrorMiddleware";
@@ -890,10 +897,12 @@ router.post('', requireAuth, upload.single("image"), handleUploadError(maxCoverI
  * Create a book automatically by looking up its metadata from an ISBN,
  * instead of typing everything in by hand.
  *
- * Lookup order: Google Books API (needs `GOOGLE_BOOKS_API_KEY`) -> on
- * failure/missing key, falls back to Open Library's search API for metadata
- * and to its covers API for the image. Categories/authors/language rows are
- * created on the fly if they don't already exist in the shared library
+ * Metadata comes from `lookupBookMetadata` (server/src/utils/BookMetadata.ts):
+ * Google Books, the BnF catalogue and Open Library, merged field by field
+ * rather than chained, so a source that answers with holes in it gets them
+ * filled by the next one. Covers still come from Google or, failing that,
+ * Open Library's covers API. Categories/authors/language rows are created on
+ * the fly if they don't already exist in the shared library
  * (`__ensureCategory`, `__ensureAuthors`, `ensureLanguage`).
  *
  * Auth: required.
@@ -906,8 +915,10 @@ router.post('', requireAuth, upload.single("image"), handleUploadError(maxCoverI
  *   { "location": "2" }
  *
  * Response (200): the new (or already-existing, matched by isbn) book's id, e.g. `42`.
- * Responses (404): "No ISBN code provided" | "Book not found" (no metadata match).
- * Response (502): "External book service failed" (Google/Open Library request failed).
+ * Response (400): "No ISBN code provided" (malformed ISBN).
+ * Response (404): a JSON body naming which sources were asked and why none of
+ *   them produced a book - see `__respondWithoutMetadata`.
+ * Response (502): the same body, when every source that ran failed outright.
  */
 // @ts-ignore
 router.post(
@@ -925,13 +936,15 @@ router.post(
         try {
             /**
              * =========================
-             * FETCH BOOK (Google → fallback OpenLibrary)
+             * FETCH BOOK (Google + BnF + OpenLibrary, merged)
              * =========================
              */
-            const bookData = await fetchBookData(isbnCode);
+            const lookup = await lookupBookMetadata(isbnCode, appService.getGoogleApiKey());
+            const metadata = lookup.metadata;
 
-            if (!bookData) {
-                return res.status(404).send('Book not found');
+            // books.name is NOT NULL - without a title there's nothing to insert.
+            if (!metadata?.title) {
+                return __respondWithoutMetadata(res, isbnCode, lookup);
             }
 
             const {
@@ -943,26 +956,14 @@ router.post(
                 publishedDate,
                 pageCount: pages,
                 language,
-                imageLinks,
-            } = bookData;
-
-            // books.name is NOT NULL - without a title there's nothing to insert.
-            if (!name) {
-                return res.status(404).send('Book not found');
-            }
+            } = metadata;
 
             const formattedPublishedDate = formatPublishedDate(publishedDate);
 
             /**
-             * IMAGE (Google → OpenLibrary Covers fallback)
+             * IMAGE (whatever a provider handed back → OpenLibrary Covers fallback)
              */
-            let imageUrl: string | null = null;
-
-            if (imageLinks?.thumbnail) {
-                imageUrl = imageLinks.thumbnail;
-            } else {
-                imageUrl = await fetchOpenLibraryCover(isbnCode);
-            }
+            const imageUrl: string | null = metadata.imageUrl ?? (await fetchOpenLibraryCover(isbnCode));
 
             const categoryName = truncate(categories?.[0] ?? null, 100);
             const languageCode = normalizeLanguageCode(language);
@@ -1018,7 +1019,7 @@ router.post(
                     await __ensureAuthors(
                         client,
                         bookId,
-                        authors.map((author: string) => truncate(author, 100)),
+                        authors.map((author: string) => truncate(author, 100) ?? author),
                         userId
                     );
                 }
@@ -1053,11 +1054,10 @@ router.post(
                 client.release();
             }
         } catch (error: unknown) {
+            // `lookupBookMetadata` never throws - a provider that fails comes
+            // back in `lookup.failed` and is answered with a 502 by
+            // `__respondWithoutMetadata`. Anything reaching here is ours.
             console.error('Error fetching book details:', error);
-
-            if (error instanceof ExternalHttpError) {
-                return res.status(502).send('External book service failed');
-            }
 
             return res
                 .status(500)
@@ -1067,150 +1067,53 @@ router.post(
 );
 
 /**
- * A non-2xx answer from an external metadata provider.
+ * The answer when a lookup produced no usable book.
  *
- * `fetch` only rejects on a network-level failure - a 404 or a 429 resolves
- * normally - so the handlers below raise this themselves to keep the two
- * cases the callers have always distinguished: "this ISBN has no metadata"
- * (a null result) versus "the lookup itself failed" (a throw, which the
- * route turns into 502 and the retry logic inspects for 429).
+ * A missing API key and a genuine data gap used to be indistinguishable: both
+ * came back as a bare `404 "Book not found"`, so an operator who had simply
+ * never set `GOOGLE_BOOKS_API_KEY` saw "no metadata found for this ISBN" and
+ * had no way to learn that the strongest source had never been asked. The
+ * body now names what was asked and what was not:
+ *
+ *   `error`: "no_metadata"            - every configured source was asked and
+ *                                       none of them has this ISBN.
+ *            "source_not_configured"  - nothing was found, *and* a source was
+ *                                       skipped for want of configuration.
+ *                                       An operator problem, not a data gap.
+ *            "source_unavailable"     - every source that ran failed. 502,
+ *                                       because trying again may well work.
+ *
+ * `sourcesTried` / `unconfiguredSources` / `failedSources` carry the detail.
+ *
+ * The status codes are unchanged (404, or 502 for a total failure) and the
+ * client keys on those alone today - so this is additive. To use it, the
+ * client would read `ApiError.body.error` and, on "source_not_configured",
+ * say so ("Google Books is not configured on this server") instead of the
+ * current "No metadata found for this ISBN. Add it manually instead.".
  */
-class ExternalHttpError extends Error {
-    public readonly status: number;
+function __respondWithoutMetadata(res: Response, isbn: string, lookup: IBookLookupResult) {
+    const unavailable = lookup.failed.length > 0 && lookup.sources.length === 0;
 
-    public constructor(status: number, provider: string) {
-        super(`${provider} responded with HTTP ${status}`);
-        this.name = "ExternalHttpError";
-        this.status = status;
-    }
-}
+    const error = unavailable
+        ? 'source_unavailable'
+        : lookup.unconfigured.length > 0
+          ? 'source_not_configured'
+          : 'no_metadata';
 
-/**
- * =========================================================
- * EXTERNAL API: GOOGLE BOOKS (with retry + backoff)
- * =========================================================
- */
-/**
- * Fetch volume metadata for `isbn` from the Google Books API, retrying up to
- * `retries` times with linear backoff on HTTP 429 (rate limited). If the
- * request ultimately fails for any other reason (missing API key, network
- * error, no match), falls back to `__fetchOpenLibraryMetadata`.
- */
-async function fetchBookData(isbn: string, retries = 3): Promise<any> {
-    try {
-        const apiKey = appService.getGoogleApiKey();
-        if (!apiKey) {
-            throw new Error("Missing GOOGLE_BOOKS_API_KEY");
-        }
+    const message = unavailable
+        ? 'Every metadata source failed to answer'
+        : lookup.unconfigured.length > 0
+          ? `No metadata found, and these sources are not configured: ${lookup.unconfigured.join(', ')}`
+          : 'No metadata source has this ISBN';
 
-        const url = new URL('https://www.googleapis.com/books/v1/volumes');
-        url.searchParams.set('q', `isbn:${isbn}`);
-        url.searchParams.set('key', apiKey);
-
-        const response = await fetch(url, {
-            signal: AbortSignal.timeout(9000),
-            headers: {
-                'User-Agent': 'vaultisse-server/1.0',
-            },
-        });
-
-        // `fetch` resolves on 4xx/5xx where axios rejected, so the status has
-        // to be turned back into a throw - the 429 retry below and the
-        // fallback in the catch both depend on it.
-        if (!response.ok) {
-            throw new ExternalHttpError(response.status, 'Google Books');
-        }
-
-        const data = await response.json() as any;
-
-        return data?.items?.[0]?.volumeInfo ?? null;
-    } catch (error: unknown) {
-        if (
-            error instanceof ExternalHttpError &&
-            error.status === 429 &&
-            retries > 0
-        ) {
-            const delay = (4 - retries) * 1000;
-
-            await new Promise(r => setTimeout(r, delay));
-
-            return fetchBookData(isbn, retries - 1);
-        }
-
-        console.warn('Google Books failed, trying fallback...', error);
-        return __fetchOpenLibraryMetadata(isbn);
-    }
-}
-
-/**
- * =========================================================
- * FALLBACK: OPEN LIBRARY METADATA
- * =========================================================
- */
-async function __fetchOpenLibraryMetadata(isbn: string): Promise<any> {
-    try {
-        const response = await fetch(
-            `https://openlibrary.org/search.json?isbn=${encodeURIComponent(isbn)}`,
-            {signal: AbortSignal.timeout(9000)}
-        );
-
-        // A non-2xx is a failed lookup, not an empty one: axios rejected here,
-        // and the catch below already turns that into `null`.
-        if (!response.ok) {
-            throw new ExternalHttpError(response.status, 'Open Library');
-        }
-
-        const data = await response.json() as any;
-
-        // The search endpoint returns matches under `docs`, not on the top-level object.
-        const doc = data?.docs?.[0];
-
-        if (!doc) {
-            return null;
-        }
-
-        return {
-            title: doc.title,
-            authors: doc.author_name ?? [],
-            description: undefined,
-            categories: doc.subject ?? [],
-            publisher: doc.publisher?.[0],
-            publishedDate: doc.first_publish_year ? String(doc.first_publish_year) : undefined,
-            pageCount: doc.number_of_pages_median,
-            language: doc.language?.[0],
-            imageLinks: null,
-        };
-    } catch (error) {
-        console.error('OpenLibrary fallback failed:', error);
-        return null;
-    }
-}
-
-/**
- * =========================================================
- * OPEN LIBRARY COVER
- * =========================================================
- */
-async function fetchOpenLibraryCover(isbn: string): Promise<string | null> {
-    try {
-        const url = `https://covers.openlibrary.org/b/isbn/${encodeURIComponent(isbn)}-M.jpg`;
-
-        // A missing cover answers 404 here, which `fetch` resolves rather
-        // than throwing - hence the explicit status check. The body is never
-        // read (only its existence and type matter), so it is cancelled.
-        const response = await fetch(url, {signal: AbortSignal.timeout(3000)});
-        await response.body?.cancel();
-
-        const contentType = String(response.headers.get('content-type') ?? '');
-
-        if (response.status === 200 && contentType.startsWith('image/')) {
-            return url;
-        }
-
-        return null;
-    } catch {
-        return null;
-    }
+    return res.status(unavailable ? 502 : 404).json({
+        error,
+        message,
+        isbn,
+        sourcesTried: lookup.sources,
+        unconfiguredSources: lookup.unconfigured,
+        failedSources: lookup.failed,
+    });
 }
 
 /**
@@ -1225,17 +1128,6 @@ async function fetchOpenLibraryCover(isbn: string): Promise<string | null> {
 function truncate(value: string | null | undefined, maxLen: number): string | null {
     if (value === null || value === undefined) return null;
     return value.length > maxLen ? value.substring(0, maxLen) : value;
-}
-
-/**
- * languages.code / books.language_code are CHAR(2) and optional, so any value
- * that isn't a clean 2-letter code (missing, "unknown", ISO 639-2 3-letter
- * codes, etc.) is dropped instead of overflowing the column.
- */
-function normalizeLanguageCode(language: string | null | undefined): string | null {
-    if (!language) return null;
-    const code = language.trim().toLowerCase();
-    return /^[a-z]{2}$/.test(code) ? code : null;
 }
 
 /**
@@ -1810,7 +1702,7 @@ export function isAllowedImageUrl(url: string): boolean {
     }
 }
 
-function formatPublishedDate(date: string | undefined): string | null {
+function formatPublishedDate(date: string | null | undefined): string | null {
     if (!date) return null;
 
     // Attempt to parse the date and format it to YYYY-MM-DD
