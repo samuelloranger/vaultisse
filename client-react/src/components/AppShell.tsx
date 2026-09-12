@@ -117,7 +117,57 @@ export function visibleNavItems(policy: Policy): NavItem[] {
   return NAV_ITEMS.filter((item) => !item.gate || NAV_GATES[item.gate](policy))
 }
 
-function NavList({ onNavigate }: { onNavigate?: () => void }) {
+/**
+ * One nav row's contents, in its resting or selected state.
+ *
+ * Selection is carried three ways, none of which is load-bearing alone: the
+ * `$navActiveBg` wash, the icon in `$navAccent`, and the label at 600. The wash
+ * is only 1.37:1 against `$navBg` — a tint, not an outline — so it is not
+ * allowed to be the only indicator, and the row's `<a>` also gets
+ * `aria-current="page"` from the router (see {@link NavList}).
+ *
+ * Measured on the composited row (`$navActiveBg` over `$navBg`): `$navText`
+ * 9.67:1 light / 11.63:1 dark, `$navAccent` 3.30:1 / 5.28:1 — the latter is a
+ * non-text graphic, so 3:1 is the bar.
+ */
+function NavRow({
+  item,
+  active,
+  live,
+}: {
+  item: NavItem
+  active: boolean
+  live: boolean
+}) {
+  const Icon = item.icon
+  return (
+    <XStack
+      alignItems="center"
+      gap="$3"
+      // The 44px touch-target floor. The nav is the app's most-used
+      // control and the one most likely to be tapped one-handed.
+      minHeight={44}
+      paddingHorizontal="$3"
+      borderRadius="$control"
+      opacity={live ? 1 : 0.45}
+      backgroundColor={active ? '$navActiveBg' : 'transparent'}
+    >
+      <Icon size={18} color={active ? '$navAccent' : '$navTextMuted'} />
+      <Text color="$navText" fontSize={16} fontWeight={active ? '600' : '400'}>
+        {item.label}
+      </Text>
+    </XStack>
+  )
+}
+
+/**
+ * The nav rows themselves.
+ *
+ * Exported for the test: which row is lit on which route is the whole point of
+ * {@link NavRow}, and it is decided by the router, so unlike
+ * {@link visibleNavItems} it cannot be asserted without one.
+ */
+export function NavList({ onNavigate }: { onNavigate?: () => void }) {
   // A cache hit, not a fetch: the _app route's loader already awaited this.
   // It is also live: the lending toggle invalidates the policy key, so flipping
   // lending adds or drops these rows without a reload (see queries/user.ts).
@@ -127,29 +177,11 @@ function NavList({ onNavigate }: { onNavigate?: () => void }) {
     <YStack gap="$1" padding="$3" role="navigation" aria-label="Main">
       {visibleNavItems(policy).map((item) => {
         const live = IMPLEMENTED_ROUTES.has(item.to)
-        const Icon = item.icon
-        const content = (
-          <XStack
-            alignItems="center"
-            gap="$3"
-            // The 44px touch-target floor. The nav is the app's most-used
-            // control and the one most likely to be tapped one-handed.
-            minHeight={44}
-            paddingHorizontal="$3"
-            borderRadius="$control"
-            opacity={live ? 1 : 0.45}
-          >
-            <Icon size={18} color="$navTextMuted" />
-            <Text color="$navText" fontSize={16}>
-              {item.label}
-            </Text>
-          </XStack>
-        )
 
         if (!live) {
           return (
             <YStack key={item.to} aria-disabled testID={`nav-${item.label}`}>
-              {content}
+              <NavRow item={item} active={false} live={false} />
             </YStack>
           )
         }
@@ -161,8 +193,29 @@ function NavList({ onNavigate }: { onNavigate?: () => void }) {
             onClick={onNavigate}
             style={{ textDecoration: 'none' }}
             data-testid={`nav-${item.label}`}
+            // The router decides, not `location.pathname`: `Link` already knows
+            // whether it points at the current match, and it puts
+            // `aria-current="page"` and `data-status="active"` on the anchor
+            // for free. Comparing paths by hand would be a second, drifting
+            // copy of that — and would have to re-learn search params, the
+            // basepath and trailing slashes.
+            //
+            // `exact` for `/` alone, and it is deliberate rather than
+            // cargo-culted. The dashboard is the root and every other screen is
+            // a path under it, so "does the current path start with `/`" is
+            // true everywhere. Router 1.170 does not answer it that way — its
+            // prefix test also requires a `/` boundary, so `/library/search`
+            // does not match `/` (checked against the running app: with this
+            // line removed, exactly one row is still lit on every screen). But
+            // "the dashboard row is lit only *on* the dashboard" is the rule
+            // this nav wants, and saying so costs one expression and does not
+            // depend on that boundary check staying where it is.
+            //
+            // Every other row wants the prefix match it gets by default, so a
+            // child route (`/locations/3`) keeps its section lit.
+            activeOptions={{ exact: item.to === '/' }}
           >
-            {content}
+            {({ isActive }) => <NavRow item={item} active={isActive} live />}
           </Link>
         )
       })}
