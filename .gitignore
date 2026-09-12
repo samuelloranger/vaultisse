@@ -49,3 +49,6 @@ ecosystem-config.js
 /server/dist/AppService.js.map
 /server/dist/index.js
 /server/dist/index.js.map
+
+# Runtime logs (LOGGER_PATH) - upstream tracked these by accident
+server/logs.log/
