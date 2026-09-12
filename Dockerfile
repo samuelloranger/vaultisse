@@ -13,12 +13,10 @@ RUN bun run build
 # ---------------------------------------------------------------------------
 # 2) Install production-only server dependencies
 #
-# bcrypt is a native addon, so this stage still needs a C toolchain even
-# though nothing here compiles TypeScript any more.
-
+# No C toolchain and no node-gyp: replacing bcrypt with Bun.password removed
+# the last native addon, and nothing here compiles TypeScript any more either.
 # ---------------------------------------------------------------------------
 FROM oven/bun:${BUN_VERSION} AS server-deps
-RUN apk add --no-cache python3 make g++
 WORKDIR /app/server
 COPY server/package.json server/bun.lock ./
 RUN bun install --frozen-lockfile --production

@@ -7,7 +7,6 @@ import AuthRoute from "./routes/AuthRoute"; // Auth-related routes
 import cors from "cors"; // Cross-Origin Resource Sharing middleware
 import cookieParser from "cookie-parser"; // Middleware to parse cookies
 import jwt from "jsonwebtoken"; // JSON Web Token library for authentication
-import bcrypt from "bcrypt"; // Library for password hashing
 import helmet from "helmet"; // Middleware to set secure HTTP headers
 import rateLimit from "express-rate-limit";
 import path from "path"; // Middleware to limit repeated requests
@@ -431,21 +430,38 @@ export class AppService {
     }
 
     /**
-     * Hash a plain text password
+     * Hash a plain text password.
+     *
+     * Bun's own bcrypt rather than the `bcrypt` package: same algorithm, same
+     * cost, same `$2b$` output, but built into the runtime - which removes the
+     * project's only native addon and with it node-gyp, python3 and a C
+     * toolchain from the Docker build.
+     *
+     * The cost stays 12 and the algorithm stays bcrypt deliberately. Argon2id
+     * would be the better choice for a greenfield deployment, but every
+     * password already in the database is bcrypt, and changing algorithm means
+     * re-hashing on next login rather than a one-line swap.
+     *
      * @param plainPassword User's password
      */
     public hashPassword(plainPassword: string): Promise<string> {
-        const saltRounds = 12; // good balance between security and speed
-        return bcrypt.hash(plainPassword, saltRounds);
+        const cost = 12; // good balance between security and speed
+        return Bun.password.hash(plainPassword, {algorithm: "bcrypt", cost});
     }
 
     /**
-     * Compare a plain text password with a hashed password
+     * Compare a plain text password with a hashed password.
+     *
+     * `Bun.password.verify` reads the algorithm from the hash prefix, so the
+     * `$2b$` hashes written by the previous `bcrypt` implementation keep
+     * verifying unchanged - see test/utils/PasswordHashing.test.ts, which
+     * pins a hash minted before the swap.
+     *
      * @param plainPassword Plain text password
      * @param hashedPassword Hashed password from DB
      */
     public async comparePassword(plainPassword: string, hashedPassword: string): Promise<boolean> {
-        return bcrypt.compare(plainPassword, hashedPassword);
+        return Bun.password.verify(plainPassword, hashedPassword);
     }
 }
 
