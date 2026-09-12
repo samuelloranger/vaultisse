@@ -3,17 +3,7 @@ import { useState } from 'react'
 import { Button, Sheet, Text, useMedia, XStack, YStack } from 'tamagui'
 import { useColorScheme } from '@/theme/ThemeProvider'
 import { DisplayText } from './Card'
-import {
-  type AppIcon,
-  BookOpen,
-  LayoutDashboard,
-  Menu,
-  Moon,
-  Search,
-  Sun,
-  Users,
-  X,
-} from './icons'
+import { BookOpen, LayoutDashboard, MapPin, Menu, Moon, Search, Sun, Tag, UserPen, Users, X, type AppIcon } from './icons'
 
 /**
  * The app frame: the dark "shelf" nav, and the scrolling content column.
@@ -42,12 +32,21 @@ type NavItem = {
  */
 const NAV_ITEMS: NavItem[] = [
   { label: 'Dashboard', to: '/', icon: LayoutDashboard },
-  { label: 'Library', to: '/search', icon: Search },
+  { label: 'Library', to: '/library/search', icon: Search },
+  { label: 'Locations', to: '/locations', icon: MapPin },
+  { label: 'Categories', to: '/categories', icon: Tag },
+  { label: 'Authors', to: '/authors', icon: UserPen },
   { label: 'Loans', to: '/loans', icon: BookOpen },
   { label: 'Customers', to: '/customers', icon: Users },
 ]
 
-const IMPLEMENTED_ROUTES = new Set(['/'])
+const IMPLEMENTED_ROUTES = new Set([
+  '/',
+  '/library/search',
+  '/locations',
+  '/categories',
+  '/authors',
+])
 
 function NavList({ onNavigate }: { onNavigate?: () => void }) {
   return (

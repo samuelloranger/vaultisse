@@ -120,3 +120,47 @@ describe('request', () => {
     expect(fetchMock.mock.calls[0][0]).toBe('/api/rest/loans?page=0')
   })
 })
+
+/**
+ * Multipart bodies. Three endpoints are `multipart/form-data` (cover image,
+ * ebook file, library import), and the failure here is silent: pinning
+ * `Content-Type: application/json` on a FormData body omits the multipart
+ * boundary, so the server parses an empty payload and the upload "succeeds"
+ * with nothing attached.
+ */
+describe('request() with FormData', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('passes the FormData through without serialising it', async () => {
+    mockFetch({ ok: true, status: 200, bodyText: '12' })
+    const form = new FormData()
+    form.append('name', 'A book')
+
+    await request<number>('/book', { method: 'POST', body: form })
+
+    const [, init] = (globalThis.fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(init.body).toBe(form)
+    expect(typeof init.body).not.toBe('string')
+  })
+
+  it('lets the browser set Content-Type so the boundary matches', async () => {
+    mockFetch({ ok: true, status: 200, bodyText: '12' })
+
+    await request<number>('/book', { method: 'POST', body: new FormData() })
+
+    const [, init] = (globalThis.fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(init.headers['Content-Type']).toBeUndefined()
+  })
+
+  it('still sets Content-Type for a plain JSON body', async () => {
+    mockFetch({ ok: true, status: 200, bodyText: '{}' })
+
+    await request('/book/1', { method: 'PUT', body: { name: 'x' } })
+
+    const [, init] = (globalThis.fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(init.headers['Content-Type']).toBe('application/json')
+    expect(init.body).toBe('{"name":"x"}')
+  })
+})

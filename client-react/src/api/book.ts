@@ -1,4 +1,4 @@
-import { ApiError, isSessionDead, PATH_PREFIX, request } from './http'
+import { PATH_PREFIX, request } from './http'
 import type { BookCounters, BookStockStatus } from './types'
 
 /**
@@ -106,64 +106,6 @@ export type StockInput = {
 // Multipart
 // ---------------------------------------------------------------------------
 
-/**
- * `POST` a `FormData` body.
- *
- * `request()` in `api/http.ts` JSON-stringifies whatever it is given and pins
- * `Content-Type: application/json`, which cannot carry a file. Three endpoints
- * here are `multipart/form-data` (cover image, ebook file, manual create), so
- * this mirrors `request`'s two cross-cutting concerns — cookie transport and
- * session death — for a body it cannot serialise.
- *
- * The `Content-Type` header is deliberately absent: the browser has to set it
- * itself so it can append the multipart boundary.
- *
- * **This wants to move into `api/http.ts`** as a `body: FormData` passthrough.
- * It lives here because that file is owned elsewhere while these screens land.
- */
-async function postFormData<T>(path: string, form: FormData): Promise<T> {
-  const response = await fetch(`${PATH_PREFIX}${path}`, {
-    method: 'POST',
-    credentials: 'include',
-    redirect: 'manual',
-    body: form,
-    headers: { Accept: 'application/json' },
-  })
-
-  // No cookie at all: the server 302s to /login. See `request`'s note.
-  if (response.type === 'opaqueredirect' || response.status === 0) {
-    window.location.href = '/login'
-    throw new ApiError(401, { sessionExpired: true }, 'Session expired')
-  }
-
-  const text = await response.text()
-  let body: unknown = null
-  if (text !== '') {
-    try {
-      body = JSON.parse(text)
-    } catch {
-      body = text
-    }
-  }
-
-  if (response.ok) return body as T
-
-  if (isSessionDead(response.status, body)) {
-    window.location.href = '/login'
-    throw new ApiError(response.status, body, 'Session expired')
-  }
-
-  const message =
-    typeof body === 'string' && body !== ''
-      ? body
-      : typeof body === 'object' &&
-          body !== null &&
-          typeof (body as { message?: unknown }).message === 'string'
-        ? (body as { message: string }).message
-        : `Request failed with status ${response.status}`
-
-  throw new ApiError(response.status, body, message)
-}
 
 // ---------------------------------------------------------------------------
 // Books
@@ -206,7 +148,7 @@ export function createBook(input: {
   if (input.description) form.set('description', input.description)
   if (input.isbn) form.set('isbn', input.isbn)
   if (input.image) form.set('image', input.image)
-  return postFormData<number>('/book', form)
+  return request<number>('/book', { method: 'POST', body: form })
 }
 
 /**
@@ -232,7 +174,7 @@ export function createBookFromIsbn(
 export function uploadBookCover(id: number, image: File): Promise<number> {
   const form = new FormData()
   form.set('image', image)
-  return postFormData<number>(`/book/${id}/image`, form)
+  return request<number>(`/book/${id}/image`, { method: 'POST', body: form })
 }
 
 // ---------------------------------------------------------------------------
@@ -246,7 +188,7 @@ export function uploadBookCover(id: number, image: File): Promise<number> {
 export function uploadBookFile(id: number, file: File): Promise<BookFile> {
   const form = new FormData()
   form.set('file', file)
-  return postFormData<BookFile>(`/book/${id}/file`, form)
+  return request<BookFile>(`/book/${id}/file`, { method: 'POST', body: form })
 }
 
 /** `DELETE /book/:id/file/:fileId`. Resolves to whether a row was removed. */

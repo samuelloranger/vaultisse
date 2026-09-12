@@ -92,7 +92,11 @@ export function setLoginNavigator(fn: () => void): () => void {
 /** Options accepted by {@link request}, minus the ones it owns itself. */
 export type RequestOptions = {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
-  /** Serialised as JSON. Omit for GET. */
+  /**
+   * Serialised as JSON, unless it is `FormData` - three endpoints are
+   * multipart (cover image, ebook file, library import) and the browser has
+   * to set the `Content-Type` itself so the boundary matches the payload.
+   */
   body?: unknown
   /** Appended as a query string; `null`/`undefined` values are dropped. */
   params?: Record<string, string | number | boolean | null | undefined>
@@ -144,6 +148,11 @@ export async function request<T>(
 ): Promise<T> {
   const { method = 'GET', body, params, signal } = options
 
+  // Multipart: hand the FormData straight to fetch and let it write the
+  // Content-Type. Setting that header ourselves omits the boundary, and the
+  // server then parses an empty body.
+  const isFormData = typeof FormData !== 'undefined' && body instanceof FormData
+
   const response = await fetch(buildUrl(path, params), {
     method,
     // The httpOnly session cookie. Without this, every request is anonymous.
@@ -152,9 +161,9 @@ export async function request<T>(
     signal,
     headers: {
       Accept: 'application/json',
-      ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+      ...(body === undefined || isFormData ? {} : { 'Content-Type': 'application/json' }),
     },
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    ...(body === undefined ? {} : { body: isFormData ? (body as FormData) : JSON.stringify(body) }),
   })
 
   // No cookie at all: the server 302s to /login. See the note above.
