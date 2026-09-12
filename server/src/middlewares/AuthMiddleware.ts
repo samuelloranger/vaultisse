@@ -82,10 +82,31 @@ export async function resolveSession(req: Request, res: Response): Promise<Sessi
         return "unauthorized";
     }
 
+    /*
+     * One round trip, not two. Validating a session needs both the account
+     * (does it exist, is it disabled, does token_version still match) and the
+     * session row (does this specific login still exist un-revoked) - and
+     * every authenticated request pays for it, so they are fetched together.
+     *
+     * LEFT JOIN rather than INNER: the two failures have to stay
+     * distinguishable. No rows means no such account, or a disabled one. One
+     * row with a null session_id means the account is fine but this
+     * particular login was revoked - which is the case the dev sentinel below
+     * is allowed to skip, and an inner join would have collapsed the two into
+     * the same empty result.
+     */
     const result = await pool.query({
-        name: "user-prep-stmt",
-        text: "SELECT id, token_version FROM users WHERE id = $1 AND disabled = FALSE",
-        values: [decoded.user_id]
+        name: "session-prep-stmt",
+        text: `SELECT u.id,
+                      u.token_version,
+                      s.id AS session_id
+               FROM users u
+               LEFT JOIN user_sessions s
+                      ON s.session_key = $2
+                     AND s.user_id = u.id
+                     AND s.revoked_date IS NULL
+               WHERE u.id = $1 AND u.disabled = FALSE`,
+        values: [decoded.user_id, decoded.sid]
     });
 
     if (result.rowCount === 0) {
@@ -103,16 +124,15 @@ export async function resolveSession(req: Request, res: Response): Promise<Sessi
     }
 
     if (decoded.sid !== DEV_SESSION_KEY) {
-        const sessionResult = await pool.query(
-            "SELECT id FROM user_sessions WHERE session_key = $1 AND user_id = $2 AND revoked_date IS NULL",
-            [decoded.sid, decoded.user_id]
-        );
+        const sessionId = result.rows[0].session_id;
 
-        if (sessionResult.rowCount === 0) {
+        // The join found no live row for this sid: logged out from this
+        // device, or revoked wholesale by a password change.
+        if (sessionId === null || sessionId === undefined) {
             return "unauthorized";
         }
 
-        req.sessionId = sessionResult.rows[0].id;
+        req.sessionId = sessionId;
         req.sessionKey = decoded.sid;
 
         // Best-effort and throttled (only writes once the row is more than
