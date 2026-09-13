@@ -69,8 +69,8 @@ focused client locale suite is now 4/4, and the catalogue migration suite is
 - No production deployment was performed. `AddBookIsbnDialog.test.tsx` was
   not changed by this task.
 
-Implementation commit(s): recorded in the handoff after the path-scoped
-commit.
+Implementation commit: `4dc845c` (`feat(locale): sweep client labels and add
+fr-ca`). This report is included in that commit.
 
 Exact review path:
 `/home/samuelloranger/sites/vaultisse/docs/FR-CA-TRANSLATION-REVIEW.md`
