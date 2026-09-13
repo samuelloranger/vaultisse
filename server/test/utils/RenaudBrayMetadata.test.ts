@@ -66,6 +66,11 @@ describe("parseRenaudBrayPage", () => {
         expect(result?.imageUrl).toBeNull();
     });
 
+    it("does not return a JPG URL carrying Renaud-Bray's placeholder query", () => {
+        const result = parseRenaudBrayPage(page(isbn, "https://images.renaud-bray.com/cover.jpg?404=404RB.gif"), isbn);
+        expect(result?.imageUrl).toBeNull();
+    });
+
     it("fills absent JSON-LD fields from labelled product fields", () => {
         const html = `<script type="application/ld+json">${JSON.stringify({
             "@type": "Product", sku: isbn, name: "Un livre", description: "Résumé", image: "https://images.renaud-bray.com/cover.jpg",
@@ -93,6 +98,23 @@ describe("parseRenaudBrayPage", () => {
         expect(parseRenaudBrayPage(html, isbn)).toMatchObject({
             authors: ["Une autrice"], categories: ["Santé"], publisher: "Un éditeur",
             publishedDate: "2024", pageCount: 320,
+        });
+    });
+
+    it("parses the server-rendered page when JSON-LD is absent", () => {
+        const html = `<meta property="og:isbn" content="${isbn}">
+            <meta property="og:description" content="Un résumé explicite">
+            <table><tr><td><span>Catégorie :</span></td><td><div>Romans policiers</div></td></tr>
+            <tr><td><span>Auteur :</span></td><td><div>Une autrice</div></td></tr>
+            <tr><td><span>Titre :</span></td><td><span>Le titre</span></td></tr>
+            <tr><td><span>Date de parution :</span></td><td><span>16 octobre 2025</span></td></tr>
+            <tr><td><span>Éditeur :</span></td><td><span>Un éditeur</span></td></tr>
+            <tr><td><span>Pages :</span></td><td><span>448</span></td></tr></table>
+            <img src="https://images.renaud-bray.com/images/PG/4490/4490625-gf.jpg?404=404RB.gif" id="ctl_imgCover">`;
+        expect(parseRenaudBrayPage(html, isbn)).toMatchObject({
+            title: "Le titre", authors: ["Une autrice"], description: "Un résumé explicite",
+            categories: ["Romans policiers"], publisher: "Un éditeur", publishedDate: "16 octobre 2025",
+            pageCount: 448, imageUrl: null,
         });
     });
 });

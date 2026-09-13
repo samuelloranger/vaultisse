@@ -88,16 +88,43 @@ function authorNames(value: unknown): string[] {
 
 function coverUrl(value: unknown): string | null {
     const candidate = Array.isArray(value) ? value[0] : value;
-    if (typeof candidate !== "string" || /(?:^|\/)404rb\.gif(?:$|[?#])/i.test(candidate)) return null;
+    if (typeof candidate !== "string") return null;
     try {
         const url = new URL(candidate);
+        // Renaud-Bray appends `?404=404RB.gif` to image URLs; that query
+        // indicates its placeholder fallback even when the path is a .jpg.
+        if (/(?:^|[?&])[^#]*404rb\.gif(?:$|&)/i.test(url.search) || /(?:^|\/)404rb\.gif(?:$|[?#])/i.test(url.pathname)) return null;
         return url.hostname === "images.renaud-bray.com" && url.protocol === "https:" ? url.toString() : null;
     } catch { return null; }
 }
 
+function legacyImageCover(html: string): string | null {
+    const image = html.match(/<img\b[^>]*\bid=["'][^"']*imgCover[^"']*["'][^>]*>/i)?.[0];
+    return coverUrl(image?.match(/\bsrc=["']([^"']+)["']/i)?.[1]);
+}
+
+/** Parse the server-rendered details used by pages that omit usable JSON-LD. */
+function parseLegacyPage(html: string, isbn: string): IBookMetadata | null {
+    if (normalizedIsbn(metaContent(html, "og:isbn")) !== normalizedIsbn(isbn)) return null;
+    const metadata = emptyBookMetadata();
+    metadata.title = labelled(html, ["Titre", "Title"]);
+    const author = labelled(html, ["Auteur", "Auteurs", "Author", "Authors"]);
+    metadata.authors = author ? [author] : [];
+    metadata.description = metaContent(html, "og:description") ?? labelled(html, ["Description", "Résumé", "Summary"]);
+    const category = labelled(html, ["Catégorie", "Catégorie(s)", "Category", "Categories"]);
+    metadata.categories = category ? [category] : [];
+    metadata.publisher = labelled(html, ["Éditeur", "Editeur", "Publisher"]);
+    metadata.publishedDate = labelled(html, ["Date de parution", "Date de publication", "Publication date"]);
+    const pageText = labelled(html, ["Nombre de pages", "Pages", "Page count"]);
+    const pages = Number(pageText?.match(/\d+/)?.[0]);
+    metadata.pageCount = Number.isInteger(pages) && pages > 0 && pages <= 10000 ? pages : null;
+    metadata.imageUrl = legacyImageCover(html);
+    return metadata;
+}
+
 export function parseRenaudBrayPage(html: string, isbn: string): IBookMetadata | null {
     const product = jsonLdProduct(html);
-    if (!product) return null;
+    if (!product) return parseLegacyPage(html, isbn);
     const requestedIsbn = normalizedIsbn(isbn);
     const identifiers = [product.sku, product.isbn, metaContent(html, "og:isbn")]
         .map(normalizedIsbn).filter(Boolean);
