@@ -1,5 +1,6 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '@/api/http'
 import type { Policy } from '@/api/types'
@@ -21,6 +22,27 @@ vi.mock('@/api/book', () => ({
   updateBookStock: vi.fn(),
   uploadBookCover: vi.fn(),
   uploadBookFile: vi.fn(),
+}))
+
+// This suite exercises the ISBN queue and metadata messages. The responsive
+// Sheet and its focus/exit transitions have their own tests; mounting them in
+// jsdom here can steal focus from the controlled ISBN input between cases.
+vi.mock('@/components/ResponsiveDialog', () => ({
+  ResponsiveDialog: ({
+    open,
+    children,
+    actions,
+  }: {
+    open: boolean
+    children: ReactNode
+    actions?: ReactNode
+  }) =>
+    open ? (
+      <div role="dialog">
+        {children}
+        {actions}
+      </div>
+    ) : null,
 }))
 
 import { createBookFromIsbn } from '@/api/book'
