@@ -7,15 +7,7 @@ at home, in a school library, or in a small lending library. It tracks where eac
 lives, who currently has it on loan, and its full catalog metadata (author, category,
 language, format, cover image), and it can look books up automatically by ISBN.
 
-- **Website:** [vaultisse.com](https://vaultisse.com)
-- **Live demo (read-only):** [demo.vaultisse.com](https://demo.vaultisse.com) — log in with
-  `demo@vaultisse.com` / `VaultisseDemo!2026`
 - **License:** [MIT](LICENSE)
-
-<p align="center">
-  <img src="assets/screenshots/dashboard.png" alt="Vaultisse dashboard" width="80%"><br>
-  <img src="assets/screenshots/library.png" alt="Vaultisse library view" width="80%">
-</p>
 
 ---
 
@@ -48,8 +40,9 @@ language, format, cover image), and it can look books up automatically by ISBN.
 
 ## Features
 
-- Add books manually or by typing an ISBN (auto-filled via the Google Books
-  API, falling back to Open Library when no API key is configured)
+- Add books manually or by typing an ISBN. Google Books, Open Library, and the
+  Bibliothèque nationale de France are combined without overwriting stronger data;
+  an optional Renaud-Bray fallback can fill remaining gaps and cover images.
 - Track individual physical copies ("stock") of a book independently — each copy has
   its own status: available, booked/on loan, damaged, or not available
 - Record who a book is currently lent to, using a borrower directory
@@ -111,10 +104,9 @@ through the REST API at `/api/rest/*`.
 
 A handful of the old client's features have working server endpoints but no UI in the
 React client yet: the camera barcode scanner (typed stock codes and ISBNs work
-everywhere it used to front), barcode label printing, in-browser ebook preview, the
-CSV library import, and the dashboard's "books added over time" chart. The loan report
-renders on screen with a CSV download instead of pushing an `.xlsx`. Each is noted in
-the file that would own it.
+everywhere it used to front), barcode label printing, in-browser ebook preview, and
+the CSV library import. The loan report renders on screen with a CSV download instead
+of pushing an `.xlsx`. Each is noted in the file that would own it.
 
 ### Server (backend)
 
@@ -213,13 +205,13 @@ vaultisse/
   separate Node.js install or build step to run it.
 - [PostgreSQL](https://www.postgresql.org/) 13+ (any recent version should do)
 - A [Google Books API key](https://developers.google.com/books) (optional — the
-  server falls back to the free [Open Library API](https://openlibrary.org/developers/api)
-  if `GOOGLE_BOOKS_API_KEY` isn't set)
+  server also queries the free [Open Library API](https://openlibrary.org/developers/api)
+  and the Bibliothèque nationale de France)
 
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/AlbertAmat/vaultisse.git
+git clone https://github.com/samuelloranger/vaultisse.git
 cd vaultisse
 ```
 
@@ -268,6 +260,9 @@ DB_NAME=paperbooks
 DB_USER=your_db_user
 DB_PASSWORD=your_db_password
 GOOGLE_BOOKS_API_KEY=            # optional, see Prerequisites
+# Optional homelab fallback for Renaud-Bray metadata and covers. Configure both or neither.
+# SEARXNG_URL=http://searxng:8080
+# FLARESOLVERR_URL=http://flaresolverr:8191
 LOGGER_PATH=./logs.log
 FRONT_END_URL=http://localhost:5173
 JWT_SECRET=replace_with_a_long_random_string
@@ -306,10 +301,10 @@ From the repository root:
 ./build.sh
 ```
 
-This installs dependencies, builds the client (Vite) and compiles the server (`tsc`),
-assembles everything under `./dist` (`dist/client`, `dist/server`), copies server
-assets, and produces a deployable `dist.zip`. The server serves the built client
-itself, so a single process is all you need to run in production.
+This installs dependencies, builds the client (Vite), copies the Bun server sources,
+and assembles everything under `./dist` (`dist/client`, `dist/server`) into a
+deployable `dist.zip`. The server serves the built client itself, so a single process
+is all you need to run in production.
 
 The Docker image is built differently and does **not** use this script: it has no
 compile stage at all, because Bun runs the server's TypeScript sources directly.
@@ -330,7 +325,7 @@ pm2 start ecosystem.config.js --env production
 ## Deploying with Docker
 
 Every push of a `vX.Y.Z` tag builds a production image and publishes it to GitHub
-Container Registry at `ghcr.io/albertamat/vaultisse` (see
+Container Registry at `ghcr.io/samuelloranger/vaultisse` (see
 [Releasing a new version](#releasing-a-new-version)). The image is `oven/bun:1.4-alpine`
 and bundles the server's TypeScript sources and the built client into one process, same
 as the PM2 deployment above — there is no separate frontend container, and no compile
@@ -339,10 +334,8 @@ stage, since Bun runs the TypeScript directly (`bun server/src/index.ts`).
 To run it on a server with Docker installed:
 
 ```bash
-mkdir -p assets/db
-curl -O https://raw.githubusercontent.com/AlbertAmat/vaultisse/main/docker-compose.yml
-curl -O https://raw.githubusercontent.com/AlbertAmat/vaultisse/main/.env.example
-curl -o assets/db/databaseSchema.sql https://raw.githubusercontent.com/AlbertAmat/vaultisse/main/assets/db/databaseSchema.sql
+git clone https://github.com/samuelloranger/vaultisse.git
+cd vaultisse
 cp .env.example .env
 # edit .env: set JWT_SECRET, DB_PASSWORD, FRONT_END_URL, etc.
 docker compose up -d
@@ -397,8 +390,8 @@ git push --follow-tags
 
 `npm version` bumps `package.json`, commits it, and creates a `vX.Y.Z` git tag.
 Pushing that tag triggers `.github/workflows/docker-release.yml`, which builds the
-Docker image, pushes `ghcr.io/albertamat/vaultisse:X.Y.Z` and `:latest`, and creates
-a matching GitHub Release with auto-generated notes.
+Docker image, pushes `ghcr.io/samuelloranger/vaultisse:X.Y.Z` and `:latest`, and
+creates a matching GitHub Release with auto-generated notes.
 
 The running app version is available at `GET /api/rest/app/version` (unauthenticated),
 useful for confirming what's actually deployed.
