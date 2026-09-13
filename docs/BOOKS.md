@@ -83,6 +83,7 @@ sequenceDiagram
     participant Google as Google Books API
     participant BnF as BnF SRU catalogue
     participant OL as Open Library
+    participant RB as Renaud-Bray (optional)
 
     Client->>Server: POST /book/isbn/9782824627151
     Server->>Server: normalizeAndValidateIsbn() - reject malformed input
@@ -95,6 +96,11 @@ sequenceDiagram
     alt still missing fields
         Server->>OL: GET /search.json?isbn=...
         OL-->>Server: title, authors, subjects, publisher... (metadata only)
+    end
+    alt still incomplete or no cover, and SEARXNG_URL + FLARESOLVERR_URL are configured
+        Server->>RB: Search exact quoted ISBN on renaud-bray.com via SearXNG
+        RB-->>Server: Select exact ISBN product page, then read it via FlareSolverr
+        RB-->>Server: Explicit product fields and validated cover (or nothing)
     end
     Server->>OL: GET /b/isbn/....-M.jpg (cover, only if no source gave one)
     Server->>Server: ensureLanguage / __ensureCategory / __getOrCreateBook / __ensureAuthors (one transaction)
@@ -130,6 +136,33 @@ comes up empty would never have asked anyone else, and would have written
 
 So every provider is normalized into one `IBookMetadata` shape and merged
 field by field, first writer wins (`mergeBookMetadata`).
+
+### Renaud-Bray: final gap filler
+
+Renaud-Bray is an optional final provider in the same `lookupBookMetadata`
+chain. It runs after Google Books, the BnF and Open Library, and only when
+those sources leave core metadata incomplete or provide no cover. The same
+chain is used by the ISBN auto-add route (`POST /book/isbn/:isbn`) and by both
+metadata refresh routes (`POST /book/:id/refresh` and admin-only bulk
+`POST /book/refresh`), so there is no separate refresh-specific lookup path.
+
+It is enabled only when both `SEARXNG_URL` and `FLARESOLVERR_URL` are set
+(the homelab defaults are `http://searxng:8080` and
+`http://flaresolverr:8191`). SearXNG searches for the exact quoted ISBN,
+restricted to `renaud-bray.com`; only a result on `renaud-bray.com` or
+`www.renaud-bray.com` with path `/Livres_Produit.aspx` is fetched. FlareSolverr
+reads that selected page, which is accepted only when its JSON-LD `sku` or
+`og:isbn` exactly matches the normalized requested ISBN.
+
+Only explicit product fields are mapped: title, author, description, category,
+publisher, publication date, page count and cover. Missing fields remain
+missing; no category, language, format or cover is guessed. First-writer-wins
+merging preserves values already supplied by earlier providers. A direct cover
+from `images.renaud-bray.com` is used only when no earlier provider supplied a
+cover, and only after a successful image check; Renaud-Bray's `404RB.gif`
+placeholder is rejected. Missing configuration skips this optional provider;
+bad responses, timeouts, invalid search results and ISBN mismatches are
+provider failures or empty results and do not block the other sources.
 
 ### Order, and not paying for what you don't need
 
@@ -291,8 +324,8 @@ there's no soft-delete or history entry for a stock that's discarded outright
 - a **`data:image/png;base64,...` / `data:image/jpeg;base64,...` URI** - our
   own uploads, via `POST /book/:id/image` (multer, 4MB cap, PNG/JPEG only) or
   the manual-create form; stored inline, no external file storage/CDN, or
-- an **external URL** from the ISBN lookup (`books.google.com` or
-  `covers.openlibrary.org`).
+- an **external URL** from the ISBN lookup (`books.google.com`,
+  `covers.openlibrary.org`, or the validated `images.renaud-bray.com` host).
 
 `isAllowedImageUrl()` enforces that allowlist on every write to
 `image_url` - accepting an arbitrary URL here would turn the book cover

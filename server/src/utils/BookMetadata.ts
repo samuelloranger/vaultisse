@@ -52,9 +52,10 @@
 import { IBookMetadata, emptyBookMetadata } from "../types/book/IBookMetadata";
 import { ExternalHttpError } from "./ExternalHttpError";
 import { fetchBnfMetadata } from "./BnfUnimarc";
+import { fetchRenaudBrayMetadata } from "./RenaudBrayMetadata";
 import { validatedRegion } from "./Regions";
 
-export type MetadataSourceId = "google-books" | "open-library" | "bnf";
+export type MetadataSourceId = "google-books" | "open-library" | "bnf" | "renaud-bray";
 
 /**
  * Which provider supplied each field of the merged record.
@@ -313,6 +314,32 @@ export async function lookupBookMetadata(
         }
     }
 
+    // Renaud-Bray is the final fill-in source. It is intentionally invoked
+    // only when the established providers left core metadata incomplete or
+    // no cover, and only when both optional homelab services are configured.
+    // Unlike Google, it is an opt-in enhancement: a normal deployment without
+    // those containers still has a genuine data gap, not a misconfiguration.
+    if (!isBookMetadataComplete(merged) || !merged.imageUrl) {
+        if (process.env.SEARXNG_URL && process.env.FLARESOLVERR_URL) {
+            try {
+                const answer = await fetchRenaudBrayMetadata(isbn);
+                if (answer) {
+                    const before = merged;
+                    merged = mergeBookMetadata(merged, answer);
+                    found = true;
+                    const filled = __fieldsFilled(before, merged);
+                    if (filled.length > 0) {
+                        result.sources.push("renaud-bray");
+                        for (const field of filled) result.provenance[field] = "renaud-bray";
+                    }
+                }
+            } catch (error) {
+                console.warn("Metadata provider renaud-bray failed:", error);
+                result.failed.push("renaud-bray");
+            }
+        }
+    }
+
     result.metadata = found ? merged : null;
     return result;
 }
@@ -330,6 +357,8 @@ function __callProvider(
             return __fetchOpenLibrary(isbn);
         case "bnf":
             return fetchBnfMetadata(isbn);
+        case "renaud-bray":
+            return fetchRenaudBrayMetadata(isbn);
     }
 }
 

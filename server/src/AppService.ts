@@ -269,6 +269,7 @@ export class AppService {
                             "https://books.google.com",
                             "http://books.google.com",
                             "https://covers.openlibrary.org",
+                            "https://images.renaud-bray.com",
                         ],
                         "script-src-attr": ["'unsafe-inline'"],
                         "script-src-elem": ["'unsafe-inline'", "'self'", frontEndUrl, "'unsafe-inline'"],

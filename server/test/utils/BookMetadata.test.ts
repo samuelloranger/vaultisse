@@ -25,6 +25,8 @@ useMockedFetch();
 
 beforeEach(() => {
     mockedFetch.mockReset();
+    delete process.env.SEARXNG_URL;
+    delete process.env.FLARESOLVERR_URL;
 });
 
 const LE_BOYFRIEND = "9782824627151";
@@ -274,6 +276,51 @@ describe("lookupBookMetadata - chain order and thrift", () => {
 });
 
 describe("lookupBookMetadata - when a source is missing or broken", () => {
+    it("skips optional Renaud-Bray when either homelab service URL is absent", async () => {
+        const previousSearx = process.env.SEARXNG_URL;
+        const previousFlare = process.env.FLARESOLVERR_URL;
+        delete process.env.SEARXNG_URL;
+        delete process.env.FLARESOLVERR_URL;
+        try {
+            mockedFetch.mockImplementation(() => Promise.resolve(jsonResponse({ items: [] })));
+            const result = await lookupBookMetadata(ENGLISH_ISBN, undefined);
+            expect(result.unconfigured).toEqual(["google-books"]);
+            expect(called("searxng")).toBe(false);
+        } finally {
+            if (previousSearx === undefined) delete process.env.SEARXNG_URL;
+            else process.env.SEARXNG_URL = previousSearx;
+            if (previousFlare === undefined) delete process.env.FLARESOLVERR_URL;
+            else process.env.FLARESOLVERR_URL = previousFlare;
+        }
+    });
+
+    it("fills missing fields from Renaud-Bray and records field provenance", async () => {
+        process.env.SEARXNG_URL = "http://searxng:8080";
+        process.env.FLARESOLVERR_URL = "http://flaresolverr:8191";
+        mockedFetch.mockImplementation((input: string | URL) => {
+            const url = String(input);
+            if (url.includes("googleapis.com")) return Promise.resolve(jsonResponse({ items: [{ volumeInfo: {
+                title: "A book", authors: ["An author"], description: "Description", publishedDate: "2020",
+                language: "en", imageLinks: { thumbnail: "https://books.google.com/cover" }, pageCount: 100,
+            } }] }));
+            if (url.includes("searxng:8080")) return Promise.resolve(jsonResponse({ results: [{ url: "https://www.renaud-bray.com/Livres_Produit.aspx?id=1" }] }));
+            if (url.includes("flaresolverr:8191")) return Promise.resolve(jsonResponse({ solution: { url: "https://www.renaud-bray.com/Livres_Produit.aspx?id=1", response: `<script type="application/ld+json">${JSON.stringify({ "@type": "Product", sku: ENGLISH_ISBN, name: "A book", brand: { name: "Renaud" }, numberOfPages: 200 })}</script>` } }));
+            return Promise.resolve(jsonResponse({}));
+        });
+        const result = await lookupBookMetadata(ENGLISH_ISBN, "a-key");
+        expect(result.provenance.publisher).toBe("renaud-bray");
+        expect(result.metadata?.publisher).toBe("Renaud");
+    });
+
+    it("does not call Renaud-Bray after complete metadata", async () => {
+        process.env.SEARXNG_URL = "http://searxng:8080";
+        process.env.FLARESOLVERR_URL = "http://flaresolverr:8191";
+        mockedFetch.mockImplementation(() => Promise.resolve(jsonResponse(googleComplete())));
+        const result = await lookupBookMetadata(ENGLISH_ISBN, "a-key");
+        expect(result.sources).toEqual(["google-books"]);
+        expect(called("searxng")).toBe(false);
+    });
+
     it("reports Google as unconfigured instead of calling it", async () => {
         mockedFetch.mockImplementation((input: string | URL) =>
             Promise.resolve(

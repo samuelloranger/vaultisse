@@ -1239,6 +1239,7 @@ const DELAY_BETWEEN_LOOKUPS_MS = 1500;
 
 /** Most books one bulk call will take. Past this the request is long enough to be a job, not a request. */
 const MAX_BULK_REFRESH = 50;
+const MAX_BULK_REFRESH_DURATION_MS = 120_000;
 
 /**
  * POST /book/refresh
@@ -1317,15 +1318,28 @@ router.post("/refresh", requireAdmin, async (req: Request, res: Response) => {
     const results: {
         bookId: number;
         name: string | null;
-        status: IRefreshOutcome["status"] | "error";
+        status: IRefreshOutcome["status"] | "error" | "timeout";
         changed: BookMetadataField[];
         stillMissing: BookMetadataField[];
     }[] = [];
+    const deadline = Date.now() + MAX_BULK_REFRESH_DURATION_MS;
 
     try {
         for (const [index, id] of ids.entries()) {
+            if (Date.now() >= deadline) {
+                results.push(...ids.slice(index).map((bookId) => ({
+                    bookId, name: null, status: "timeout" as const, changed: [], stillMissing: [],
+                })));
+                break;
+            }
             if (index > 0) {
-                await new Promise((resolve) => setTimeout(resolve, DELAY_BETWEEN_LOOKUPS_MS));
+                await new Promise((resolve) => setTimeout(resolve, Math.min(DELAY_BETWEEN_LOOKUPS_MS, Math.max(0, deadline - Date.now()))));
+                if (Date.now() >= deadline) {
+                    results.push(...ids.slice(index).map((bookId) => ({
+                        bookId, name: null, status: "timeout" as const, changed: [], stillMissing: [],
+                    })));
+                    break;
+                }
             }
 
             let outcome: IRefreshOutcome;
@@ -2103,7 +2117,7 @@ router.post(
 // Helper function to format date to YYYY-MM-DD
 // Hosts our ISBN metadata lookups (Google Books, Open Library covers) are
 // allowed to point book cover images at.
-const ALLOWED_IMAGE_HOSTS = new Set(["books.google.com", "covers.openlibrary.org"]);
+const ALLOWED_IMAGE_HOSTS = new Set(["books.google.com", "covers.openlibrary.org", "images.renaud-bray.com"]);
 
 /**
  * Only allow images we generated ourselves (data: URIs from the upload
@@ -2122,6 +2136,9 @@ export function isAllowedImageUrl(url: string): boolean {
     }
     try {
         const parsed = new URL(url);
+        if (parsed.hostname === "images.renaud-bray.com" && parsed.protocol !== "https:") {
+            return false;
+        }
         return (
             (parsed.protocol === "http:" || parsed.protocol === "https:") && ALLOWED_IMAGE_HOSTS.has(parsed.hostname)
         );

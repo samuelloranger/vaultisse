@@ -4,6 +4,7 @@ import { alwaysJson, imageResponse, jsonResponse, mockedFetch, useMockedFetch } 
 import { setupTestApp } from "../helpers/testApp";
 import { createAuthenticatedUser, ITestUser } from "../helpers/auth";
 import { appService, normalizeGoogleApiKey } from "../../src/AppService";
+import { isAllowedImageUrl } from "../../src/routes/BooksRoute";
 
 /**
  * Run `body` with a Google Books key configured on the shared `appService`.
@@ -28,6 +29,13 @@ const app = setupTestApp();
 useMockedFetch();
 
 let user: ITestUser;
+
+describe("isAllowedImageUrl", () => {
+    it("requires HTTPS for direct Renaud-Bray cover URLs", () => {
+        expect(isAllowedImageUrl("https://images.renaud-bray.com/images/PG/4490/4490625-gf.jpg")).toBe(true);
+        expect(isAllowedImageUrl("http://images.renaud-bray.com/images/PG/4490/4490625-gf.jpg")).toBe(false);
+    });
+});
 
 beforeEach(async () => {
     user = await createAuthenticatedUser(app);
@@ -944,6 +952,24 @@ describe("POST /book/refresh (bulk)", () => {
         expect(res.status).toBe(200);
         expect(res.body.results).toHaveLength(1);
         expect(res.body.results[0]).toMatchObject({ bookId: 99999999, status: "not_found" });
+    });
+
+    it("marks remaining books timed out when the aggregate cap is reached", async () => {
+        const admin = await createAdmin();
+        const realNow = Date.now;
+        let dateCalls = 0;
+        Date.now = () => dateCalls++ < 10 ? 1000 : 121001;
+        try {
+            const res = await admin.agent.post("/api/rest/book/refresh").send({ ids: [99999998, 99999999] });
+
+            expect(res.status).toBe(200);
+            expect(res.body.results).toEqual([
+                { bookId: 99999998, name: null, status: "not_found", changed: [], stillMissing: [] },
+                { bookId: 99999999, name: null, status: "timeout", changed: [], stillMissing: [] },
+            ]);
+        } finally {
+            Date.now = realNow;
+        }
     });
 
     it("summarises each book by field name and records the run in activity_log", async () => {
