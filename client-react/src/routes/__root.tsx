@@ -3,6 +3,7 @@ import { createRootRouteWithContext, Outlet } from '@tanstack/react-router'
 import { YStack } from 'tamagui'
 import { ScreenError } from '@/components/ScreenState'
 import { DocumentTitle, useDocumentTitle } from '@/lib/documentTitle'
+import { useLocale } from '@/locale/LocaleProvider'
 
 /**
  * The root route.
@@ -23,13 +24,21 @@ export type RouterContext = {
 
 export const Route = createRootRouteWithContext<RouterContext>()({
   component: RootLayout,
-  errorComponent: ({ error }) => (
-    <YStack minHeight="100dvh" justifyContent="center" backgroundColor="$background">
-      <ScreenError error={error} title="The app failed to start" />
-    </YStack>
-  ),
+  errorComponent: RootError,
   notFoundComponent: NotFound,
 })
+
+function RootError({ error }: { error: unknown }) {
+  const { t } = useLocale()
+  return (
+    <YStack minHeight="100dvh" justifyContent="center" backgroundColor="$background">
+      <ScreenError
+        error={error}
+        title={t('APP_START_ERROR_TITLE', 'The app failed to start')}
+      />
+    </YStack>
+  )
+}
 
 /**
  * A 404 names itself too. It has no route to carry a `staticData.title` — it is
@@ -37,10 +46,15 @@ export const Route = createRootRouteWithContext<RouterContext>()({
  * its title directly.
  */
 function NotFound() {
-  useDocumentTitle('Not found')
+  const { t } = useLocale()
+  const title = t('NOT_FOUND_TITLE', 'Not found')
+  useDocumentTitle(title)
   return (
     <YStack minHeight="100dvh" justifyContent="center" backgroundColor="$background">
-      <ScreenError error={new Error('That page does not exist.')} title="Not found" />
+      <ScreenError
+        error={new Error(t('NOT_FOUND_DESC', 'The page was not found.'))}
+        title={title}
+      />
     </YStack>
   )
 }

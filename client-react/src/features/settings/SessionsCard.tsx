@@ -39,7 +39,7 @@ function SessionRow({
   onRevoke: () => void
   pending: boolean
 }) {
-  const { locale } = useLocale()
+  const { locale, t } = useLocale()
   return (
     <XStack
       testID="session-row"
@@ -53,7 +53,7 @@ function SessionRow({
       <YStack flex={1} minWidth={0} gap="$1">
         <XStack alignItems="center" gap="$2" flexWrap="wrap">
           <Text fontSize={16} color="$color" fontWeight="600">
-            {describeDevice(session.userAgent)}
+            {describeDevice(session.userAgent, t)}
           </Text>
           {session.isCurrent ? (
             <Text
@@ -64,15 +64,21 @@ function SessionRow({
               textTransform="uppercase"
               letterSpacing={1}
             >
-              This device
+              {t('THIS_DEVICE', 'This device')}
             </Text>
           ) : null}
         </XStack>
-        <MutedText fontSize={13}>{describeSession(session, locale)}</MutedText>
+        <MutedText fontSize={13}>{describeSession(session, locale, t)}</MutedText>
       </YStack>
       <Button
         testID={`session-revoke-${session.id}`}
-        aria-label={`Log out ${describeDevice(session.userAgent)}`}
+        aria-label={t(
+          'LOG_OUT_DEVICE',
+          `Log out ${describeDevice(session.userAgent, t)}`,
+          {
+            device: describeDevice(session.userAgent, t),
+          }
+        )}
         onPress={onRevoke}
         disabled={pending}
         opacity={pending ? 0.5 : 1}
@@ -86,14 +92,14 @@ function SessionRow({
         // Neutral at rest; the warning belongs in the confirmation.
         color="$color"
       >
-        Log out
+        {t('LOG_OUT', 'Log out')}
       </Button>
     </XStack>
   )
 }
 
 export function SessionsCard() {
-  const { locale } = useLocale()
+  const { locale, t } = useLocale()
   const sessions = useSessions()
   const revoke = useRevokeSession()
   const [confirming, setConfirming] = useState<UserSession | null>(null)
@@ -115,16 +121,21 @@ export function SessionsCard() {
   return (
     <SettingsSection
       testID="settings-sessions"
-      title="Active sessions"
-      description="Every device currently signed in to this account. A session you do not recognise is worth ending."
+      title={t('ACTIVE_SESSIONS', 'Active sessions')}
+      description={t(
+        'ACTIVE_SESSIONS_DESC',
+        'Every device currently signed in to this account. A session you do not recognise is worth ending.'
+      )}
     >
       {sessions.isPending ? (
-        <MutedText testID="sessions-loading">Loading sessions…</MutedText>
+        <MutedText testID="sessions-loading">
+          {t('LOADING_SESSIONS', 'Loading sessions…')}
+        </MutedText>
       ) : sessions.isError ? (
         <ScreenError
           error={sessions.error}
           onRetry={() => sessions.refetch()}
-          title="Sessions did not load"
+          title={t('SESSIONS_NOT_LOADED', 'Sessions did not load')}
         />
       ) : (
         <YStack>
@@ -147,12 +158,20 @@ export function SessionsCard() {
           open
           onOpenChange={(next) => (next ? undefined : setConfirming(null))}
           title={
-            confirming.isCurrent ? 'Sign out of this device?' : 'Log out this device?'
+            confirming.isCurrent
+              ? t('SIGN_OUT_DEVICE', 'Sign out of this device?')
+              : t('LOG_OUT_THIS_DEVICE', 'Log out this device?')
           }
           description={
             confirming.isCurrent
-              ? 'You will be taken back to the sign-in page.'
-              : `${describeDevice(confirming.userAgent)} stops working on its next request.`
+              ? t('RETURN_TO_SIGN_IN', 'You will be taken back to the sign-in page.')
+              : t(
+                  'SESSION_STOPS_NEXT_REQUEST',
+                  `${describeDevice(confirming.userAgent, t)} stops working on its next request.`,
+                  {
+                    device: describeDevice(confirming.userAgent, t),
+                  }
+                )
           }
           actions={
             <>
@@ -166,7 +185,7 @@ export function SessionsCard() {
                 borderColor="$borderColor"
                 color="$color"
               >
-                Cancel
+                {t('CANCEL', 'Cancel')}
               </Button>
               <Button
                 testID="session-revoke-confirm"
@@ -179,15 +198,23 @@ export function SessionsCard() {
                 backgroundColor="$red10"
                 color="$onPrimary"
               >
-                {revoke.isPending ? 'Logging out…' : 'Log out'}
+                {revoke.isPending
+                  ? t('LOGGING_OUT', 'Logging out…')
+                  : t('LOG_OUT', 'Log out')}
               </Button>
             </>
           }
         >
           <YStack gap="$2">
             <MutedText fontSize={14}>
-              Signed in {formatWhen(confirming.createdDate, locale)} from{' '}
-              {confirming.ipAddress ?? 'an unknown address'}.
+              {t(
+                'SIGNED_IN_FROM',
+                `Signed in ${formatWhen(confirming.createdDate, locale)} from ${confirming.ipAddress ?? 'an unknown address'}.`,
+                {
+                  date: formatWhen(confirming.createdDate, locale),
+                  address: confirming.ipAddress ?? 'an unknown address',
+                }
+              )}
             </MutedText>
             {revoke.isError ? (
               <Text testID="session-revoke-error" fontSize={14} color="$red10">

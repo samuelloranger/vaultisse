@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { Button, XStack, YStack } from 'tamagui'
 import { DisplayText, Eyebrow, MutedText } from '@/components/Card'
+import { useDocumentTitle } from '@/lib/documentTitle'
+import { useLocale } from '@/locale/LocaleProvider'
 import { usePolicy } from '@/queries/app'
 import { ActivityCard } from './ActivityCard'
 import { AppearanceCard } from './AppearanceCard'
@@ -35,19 +37,21 @@ import { TwoFactorCard } from './TwoFactorCard'
  */
 export function SettingsScreen() {
   const { data: policy } = usePolicy()
+  const { t } = useLocale()
+  useDocumentTitle(t('PROFILE', 'Profile'))
   const [passwordOpen, setPasswordOpen] = useState(false)
   const user = policy.user
 
   return (
     <YStack gap="$4" testID="settings-screen">
       <YStack gap="$1">
-        <Eyebrow>Profile</Eyebrow>
+        <Eyebrow>{t('PROFILE', 'Profile')}</Eyebrow>
         <DisplayText fontSize={26} lineHeight={32}>
-          Your account
+          {t('YOUR_ACCOUNT', 'Your account')}
         </DisplayText>
         <MutedText>
-          Signed in as {user.code}
-          {user.isAdmin ? ' · administrator' : ''}
+          {t('SIGNED_IN_AS', `Signed in as ${user.code}`, { code: user.code })}
+          {user.isAdmin ? ` · ${t('ADMINISTRATOR_LOWER', 'administrator')}` : ''}
         </MutedText>
       </YStack>
 
@@ -57,8 +61,11 @@ export function SettingsScreen() {
 
       <SettingsSection
         testID="settings-password"
-        title="Password"
-        description="Changing it signs out every other device. This one stays signed in."
+        title={t('PASSWORD', 'Password')}
+        description={t(
+          'PASSWORD_DESC',
+          'Changing it signs out every other device. This one stays signed in.'
+        )}
       >
         <XStack>
           <Button
@@ -70,7 +77,7 @@ export function SettingsScreen() {
             backgroundColor="$primary"
             color="$onPrimary"
           >
-            Change password
+            {t('CHANGE_PASSWORD', 'Change password')}
           </Button>
         </XStack>
       </SettingsSection>

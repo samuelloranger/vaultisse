@@ -44,6 +44,7 @@ export function LoanReportDialog({
   customers: CustomerRow[]
   onOpenChange: (open: boolean) => void
 }) {
+  const { t } = useLocale()
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [groupId, setGroupId] = useState<number | null>(null)
@@ -78,8 +79,11 @@ export function LoanReportDialog({
     <ResponsiveDialog
       open
       onOpenChange={(next) => (next ? onOpenChange(true) : close())}
-      title="Loan report"
-      description="Every loan made in a date range, returned ones included."
+      title={t('LOAN_REPORT', 'Loan report')}
+      description={t(
+        'LOAN_REPORT_DESC',
+        'Every loan made in a date range, returned ones included.'
+      )}
       actions={
         <>
           <Button
@@ -92,7 +96,7 @@ export function LoanReportDialog({
             borderColor="$borderColor"
             color="$color"
           >
-            Close
+            {t('CLOSE', 'Close')}
           </Button>
           <Button
             testID="loan-report-generate"
@@ -105,7 +109,9 @@ export function LoanReportDialog({
             backgroundColor="$primary"
             color="$onPrimary"
           >
-            {report.isFetching ? 'Generating…' : 'Generate'}
+            {report.isFetching
+              ? t('GENERATING', 'Generating…')
+              : t('GENERATE', 'Generate')}
           </Button>
         </>
       }
@@ -119,7 +125,7 @@ export function LoanReportDialog({
           <YStack flex={1} minWidth={0}>
             <NativeDateField
               testID="loan-report-from"
-              label="From"
+              label={t('FROM', 'From')}
               value={dateFrom}
               onChange={setDateFrom}
             />
@@ -127,7 +133,7 @@ export function LoanReportDialog({
           <YStack flex={1} minWidth={0}>
             <NativeDateField
               testID="loan-report-to"
-              label="To"
+              label={t('TO', 'To')}
               value={dateTo}
               onChange={setDateTo}
             />
@@ -136,7 +142,7 @@ export function LoanReportDialog({
 
         <NativeSelect
           testID="loan-report-group"
-          label="Group"
+          label={t('GROUP', 'Group')}
           value={groupId}
           options={groups.map((group) => ({ value: group.id, label: group.name }))}
           onChange={(next) => {
@@ -150,22 +156,24 @@ export function LoanReportDialog({
             )
             if (!stillValid) setCustomerId(null)
           }}
-          emptyLabel="All groups"
+          emptyLabel={t('ALL_GROUPS', 'All groups')}
         />
 
         <NativeSelect
           testID="loan-report-customer"
-          label="Borrower"
+          label={t('BORROWER', 'Borrower')}
           value={customerId}
           options={customerOptions}
           onChange={setCustomerId}
-          emptyLabel="All borrowers"
+          emptyLabel={t('ALL_BORROWERS', 'All borrowers')}
         />
 
         {!dateFrom || !dateTo ? (
           <Text fontSize={14} color="$colorMuted">
-            Both dates are required — the report is a bounded range, not the whole
-            history.
+            {t(
+              'LOAN_REPORT_DATES_REQUIRED',
+              'Both dates are required — the report is a bounded range, not the whole history.'
+            )}
           </Text>
         ) : null}
 
@@ -197,16 +205,18 @@ function LoanReportResult({
   rows: LoanReportRow[]
   filters: LoanReportFilters
 }) {
-  const { locale } = useLocale()
+  const { locale, t, tPlural } = useLocale()
   if (rows.length === 0) {
     return (
       <YStack testID="loan-report-empty" gap="$1" paddingTop="$2">
         <Text fontSize={15} color="$color">
-          No loans in that range.
+          {t('NO_LOANS_IN_RANGE', 'No loans in that range.')}
         </Text>
         <MutedText fontSize={13}>
-          The history log only has rows for loans made through the app — a copy marked
-          as lent directly in the database has no entry here.
+          {t(
+            'LOAN_REPORT_EMPTY_DESC',
+            'The history log only has rows for loans made through the app — a copy marked as lent directly in the database has no entry here.'
+          )}
         </MutedText>
       </YStack>
     )
@@ -221,9 +231,14 @@ function LoanReportResult({
         flexWrap="wrap"
       >
         <Text fontSize={15} color="$color">
-          {rows.length === 1 ? '1 loan' : `${rows.length} loans`}
+          {tPlural('LOANS_COUNT', rows.length, '1 loan', '{count} loans')}
         </Text>
-        <DownloadCsvButton rows={rows} filters={filters} locale={locale} />
+        <DownloadCsvButton
+          rows={rows}
+          filters={filters}
+          locale={locale}
+          translate={t}
+        />
       </XStack>
 
       <YStack gap="$2">
@@ -247,8 +262,10 @@ function LoanReportResult({
             <MutedText fontFamily="$mono" fontSize={12}>
               {row.stockCode} · out {formatLoanDate(row.loanedAt, locale)} ·{' '}
               {row.returnedAt
-                ? `back ${formatLoanDate(row.returnedAt, locale)}`
-                : 'still out'}
+                ? t('BACK_DATE', `back ${formatLoanDate(row.returnedAt, locale)}`, {
+                    date: formatLoanDate(row.returnedAt, locale),
+                  })
+                : t('STILL_OUT', 'still out')}
             </MutedText>
           </YStack>
         ))}
@@ -268,13 +285,19 @@ function DownloadCsvButton({
   rows,
   filters,
   locale,
+  translate,
 }: {
   rows: LoanReportRow[]
   filters: LoanReportFilters
   locale: string
+  translate: (
+    code: string,
+    fallback: string,
+    values?: Record<string, string | number>
+  ) => string
 }) {
   function download() {
-    const csv = toCsv(rows, locale)
+    const csv = toCsv(rows, locale, translate)
     // A BOM so Excel opens UTF-8 correctly; without it accented borrower names
     // arrive mojibaked, which is most of them in this library.
     const blob = new Blob([`﻿${csv}`], { type: 'text/csv;charset=utf-8' })
@@ -298,7 +321,7 @@ function DownloadCsvButton({
       borderColor="$borderColor"
       color="$color"
     >
-      Download CSV
+      {translate('DOWNLOAD_CSV', 'Download CSV')}
     </Button>
   )
 }
@@ -317,8 +340,22 @@ function csvCell(value: string): string {
   return `"${value.replace(/"/g, '""')}"`
 }
 
-export function toCsv(rows: LoanReportRow[], locale = 'en-US'): string {
-  const lines = [CSV_HEADERS.map(csvCell).join(',')]
+export function toCsv(
+  rows: LoanReportRow[],
+  locale = 'en-US',
+  translate?: (code: string, fallback: string) => string
+): string {
+  const headers = translate
+    ? [
+        translate('CSV_BOOK', 'Book'),
+        translate('CSV_STOCK_CODE', 'Stock code'),
+        translate('CSV_BORROWER', 'Borrower'),
+        translate('CSV_GROUP', 'Group'),
+        translate('CSV_LENT_ON', 'Lent on'),
+        translate('CSV_RETURNED_ON', 'Returned on'),
+      ]
+    : CSV_HEADERS
+  const lines = [headers.map(csvCell).join(',')]
   for (const row of rows) {
     lines.push(
       [
@@ -327,7 +364,11 @@ export function toCsv(rows: LoanReportRow[], locale = 'en-US'): string {
         row.customerName,
         row.groupName ?? '',
         formatLoanDate(row.loanedAt, locale),
-        row.returnedAt ? formatLoanDate(row.returnedAt, locale) : 'Still on loan',
+        row.returnedAt
+          ? formatLoanDate(row.returnedAt, locale)
+          : translate
+            ? translate('STILL_ON_LOAN', 'Still on loan')
+            : 'Still on loan',
       ]
         .map(csvCell)
         .join(',')

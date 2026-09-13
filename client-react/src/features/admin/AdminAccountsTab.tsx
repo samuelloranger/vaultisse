@@ -6,6 +6,7 @@ import { EmptyState, ScreenError, ScreenLoading } from '@/components/ScreenState
 import { ConfirmDeleteDialog } from '@/features/entityList/ConfirmDeleteDialog'
 import { EntityRow } from '@/features/entityList/EntityRow'
 import type { EntityRowAction } from '@/features/entityList/types'
+import { useLocale } from '@/locale/LocaleProvider'
 import { useAdminUsers, useDeleteAdminUser, useUpdateAdminUser } from '@/queries/admin'
 
 /**
@@ -43,24 +44,35 @@ function refusalMessage(error: unknown): string {
   return 'Something went wrong.'
 }
 
-function roleLabel(account: AdminAccount): string {
-  return account.role === 'admin' ? 'Administrator' : 'Member'
+function roleLabel(
+  account: AdminAccount,
+  t: (code: string, fallback: string) => string
+): string {
+  return account.role === 'admin'
+    ? t('ADMINISTRATOR', 'Administrator')
+    : t('MEMBER', 'Member')
 }
 
-function AccountMeta({ account }: { account: AdminAccount }) {
+function AccountMeta({
+  account,
+  t,
+}: {
+  account: AdminAccount
+  t: (code: string, fallback: string) => string
+}) {
   const pending = account.lastLoginDate === null
   return (
     <XStack alignItems="center" gap="$2" flexWrap="wrap">
       <MutedText fontSize={13}>{account.email}</MutedText>
-      <MutedText fontSize={13}>· {roleLabel(account)}</MutedText>
+      <MutedText fontSize={13}>· {roleLabel(account, t)}</MutedText>
       {account.disabled ? (
         <Text testID="account-disabled" fontSize={13} color="$red10">
-          · Disabled
+          · {t('DISABLED', 'Disabled')}
         </Text>
       ) : null}
       {pending ? (
         <MutedText fontSize={13} color="$secondary">
-          · Never signed in
+          · {t('NEVER_SIGNED_IN', 'Never signed in')}
         </MutedText>
       ) : null}
       {account.isSelf ? (
@@ -72,7 +84,7 @@ function AccountMeta({ account }: { account: AdminAccount }) {
           textTransform="uppercase"
           letterSpacing={1}
         >
-          You
+          {t('YOU', 'You')}
         </Text>
       ) : null}
     </XStack>
@@ -83,6 +95,7 @@ export function AdminAccountsTab() {
   const accounts = useAdminUsers()
   const update = useUpdateAdminUser()
   const remove = useDeleteAdminUser()
+  const { t, tPlural } = useLocale()
   const [deleting, setDeleting] = useState<AdminAccount | null>(null)
   /** The row whose action was last refused, and what the server said. */
   const [refusal, setRefusal] = useState<{ id: number; message: string } | null>(null)
@@ -106,7 +119,10 @@ export function AdminAccountsTab() {
     return [
       {
         key: 'role',
-        label: account.role === 'admin' ? 'Demote to member' : 'Promote to admin',
+        label:
+          account.role === 'admin'
+            ? t('DEMOTE_TO_MEMBER', 'Demote to member')
+            : t('PROMOTE_TO_ADMIN', 'Promote to admin'),
         // The server refuses this on yourself regardless; `isSelf` is the only
         // signal the client has, because the policy deliberately does not carry
         // the caller's user id.
@@ -116,13 +132,15 @@ export function AdminAccountsTab() {
       },
       {
         key: 'disabled',
-        label: account.disabled ? 'Enable account' : 'Disable account',
+        label: account.disabled
+          ? t('ENABLE_ACCOUNT', 'Enable account')
+          : t('DISABLE_ACCOUNT', 'Disable account'),
         disabled: (account.isSelf && !account.disabled) || busy,
         onSelect: () => run(account, { disabled: !account.disabled }),
       },
       {
         key: 'delete',
-        label: 'Delete account',
+        label: t('DELETE_ACCOUNT', 'Delete account'),
         destructive: true,
         disabled: account.isSelf,
         onSelect: () => {
@@ -134,14 +152,15 @@ export function AdminAccountsTab() {
     ]
   }
 
-  if (accounts.isPending) return <ScreenLoading label="Loading accounts…" />
+  if (accounts.isPending)
+    return <ScreenLoading label={t('LOADING_ACCOUNTS', 'Loading accounts…')} />
 
   if (accounts.isError) {
     return (
       <ScreenError
         error={accounts.error}
         onRetry={() => accounts.refetch()}
-        title="Accounts did not load"
+        title={t('ACCOUNTS_NOT_LOADED', 'Accounts did not load')}
       />
     )
   }
@@ -152,14 +171,21 @@ export function AdminAccountsTab() {
   return (
     <YStack gap="$3" testID="admin-accounts">
       <MutedText>
-        {rows.length} {rows.length === 1 ? 'account' : 'accounts'}
-        {pendingApproval > 0 ? ` · ${pendingApproval} disabled` : ''}
+        {tPlural('ACCOUNT_COUNT', rows.length, '{count} account', '{count} accounts')}
+        {pendingApproval > 0
+          ? t('DISABLED_COUNT', ' · {count} disabled', {
+              count: pendingApproval,
+            })
+          : ''}
       </MutedText>
 
       {rows.length === 0 ? (
         <EmptyState
-          title="No accounts"
-          description="Accounts appear here as people register."
+          title={t('NO_ACCOUNTS', 'No accounts')}
+          description={t(
+            'NO_ACCOUNTS_DESC',
+            'Accounts appear here as people register.'
+          )}
         />
       ) : (
         <YStack gap="$3">
@@ -168,7 +194,7 @@ export function AdminAccountsTab() {
               <EntityRow
                 testID="admin-row"
                 name={account.name}
-                meta={<AccountMeta account={account} />}
+                meta={<AccountMeta account={account} t={t} />}
                 actions={actionsFor(account)}
                 expandable={false}
                 expanded={false}
@@ -200,8 +226,13 @@ export function AdminAccountsTab() {
           testID="admin-delete"
           open
           onOpenChange={(next) => (next ? undefined : setDeleting(null))}
-          title={`Delete ${deleting.name}?`}
-          description="Their books, copies, authors, locations and loan history stay in the shared library — they only lose the “added by” attribution."
+          title={t('DELETE_ACCOUNT_TITLE', `Delete ${deleting.name}?`, {
+            name: deleting.name,
+          })}
+          description={t(
+            'DELETE_ACCOUNT_DESC',
+            'Their books, copies, authors, locations and loan history stay in the shared library — they only lose the “added by” attribution.'
+          )}
           onConfirm={() =>
             remove.mutate(deleting.id, { onSuccess: () => setDeleting(null) })
           }

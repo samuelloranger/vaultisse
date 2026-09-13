@@ -4,6 +4,7 @@ import type { PolicyUser } from '@/api/types'
 import { MutedText } from '@/components/Card'
 import { Field } from '@/components/Field'
 import { errorMessage } from '@/components/ScreenState'
+import { useLocale } from '@/locale/LocaleProvider'
 import {
   useDeleteProfileImage,
   useUpdateProfile,
@@ -68,6 +69,7 @@ export function ProfileCard({ user }: { user: PolicyUser }) {
   const [language, setLanguage] = useState(user.language || 'en')
   const [region, setRegion] = useState(user.region || 'US')
   const [saved, setSaved] = useState(false)
+  const { t } = useLocale()
 
   const fileInput = useRef<HTMLInputElement>(null)
   const save = useUpdateProfile()
@@ -101,8 +103,11 @@ export function ProfileCard({ user }: { user: PolicyUser }) {
   return (
     <SettingsSection
       testID="settings-profile"
-      title="Profile"
-      description="How you appear to everyone else sharing this library."
+      title={t('PROFILE', 'Profile')}
+      description={t(
+        'PROFILE_DESC',
+        'How you appear to everyone else sharing this library.'
+      )}
     >
       <XStack gap="$3" alignItems="center" flexWrap="wrap">
         <Avatar user={user} />
@@ -119,7 +124,9 @@ export function ProfileCard({ user }: { user: PolicyUser }) {
               borderColor="$borderColor"
               color="$color"
             >
-              {upload.isPending ? 'Uploading…' : 'Change picture'}
+              {upload.isPending
+                ? t('UPLOADING', 'Uploading…')
+                : t('CHANGE_PICTURE', 'Change picture')}
             </Button>
             {user.image ? (
               <Button
@@ -133,11 +140,13 @@ export function ProfileCard({ user }: { user: PolicyUser }) {
                 borderColor="$borderColor"
                 color="$color"
               >
-                Remove
+                {t('REMOVE', 'Remove')}
               </Button>
             ) : null}
           </XStack>
-          <MutedText fontSize={13}>PNG or JPEG, up to 2MB.</MutedText>
+          <MutedText fontSize={13}>
+            {t('PROFILE_IMAGE_HELP', 'PNG or JPEG, up to 2MB.')}
+          </MutedText>
           {imageError ? (
             <Text testID="avatar-error" fontSize={14} color="$red10">
               {imageError}
@@ -174,7 +183,7 @@ export function ProfileCard({ user }: { user: PolicyUser }) {
 
       <Field
         testID="profile-name"
-        label="Name"
+        label={t('NAME', 'Name')}
         value={name}
         onChangeText={setName}
         autoComplete="name"
@@ -184,7 +193,7 @@ export function ProfileCard({ user }: { user: PolicyUser }) {
 
       <TextInputField
         testID="profile-email"
-        label="Email"
+        label={t('EMAIL', 'Email')}
         value={email}
         onChangeText={setEmail}
         type="email"
@@ -195,17 +204,23 @@ export function ProfileCard({ user }: { user: PolicyUser }) {
 
       <SelectField
         testID="profile-language"
-        label="Language"
+        label={t('LANGUAGE', 'Language')}
         value={language}
-        options={UI_LANGUAGES}
+        options={UI_LANGUAGES.map((option) => ({
+          ...option,
+          label: t(`LANGUAGE_OPTION_${option.value.toUpperCase()}`, option.label),
+        }))}
         onChange={setLanguage}
       />
 
       <SelectField
         testID="profile-region"
-        label="Region"
+        label={t('REGION', 'Region')}
         value={region}
-        options={REGIONS}
+        options={REGIONS.map((option) => ({
+          ...option,
+          label: t(`REGION_${option.value}`, option.label),
+        }))}
         onChange={setRegion}
       />
 
@@ -227,11 +242,14 @@ export function ProfileCard({ user }: { user: PolicyUser }) {
           backgroundColor="$primary"
           color="$onPrimary"
         >
-          {save.isPending ? 'Saving…' : 'Save profile'}
+          {save.isPending ? t('SAVING', 'Saving…') : t('SAVE_PROFILE', 'Save profile')}
         </Button>
         {saved && unchanged ? (
           <Text testID="profile-saved" fontSize={14} color="$colorMuted" role="status">
-            Saved. The interface language and region are active now.
+            {t(
+              'PROFILE_SAVED',
+              'Saved. The interface language and region are active now.'
+            )}
           </Text>
         ) : null}
       </XStack>

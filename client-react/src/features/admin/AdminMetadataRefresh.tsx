@@ -5,6 +5,7 @@ import { Card, DisplayText } from '@/components/Card'
 import { errorMessage } from '@/components/ScreenState'
 import { metadataFieldNames } from '@/features/book/BookMetadataRefresh'
 import { TextInputField } from '@/features/settings/SettingsControls'
+import { useLocale } from '@/locale/LocaleProvider'
 import { useRefreshBooksMetadata } from '@/queries/bookMetadataRefresh'
 import { useSearchBooks } from '@/queries/search'
 
@@ -19,14 +20,17 @@ const RESULT_HELP: Record<BulkMetadataResult['results'][number]['status'], strin
 
 export function AdminMetadataRefresh() {
   const [choosing, setChoosing] = useState(false)
+  const { t } = useLocale()
   return (
     <Card gap="$3" testID="admin-metadata-refresh">
       <DisplayText fontSize={19} lineHeight={26}>
-        Refresh book metadata
+        {t('REFRESH_BOOK_METADATA', 'Refresh book metadata')}
       </DisplayText>
       <Text fontSize={16} color="$color">
-        Choose up to 50 books to fill missing details from catalogues. Existing details
-        and covers are kept. Some fields may remain missing.
+        {t(
+          'REFRESH_BOOK_METADATA_DESC',
+          'Choose up to 50 books to fill missing details from catalogues. Existing details and covers are kept. Some fields may remain missing.'
+        )}
       </Text>
       {choosing ? (
         <BookSelection />
@@ -38,7 +42,7 @@ export function AdminMetadataRefresh() {
           borderRadius="$control"
           onPress={() => setChoosing(true)}
         >
-          Choose books
+          {t('CHOOSE_BOOKS', 'Choose books')}
         </Button>
       )}
     </Card>
@@ -51,6 +55,7 @@ function BookSelection() {
   const [selected, setSelected] = useState<Map<number, string>>(new Map())
   const search = useSearchBooks({ query: criteria })
   const refresh = useRefreshBooksMetadata()
+  const { t, tPlural } = useLocale()
   const books = search.data?.pages.flatMap((page) => page.books) ?? []
   const results = refresh.data?.results ?? []
   const changed = results.filter(
@@ -69,7 +74,7 @@ function BookSelection() {
   return (
     <YStack gap="$3" minWidth={0}>
       <TextInputField
-        label="Find books by title or ISBN"
+        label={t('FIND_BOOKS_TITLE_ISBN', 'Find books by title or ISBN')}
         value={query}
         onChangeText={setQuery}
         autoComplete="off"
@@ -84,21 +89,23 @@ function BookSelection() {
         disabled={refresh.isPending}
         onPress={() => setCriteria(query)}
       >
-        Search books
+        {t('SEARCH_BOOKS', 'Search books')}
       </Button>
-      {search.isPending ? <Text role="status">Loading books…</Text> : null}
+      {search.isPending ? (
+        <Text role="status">{t('LOADING_BOOKS', 'Loading books…')}</Text>
+      ) : null}
       {search.isError ? (
         <YStack gap="$2">
           <Text role="alert" color="$red10">
             {errorMessage(search.error)}
           </Text>
           <Button minHeight={44} onPress={() => search.refetch()}>
-            Retry search
+            {t('RETRY_SEARCH', 'Retry search')}
           </Button>
         </YStack>
       ) : null}
       {search.isSuccess && books.length === 0 ? (
-        <Text>No books match. Try another title or ISBN.</Text>
+        <Text>{t('NO_BOOKS_MATCH', 'No books match. Try another title or ISBN.')}</Text>
       ) : null}
       <YStack>
         {books.map((book) => (
@@ -132,7 +139,7 @@ function BookSelection() {
             />
             <span>
               {book.name}
-              {!book.isbn ? ' — no ISBN' : ''}
+              {!book.isbn ? ` — ${t('NO_ISBN', 'no ISBN')}` : ''}
             </span>
           </label>
         ))}
@@ -144,15 +151,25 @@ function BookSelection() {
           disabled={refresh.isPending || search.isFetchingNextPage}
           onPress={() => search.fetchNextPage()}
         >
-          {search.isFetchingNextPage ? 'Loading…' : 'Load more books'}
+          {search.isFetchingNextPage
+            ? t('LOADING', 'Loading…')
+            : t('LOAD_MORE_BOOKS', 'Load more books')}
         </Button>
       ) : null}
       <Text fontSize={14} color="$colorMuted">
-        {selected.size} of 50 selected. Selection is kept when you search.
+        {t(
+          'BOOKS_SELECTED',
+          `${selected.size} of 50 selected. Selection is kept when you search.`,
+          {
+            size: selected.size,
+          }
+        )}
       </Text>
       {selected.size ? (
         <Text fontSize={14} color="$colorMuted" style={{ overflowWrap: 'anywhere' }}>
-          Selected: {[...selected.values()].join(', ')}
+          {t('SELECTED_BOOKS', `Selected: ${[...selected.values()].join(', ')}`, {
+            books: [...selected.values()].join(', '),
+          })}
         </Text>
       ) : null}
       <XStack gap="$2" flexWrap="wrap">
@@ -167,8 +184,18 @@ function BookSelection() {
           }}
         >
           {refresh.isPending
-            ? `Refreshing ${selected.size} books…`
-            : `Refresh ${selected.size} selected books`}
+            ? tPlural(
+                'REFRESHING_BOOKS',
+                selected.size,
+                'Refreshing {count} book…',
+                'Refreshing {count} books…'
+              )
+            : tPlural(
+                'REFRESH_SELECTED_BOOKS',
+                selected.size,
+                'Refresh {count} selected book',
+                'Refresh {count} selected books'
+              )}
         </Button>
         <Button
           minHeight={44}
@@ -177,40 +204,66 @@ function BookSelection() {
           disabled={!selected.size || refresh.isPending}
           onPress={() => setSelected(new Map())}
         >
-          Clear selection
+          {t('CLEAR_SELECTION', 'Clear selection')}
         </Button>
       </XStack>
       <YStack role="status" aria-live="polite" gap="$2">
         {refresh.isPending ? (
           <Text color="$colorMuted">
-            Checking books one at a time. Large selections can take several minutes;
-            keep this page open.
+            {t(
+              'CHECKING_BOOKS',
+              'Checking books one at a time. Large selections can take several minutes; keep this page open.'
+            )}
           </Text>
         ) : null}
         {refresh.isError ? (
           <Text color="$red10">
-            {errorMessage(refresh.error)} Some books may already have refreshed. You can
-            retry this selection; existing details are kept.
+            {errorMessage(refresh.error)}{' '}
+            {t(
+              'REFRESH_PARTIAL_ERROR',
+              'Some books may already have refreshed. You can retry this selection; existing details are kept.'
+            )}
           </Text>
         ) : null}
         {refresh.isSuccess ? (
           <>
             <Text color="$color">
-              {changed} changed · {unchanged} unchanged ·{' '}
-              {results.length - changed - unchanged} skipped or failed
+              {t(
+                'REFRESH_RESULT_SUMMARY',
+                `${changed} changed · ${unchanged} unchanged · ${results.length - changed - unchanged} skipped or failed`,
+                {
+                  changed,
+                  unchanged,
+                  skipped: results.length - changed - unchanged,
+                }
+              )}
             </Text>
             {results.map((result) => (
               <YStack key={result.bookId} gap="$1">
                 <Text fontSize={16} color="$color" style={{ overflowWrap: 'anywhere' }}>
-                  {result.name ?? `Book ${result.bookId}`}:{' '}
+                  {result.name ??
+                    t('BOOK_ID', `Book ${result.bookId}`, { id: result.bookId })}
+                  :{' '}
                   {result.changed.length
-                    ? `Updated ${metadataFieldNames(result.changed)}.`
-                    : RESULT_HELP[result.status]}
+                    ? t(
+                        'METADATA_UPDATED',
+                        `Updated ${metadataFieldNames(result.changed, t)}.`,
+                        {
+                          fields: metadataFieldNames(result.changed, t),
+                        }
+                      )
+                    : t(
+                        `ADMIN_METADATA_${result.status.toUpperCase()}`,
+                        RESULT_HELP[result.status]
+                      )}
                 </Text>
                 {result.stillMissing.length ? (
                   <Text fontSize={14} color="$colorMuted">
-                    Still missing: {metadataFieldNames(result.stillMissing)}. Add these
-                    in the book details.
+                    {t(
+                      'ADMIN_METADATA_STILL_MISSING',
+                      `Still missing: ${metadataFieldNames(result.stillMissing, t)}. Add these in the book details.`,
+                      { fields: metadataFieldNames(result.stillMissing, t) }
+                    )}
                   </Text>
                 ) : null}
               </YStack>

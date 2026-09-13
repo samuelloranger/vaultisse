@@ -4,6 +4,7 @@ import type { BookStock } from '@/api/book'
 import type { Policy } from '@/api/types'
 import { BookStockStatus } from '@/api/types'
 import { Card, Eyebrow, MutedText } from '@/components/Card'
+import { useLocale } from '@/locale/LocaleProvider'
 import { StockDialog } from './StockDialog'
 import { statusLabel } from './stockStatus'
 
@@ -45,10 +46,12 @@ function StockRow({
   stock,
   leasingEnabled,
   onEdit,
+  translate,
 }: {
   stock: BookStock
   leasingEnabled: boolean
   onEdit: () => void
+  translate: (code: string, fallback: string) => string
 }) {
   return (
     <XStack
@@ -64,12 +67,14 @@ function StockRow({
         <Text fontFamily="$mono" fontSize={14} color="$color">
           {stock.code}
         </Text>
-        <MutedText numberOfLines={1}>{stock.location_name ?? 'No shelf'}</MutedText>
+        <MutedText numberOfLines={1}>
+          {stock.location_name ?? translate('NO_SHELF', 'No shelf')}
+        </MutedText>
       </YStack>
 
       <YStack gap="$0.5" flexGrow={1} flexBasis={120} minWidth={0}>
         <Text fontSize={14} color={statusTone(stock.status)}>
-          {statusLabel(stock.status)}
+          {statusLabel(stock.status, translate)}
         </Text>
         {leasingEnabled && stock.customer_name ? (
           <MutedText numberOfLines={1}>{stock.customer_name}</MutedText>
@@ -79,7 +84,7 @@ function StockRow({
       <Button
         testID={`edit-stock-${stock.id}`}
         onPress={onEdit}
-        aria-label={`Edit copy ${stock.code}`}
+        aria-label={translate('EDIT_COPY', `Edit copy ${stock.code}`)}
         minHeight={44}
         fontSize={15}
         borderRadius="$control"
@@ -87,7 +92,7 @@ function StockRow({
         borderColor="$borderColor"
         color="$color"
       >
-        Edit
+        {translate('EDIT', 'Edit')}
       </Button>
     </XStack>
   )
@@ -104,6 +109,7 @@ export function BookStocksCard({
 }) {
   const [editing, setEditing] = useState<BookStock | undefined>(undefined)
   const [open, setOpen] = useState(false)
+  const { t } = useLocale()
 
   function openFor(stock?: BookStock) {
     setEditing(stock)
@@ -119,7 +125,7 @@ export function BookStocksCard({
         flexWrap="wrap"
       >
         <XStack alignItems="baseline" gap="$2">
-          <Eyebrow>Copies</Eyebrow>
+          <Eyebrow>{t('COPIES', 'Copies')}</Eyebrow>
           <MutedText>{stocks.length}</MutedText>
         </XStack>
         <Button
@@ -132,13 +138,16 @@ export function BookStocksCard({
           backgroundColor="$primary"
           color="$onPrimary"
         >
-          Add a copy
+          {t('ADD_COPY', 'Add a copy')}
         </Button>
       </XStack>
 
       {stocks.length === 0 ? (
         <MutedText>
-          No physical copies yet. Add one to put this book on a shelf.
+          {t(
+            'NO_PHYSICAL_COPIES',
+            'No physical copies yet. Add one to put this book on a shelf.'
+          )}
         </MutedText>
       ) : (
         <YStack>
@@ -148,6 +157,7 @@ export function BookStocksCard({
               stock={stock}
               leasingEnabled={policy.user.leasingEnabled}
               onEdit={() => openFor(stock)}
+              translate={t}
             />
           ))}
         </YStack>

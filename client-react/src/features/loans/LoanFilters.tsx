@@ -2,6 +2,7 @@ import { Button, YStack } from 'tamagui'
 import type { CustomerGroupRow } from '@/api/customer'
 import type { LoanFilters as LoanFilterValues } from '@/api/loans'
 import { NativeDateField, NativeSelect } from '@/features/customers/CustomerControls'
+import { useLocale } from '@/locale/LocaleProvider'
 
 /**
  * The loans list's three filters: borrower group, and a loan-date range.
@@ -29,6 +30,7 @@ export function LoanFilters({
   groups: CustomerGroupRow[]
   onChange: (next: LoanFilterValues) => void
 }) {
+  const { t } = useLocale()
   const active =
     value.groupId != null || Boolean(value.dateFrom) || Boolean(value.dateTo)
 
@@ -43,7 +45,7 @@ export function LoanFilters({
         <YStack flex={1} minWidth={0}>
           <NativeSelect
             testID="loan-filter-group"
-            label="Group"
+            label={t('GROUP', 'Group')}
             value={value.groupId ?? null}
             options={groups.map((group) => ({ value: group.id, label: group.name }))}
             onChange={(groupId) =>
@@ -52,13 +54,13 @@ export function LoanFilters({
               // page with no way to tell why is the worst outcome.
               onChange({ ...value, groupId, page: 0 })
             }
-            emptyLabel="All groups"
+            emptyLabel={t('ALL_GROUPS', 'All groups')}
           />
         </YStack>
         <YStack flex={1} minWidth={0}>
           <NativeDateField
             testID="loan-filter-from"
-            label="Lent from"
+            label={t('LENT_FROM', 'Lent from')}
             value={value.dateFrom ?? ''}
             onChange={(dateFrom) => onChange({ ...value, dateFrom, page: 0 })}
           />
@@ -66,7 +68,7 @@ export function LoanFilters({
         <YStack flex={1} minWidth={0}>
           <NativeDateField
             testID="loan-filter-to"
-            label="Lent to"
+            label={t('LENT_TO_DATE', 'Lent to')}
             value={value.dateTo ?? ''}
             onChange={(dateTo) => onChange({ ...value, dateTo, page: 0 })}
           />
@@ -85,7 +87,7 @@ export function LoanFilters({
           color="$color"
           alignSelf="flex-start"
         >
-          Clear filters
+          {t('CLEAR_FILTERS', 'Clear filters')}
         </Button>
       ) : null}
     </YStack>

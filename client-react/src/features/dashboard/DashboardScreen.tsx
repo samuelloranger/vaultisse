@@ -3,6 +3,8 @@ import { Button, Text, XStack, YStack } from 'tamagui'
 import { Card, DisplayText, Eyebrow, MutedText } from '@/components/Card'
 import { Undo2 } from '@/components/icons'
 import { EmptyState, ScreenError, ScreenLoading } from '@/components/ScreenState'
+import { useDocumentTitle } from '@/lib/documentTitle'
+import { useLocale } from '@/locale/LocaleProvider'
 import { usePolicy } from '@/queries/app'
 import { useBookCounters } from '@/queries/book'
 import { useDashboard } from '@/queries/dashboard'
@@ -28,11 +30,13 @@ import { StockStatusSummary } from './StockStatusSummary'
 export function DashboardScreen() {
   const [returnOpen, setReturnOpen] = useState(false)
   const { data: policy } = usePolicy()
+  const { t } = useLocale()
+  useDocumentTitle(t('DASHBOARD', 'Dashboard'))
   const dashboard = useDashboard()
   const counters = useBookCounters()
 
   if (dashboard.isPending) {
-    return <ScreenLoading label="Loading your library…" />
+    return <ScreenLoading label={t('LOADING_LIBRARY', 'Loading your library…')} />
   }
 
   if (dashboard.isError) {
@@ -40,7 +44,7 @@ export function DashboardScreen() {
       <ScreenError
         error={dashboard.error}
         onRetry={() => dashboard.refetch()}
-        title="The dashboard did not load"
+        title={t('DASHBOARD_NOT_LOADED', 'The dashboard did not load')}
       />
     )
   }
@@ -56,9 +60,11 @@ export function DashboardScreen() {
   return (
     <YStack gap="$4" testID="dashboard-screen">
       <YStack gap="$1">
-        <Eyebrow>Dashboard</Eyebrow>
+        <Eyebrow>{t('DASHBOARD', 'Dashboard')}</Eyebrow>
         <DisplayText fontSize={26} lineHeight={32}>
-          {`Welcome back, ${policy.user.name}`}
+          {t('WELCOME_BACK', `Welcome back, ${policy.user.name}`, {
+            name: policy.user.name,
+          })}
         </DisplayText>
       </YStack>
 
@@ -76,7 +82,7 @@ export function DashboardScreen() {
             backgroundColor="$primary"
             color="$onPrimary"
           >
-            Return copies
+            {t('RETURN_COPIES', 'Return copies')}
           </Button>
         </XStack>
       ) : null}
@@ -85,12 +91,15 @@ export function DashboardScreen() {
 
       <StockStatusSummary stockStatus={data.stockStatus} />
 
-      <BookShelf title="Recently added" books={data.lastBooks} />
+      <BookShelf title={t('RECENTLY_ADDED', 'Recently added')} books={data.lastBooks} />
 
       {data.lastBooks.length === 0 ? (
         <EmptyState
-          title="Nothing added yet"
-          description="Books added in the last 30 days show up here."
+          title={t('NOTHING_ADDED_YET', 'Nothing added yet')}
+          description={t(
+            'NOTHING_ADDED_DESC',
+            'Books added in the last 30 days show up here.'
+          )}
         />
       ) : null}
 
@@ -106,11 +115,13 @@ export function DashboardScreen() {
       {lending ? (
         <Card gap="$2" testID="on-loan-card">
           <XStack alignItems="baseline" gap="$2">
-            <Eyebrow>Currently on loan</Eyebrow>
+            <Eyebrow>{t('CURRENTLY_ON_LOAN', 'Currently on loan')}</Eyebrow>
             <MutedText>{data.totalBookedBooks}</MutedText>
           </XStack>
           {data.currentlyOnLoan.length === 0 ? (
-            <MutedText>Nothing is out at the moment.</MutedText>
+            <MutedText>
+              {t('NOTHING_OUT_MOMENT', 'Nothing is out at the moment.')}
+            </MutedText>
           ) : (
             <YStack gap="$2">
               {data.currentlyOnLoan.map((loan) => (

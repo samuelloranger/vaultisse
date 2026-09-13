@@ -97,6 +97,8 @@ Have an idea that isn't listed? Open an issue — see
 
 - [ ] **German translation** ([#9](https://github.com/AlbertAmat/vaultisse/issues/9))
 - [ ] **French translation** ([#10](https://github.com/AlbertAmat/vaultisse/issues/10))
+  — the React client and `fr-CA` catalogue draft are wired; completion awaits
+  the fluent-owner review in [FR-CA-TRANSLATION-REVIEW.md](FR-CA-TRANSLATION-REVIEW.md).
 
   See [Adding a new language](CONTRIBUTING.md#adding-a-new-language) for how
   translations work.

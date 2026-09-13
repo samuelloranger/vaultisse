@@ -1,5 +1,6 @@
 import { Button, Spinner, Text, YStack } from 'tamagui'
 import { ApiError } from '@/api/http'
+import { useLocale } from '@/locale/LocaleProvider'
 import { DisplayText, MutedText } from './Card'
 import { AlertTriangle, Inbox, RefreshCw } from './icons'
 
@@ -13,13 +14,17 @@ import { AlertTriangle, Inbox, RefreshCw } from './icons'
  */
 
 /** Turn an unknown thrown value into something worth putting on screen. */
-export function errorMessage(error: unknown): string {
+export function errorMessage(
+  error: unknown,
+  fallback = 'Something went wrong.'
+): string {
   if (error instanceof ApiError) return error.message
   if (error instanceof Error) return error.message
-  return 'Something went wrong.'
+  return fallback
 }
 
-export function ScreenLoading({ label = 'Loading…' }: { label?: string }) {
+export function ScreenLoading({ label }: { label?: string }) {
+  const { t } = useLocale()
   return (
     <YStack
       testID="screen-loading"
@@ -31,7 +36,7 @@ export function ScreenLoading({ label = 'Loading…' }: { label?: string }) {
       paddingVertical="$9"
     >
       <Spinner size="large" color="$accent" />
-      <MutedText>{label}</MutedText>
+      <MutedText>{label ?? t('LOADING', 'Loading…')}</MutedText>
     </YStack>
   )
 }
@@ -39,12 +44,14 @@ export function ScreenLoading({ label = 'Loading…' }: { label?: string }) {
 export function ScreenError({
   error,
   onRetry,
-  title = 'This did not load',
+  title,
 }: {
   error: unknown
   onRetry?: () => void
   title?: string
 }) {
+  const { t } = useLocale()
+  const message = errorMessage(error, t('UNKNOWN_ERROR', 'Something went wrong.'))
   return (
     <YStack
       testID="screen-error"
@@ -57,10 +64,10 @@ export function ScreenError({
     >
       <AlertTriangle size={28} color="$red10" />
       <DisplayText fontSize={20} textAlign="center">
-        {title}
+        {title ?? t('SCREEN_ERROR_TITLE', 'This did not load')}
       </DisplayText>
       <Text color="$colorMuted" fontSize={15} textAlign="center" maxWidth={440}>
-        {errorMessage(error)}
+        {message}
       </Text>
       {onRetry ? (
         <Button
@@ -73,7 +80,7 @@ export function ScreenError({
           borderRadius="$control"
           fontSize={16}
         >
-          Try again
+          {t('TRY_AGAIN', 'Try again')}
         </Button>
       ) : null}
     </YStack>

@@ -4,6 +4,7 @@ import { DisplayText, Eyebrow } from '@/components/Card'
 import { ResponsiveDialog } from '@/components/ResponsiveDialog'
 import { errorMessage, ScreenError, ScreenLoading } from '@/components/ScreenState'
 import { useDocumentTitle } from '@/lib/documentTitle'
+import { useLocale } from '@/locale/LocaleProvider'
 import { usePolicy } from '@/queries/app'
 import { useBook, useDeleteBook } from '@/queries/book'
 import { BookCover } from './BookCover'
@@ -37,6 +38,7 @@ export function BookScreen({
   onDeleted?: () => void
 }) {
   const { data: policy } = usePolicy()
+  const { t } = useLocale()
   const book = useBook(bookId)
   const remove = useDeleteBook(bookId)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
@@ -44,10 +46,10 @@ export function BookScreen({
   // "Book" is a useless tab title. Called before the early returns and with an
   // `undefined` while loading, so the route's own title stands in for the beat
   // before the name arrives rather than the previous book's name lingering.
-  useDocumentTitle(book.data?.name)
+  useDocumentTitle(book.data?.name ?? t('BOOK', 'Book'))
 
   if (book.isPending) {
-    return <ScreenLoading label="Loading this book…" />
+    return <ScreenLoading label={t('LOADING_BOOK', 'Loading this book…')} />
   }
 
   if (book.isError) {
@@ -55,7 +57,7 @@ export function BookScreen({
       <ScreenError
         error={book.error}
         onRetry={() => book.refetch()}
-        title="This book did not load"
+        title={t('BOOK_NOT_LOADED', 'This book did not load')}
       />
     )
   }
@@ -73,7 +75,7 @@ export function BookScreen({
         flexWrap="wrap"
       >
         <YStack gap="$1" flexGrow={1} flexBasis={200} minWidth={0}>
-          <Eyebrow>Library</Eyebrow>
+          <Eyebrow>{t('LIBRARY', 'Library')}</Eyebrow>
           <DisplayText fontSize={22} lineHeight={28} numberOfLines={3}>
             {data.name}
           </DisplayText>
@@ -93,7 +95,7 @@ export function BookScreen({
           borderColor="$borderColor"
           color="$color"
         >
-          Delete book
+          {t('DELETE_BOOK', 'Delete book')}
         </Button>
       </XStack>
 
@@ -116,7 +118,7 @@ export function BookScreen({
       <ResponsiveDialog
         open={confirmingDelete}
         onOpenChange={setConfirmingDelete}
-        title="Delete this book?"
+        title={t('DELETE_BOOK_TITLE', 'Delete this book?')}
         description={data.name}
         actions={
           <>
@@ -131,7 +133,7 @@ export function BookScreen({
               borderColor="$borderColor"
               color="$color"
             >
-              Keep it
+              {t('KEEP_IT', 'Keep it')}
             </Button>
             <Button
               testID="delete-confirm"
@@ -150,16 +152,20 @@ export function BookScreen({
               backgroundColor="$red10"
               color="$onDanger"
             >
-              {remove.isPending ? 'Deleting…' : 'Delete'}
+              {remove.isPending ? t('DELETING', 'Deleting…') : t('DELETE', 'Delete')}
             </Button>
           </>
         }
       >
         <YStack gap="$2">
           <Text fontSize={15} color="$color">
-            This removes the catalogue entry, its {data.stocks.length}{' '}
-            {data.stocks.length === 1 ? 'copy' : 'copies'} and any backed-up files. It
-            cannot be undone.
+            {t(
+              'DELETE_BOOK_DESCRIPTION',
+              `This removes the catalogue entry, its ${data.stocks.length} ${
+                data.stocks.length === 1 ? 'copy' : 'copies'
+              } and any backed-up files. It cannot be undone.`,
+              { count: data.stocks.length }
+            )}
           </Text>
           {remove.isError ? (
             <Text testID="delete-error" fontSize={14} color="$red10">

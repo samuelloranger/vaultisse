@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Button, useMedia, XStack, YStack } from 'tamagui'
 import { Menu } from '@/components/icons'
 import { ResponsiveDialog } from '@/components/ResponsiveDialog'
+import { useLocale } from '@/locale/LocaleProvider'
 import type { EntityRowAction } from './types'
 
 /**
@@ -45,6 +46,7 @@ export function RowActions({
   testID: string
 }) {
   const media = useMedia()
+  const { t } = useLocale()
   const [open, setOpen] = useState(false)
 
   if (actions.length === 0) return null
@@ -81,7 +83,7 @@ export function RowActions({
     <>
       <Button
         testID={testID}
-        aria-label={`Actions for ${entityName}`}
+        aria-label={t('ROW_ACTIONS_FOR', `Actions for ${entityName}`, { entityName })}
         onPress={() => setOpen(true)}
         icon={Menu}
         // Both axes. An icon-only button is the classic sub-44 offender.
@@ -105,7 +107,7 @@ export function RowActions({
           open
           onOpenChange={setOpen}
           title={entityName}
-          description="Choose an action."
+          description={t('CHOOSE_ACTION', 'Choose an action.')}
         >
           <YStack gap="$2">
             {actions.map((action) => (

@@ -24,25 +24,32 @@ import { SettingsSection } from './SettingsControls'
  * than "2 hours ago", and the IP spelled out.
  */
 export function ActivityCard() {
-  const { locale } = useLocale()
+  const { locale, t } = useLocale()
   const activity = useActivity()
 
   return (
     <SettingsSection
       testID="settings-activity"
-      title="Recent sign-in activity"
-      description="Sign-ins, sign-outs, password changes — and failed attempts against this account."
+      title={t('RECENT_SIGN_IN_ACTIVITY', 'Recent sign-in activity')}
+      description={t(
+        'RECENT_SIGN_IN_ACTIVITY_DESC',
+        'Sign-ins, sign-outs, password changes — and failed attempts against this account.'
+      )}
     >
       {activity.isPending ? (
-        <MutedText testID="activity-loading">Loading activity…</MutedText>
+        <MutedText testID="activity-loading">
+          {t('LOADING_ACTIVITY', 'Loading activity…')}
+        </MutedText>
       ) : activity.isError ? (
         <ScreenError
           error={activity.error}
           onRetry={() => activity.refetch()}
-          title="Activity did not load"
+          title={t('ACTIVITY_NOT_LOADED', 'Activity did not load')}
         />
       ) : (activity.data ?? []).length === 0 ? (
-        <MutedText testID="activity-empty">Nothing recorded yet.</MutedText>
+        <MutedText testID="activity-empty">
+          {t('NOTHING_RECORDED', 'Nothing recorded yet.')}
+        </MutedText>
       ) : (
         <YStack>
           {(activity.data ?? []).map((entry) => {
@@ -66,7 +73,7 @@ export function ActivityCard() {
                   flex={1}
                   minWidth={140}
                 >
-                  {describeActivity(entry)}
+                  {describeActivity(entry, t)}
                 </Text>
                 <MutedText fontSize={13}>
                   {formatWhen(entry.createdDate, locale)}

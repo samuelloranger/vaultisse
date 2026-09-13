@@ -9,6 +9,8 @@ import {
 import { MutedText } from '@/components/Card'
 import { EntityListScreen } from '@/features/entityList/EntityListScreen'
 import type { EntityFormField } from '@/features/entityList/types'
+import { useDocumentTitle } from '@/lib/documentTitle'
+import { useLocale } from '@/locale/LocaleProvider'
 import {
   useCreateCustomer,
   useCreateCustomerGroup,
@@ -54,55 +56,9 @@ import { CustomerMoveToGroupDialog } from './CustomerMoveToGroupDialog'
 
 type Tab = 'customers' | 'groups'
 
-const TABS: { value: Tab; label: string }[] = [
-  { value: 'customers', label: 'Borrowers' },
-  { value: 'groups', label: 'Groups' },
-]
-
-const CUSTOMER_FIELDS: EntityFormField[] = [
-  {
-    name: 'name',
-    label: 'Name',
-    placeholder: 'e.g. Camille Tremblay',
-    // A borrower is a person, so the browser's own name autofill is right here
-    // — this is the one form in the client where it is.
-    autoComplete: 'name',
-    inputMode: 'text',
-    required: true,
-  },
-]
-
-const GROUP_FIELDS: EntityFormField[] = [
-  {
-    name: 'name',
-    label: 'Name',
-    placeholder: 'e.g. Class 4B',
-    autoComplete: 'off',
-    inputMode: 'text',
-    required: true,
-  },
-  {
-    name: 'description',
-    label: 'Description',
-    placeholder: 'Optional — who belongs in this group',
-    autoComplete: 'off',
-    inputMode: 'text',
-  },
-]
-
-/** "2 books out" / "1 book out" / "Nothing out". The count is live server-side. */
-function bookCountLabel(count: number): string {
-  if (count === 0) return 'Nothing out'
-  return count === 1 ? '1 book out' : `${count} books out`
-}
-
-/** "22 members" / "1 member" / "Empty". */
-function memberCountLabel(count: number): string {
-  if (count === 0) return 'Empty'
-  return count === 1 ? '1 member' : `${count} members`
-}
-
 export function CustomersScreen() {
+  const { t, tPlural } = useLocale()
+  useDocumentTitle(t('BORROWERS', 'Borrowers'))
   const [tab, setTab] = useState<Tab>('customers')
 
   const customers = useCustomers()
@@ -121,12 +77,49 @@ export function CustomersScreen() {
   /** The borrower whose group is being changed, or `null` when shut. */
   const [regrouping, setRegrouping] = useState<CustomerRow | null>(null)
 
+  const tabOptions: { value: Tab; label: string }[] = [
+    { value: 'customers', label: t('BORROWERS', 'Borrowers') },
+    { value: 'groups', label: t('GROUPS', 'Groups') },
+  ]
+  const customerFields: EntityFormField[] = [
+    {
+      name: 'name',
+      label: t('NAME', 'Name'),
+      placeholder: t('BORROWER_NAME_PLACEHOLDER', 'e.g. Camille Tremblay'),
+      // A borrower is a person, so the browser's own name autofill is right here
+      // — this is the one form in the client where it is.
+      autoComplete: 'name',
+      inputMode: 'text',
+      required: true,
+    },
+  ]
+  const groupFields: EntityFormField[] = [
+    {
+      name: 'name',
+      label: t('NAME', 'Name'),
+      placeholder: t('GROUP_NAME_PLACEHOLDER', 'e.g. Class 4B'),
+      autoComplete: 'off',
+      inputMode: 'text',
+      required: true,
+    },
+    {
+      name: 'description',
+      label: t('DESCRIPTION', 'Description'),
+      placeholder: t(
+        'GROUP_DESCRIPTION_PLACEHOLDER',
+        'Optional — who belongs in this group'
+      ),
+      autoComplete: 'off',
+      inputMode: 'text',
+    },
+  ]
+
   const tabs = (
     <TabSwitch
       testID="customers-tabs"
-      label="Borrowers or groups"
+      label={t('BORROWERS_OR_GROUPS', 'Borrowers or groups')}
       value={tab}
-      options={TABS}
+      options={tabOptions}
       onChange={setTab}
     />
   )
@@ -135,21 +128,27 @@ export function CustomersScreen() {
     return (
       <EntityListScreen<CustomerGroupRow, CustomerGroupInput>
         testID="customer-groups-screen"
-        eyebrow="Lending"
-        title="Borrower groups"
-        noun="group"
-        addLabel="Add group"
-        loadingLabel="Loading groups…"
-        errorTitle="The groups did not load"
-        emptyTitle="No groups yet"
-        emptyDescription="A group is an optional label — a class, a household, a department — that borrowers can be filed under."
+        eyebrow={t('LENDING', 'Lending')}
+        title={t('BORROWER_GROUPS', 'Borrower groups')}
+        noun={t('GROUP', 'group')}
+        addLabel={t('ADD_GROUP', 'Add group')}
+        loadingLabel={t('LOADING_GROUPS', 'Loading groups…')}
+        errorTitle={t('GROUPS_NOT_LOADED', 'The groups did not load')}
+        emptyTitle={t('GROUPS_EMPTY', 'No groups yet')}
+        emptyDescription={t(
+          'GROUPS_EMPTY_DESC',
+          'A group is an optional label — a class, a household, a department — that borrowers can be filed under.'
+        )}
         toolbar={tabs}
-        expandLabels={{ show: 'Show members', hide: 'Hide members' }}
+        expandLabels={{
+          show: t('SHOW_MEMBERS', 'Show members'),
+          hide: t('HIDE_MEMBERS', 'Hide members'),
+        }}
         query={groups}
         create={createGroup}
         update={updateGroup}
         remove={deleteGroup}
-        fields={GROUP_FIELDS}
+        fields={groupFields}
         getId={(group) => group.id}
         getName={(group) => group.name}
         toValues={(group) => ({
@@ -163,7 +162,14 @@ export function CustomersScreen() {
         renderMeta={(group) => (
           <>
             <MutedText testID="group-count" fontSize={13}>
-              {memberCountLabel(group.total_customers)}
+              {group.total_customers === 0
+                ? t('EMPTY', 'Empty')
+                : tPlural(
+                    'BORROWER_GROUP_MEMBERS',
+                    group.total_customers,
+                    '{count} borrower',
+                    '{count} borrowers'
+                  )}
             </MutedText>
             {group.description ? (
               <MutedText fontSize={13} numberOfLines={1}>
@@ -187,20 +193,23 @@ export function CustomersScreen() {
     <>
       <EntityListScreen<CustomerRow, CustomerInput>
         testID="customers-screen"
-        eyebrow="Lending"
-        title="Borrowers"
-        noun="borrower"
-        addLabel="Add borrower"
-        loadingLabel="Loading borrowers…"
-        errorTitle="The borrowers did not load"
-        emptyTitle="No borrowers yet"
-        emptyDescription="A borrower is anyone a copy can go out to. There is no account behind one — it is a name the library tracks."
+        eyebrow={t('LENDING', 'Lending')}
+        title={t('BORROWERS', 'Borrowers')}
+        noun={t('BORROWER', 'borrower')}
+        addLabel={t('ADD_BORROWER', 'Add borrower')}
+        loadingLabel={t('LOADING_BORROWERS', 'Loading borrowers…')}
+        errorTitle={t('BORROWERS_NOT_LOADED', 'The borrowers did not load')}
+        emptyTitle={t('BORROWERS_EMPTY', 'No borrowers yet')}
+        emptyDescription={t(
+          'BORROWERS_EMPTY_DESC',
+          'A borrower is anyone a copy can go out to. There is no account behind one — it is a name the library tracks.'
+        )}
         toolbar={tabs}
         query={customers}
         create={createCustomer}
         update={updateCustomer}
         remove={deleteCustomer}
-        fields={CUSTOMER_FIELDS}
+        fields={customerFields}
         getId={(customer) => customer.id}
         getName={(customer) => customer.name}
         toValues={(customer) => ({ name: customer.name })}
@@ -208,10 +217,17 @@ export function CustomersScreen() {
         renderMeta={(customer) => (
           <>
             <MutedText testID="customer-count" fontSize={13}>
-              {bookCountLabel(customerBookCount(customer))}
+              {customerBookCount(customer) === 0
+                ? t('NOTHING_OUT', 'Nothing out')
+                : tPlural(
+                    'BORROWER_BOOKS_OUT',
+                    customerBookCount(customer),
+                    '{count} book out',
+                    '{count} books out'
+                  )}
             </MutedText>
             <MutedText testID="customer-group" fontSize={13}>
-              {customer.group_name ?? 'No group'}
+              {customer.group_name ?? t('NO_GROUP', 'No group')}
             </MutedText>
           </>
         )}
@@ -224,12 +240,12 @@ export function CustomersScreen() {
         extraActions={(customer) => [
           {
             key: 'lend',
-            label: 'Lend books',
+            label: t('LEND_BOOKS', 'Lend books'),
             onSelect: () => setLendingTo(customer),
           },
           {
             key: 'group',
-            label: 'Move to group',
+            label: t('MOVE_TO_GROUP', 'Move to group'),
             onSelect: () => setRegrouping(customer),
           },
         ]}

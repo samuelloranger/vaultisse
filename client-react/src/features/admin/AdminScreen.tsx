@@ -3,6 +3,8 @@ import { Tabs, YStack } from 'tamagui'
 import { DisplayText, Eyebrow, MutedText } from '@/components/Card'
 import { ScreenError } from '@/components/ScreenState'
 import { type ScreenTabDef, ScreenTabs } from '@/components/ScreenTabs'
+import { useDocumentTitle } from '@/lib/documentTitle'
+import { useLocale } from '@/locale/LocaleProvider'
 import { usePolicy } from '@/queries/app'
 import { AdminAccountsTab } from './AdminAccountsTab'
 import { AdminLibraryTab } from './AdminLibraryTab'
@@ -67,6 +69,13 @@ export function AdminScreen({
   const [localTab, setLocalTab] = useState<AdminTab>(ADMIN_TABS[0].value)
   const current = tab ?? localTab
   const { data: policy } = usePolicy()
+  const { t } = useLocale()
+  useDocumentTitle(t('ADMIN', 'Admin'))
+  const tabs = [
+    { value: 'accounts' as const, label: t('ADMIN_ACCOUNTS', 'Accounts') },
+    { value: 'library' as const, label: t('ADMIN_LIBRARY', 'Library') },
+    { value: 'new-accounts' as const, label: t('ADMIN_NEW_ACCOUNTS', 'New accounts') },
+  ] as const satisfies readonly ScreenTabDef<string>[]
 
   function change(next: AdminTab) {
     setLocalTab(next)
@@ -79,19 +88,22 @@ export function AdminScreen({
     return (
       <YStack gap="$4" testID="admin-screen">
         <YStack gap="$1">
-          <Eyebrow>Admin</Eyebrow>
+          <Eyebrow>{t('ADMIN', 'Admin')}</Eyebrow>
           <DisplayText fontSize={26} lineHeight={32}>
-            Accounts
+            {t('ADMIN_ACCOUNTS', 'Accounts')}
           </DisplayText>
         </YStack>
         <YStack testID="admin-forbidden">
           <ScreenError
             error={
               new Error(
-                'This page is for administrators. Your account is signed in and working — it just does not manage other accounts.'
+                t(
+                  'ADMIN_FORBIDDEN',
+                  'This page is for administrators. Your account is signed in and working — it just does not manage other accounts.'
+                )
               )
             }
-            title="You do not have access to this page"
+            title={t('ADMIN_FORBIDDEN_TITLE', 'You do not have access to this page')}
           />
         </YStack>
       </YStack>
@@ -101,17 +113,19 @@ export function AdminScreen({
   return (
     <YStack gap="$4" testID="admin-screen">
       <YStack gap="$1">
-        <Eyebrow>Admin</Eyebrow>
+        <Eyebrow>{t('ADMIN', 'Admin')}</Eyebrow>
         <DisplayText fontSize={26} lineHeight={32}>
-          Administration
+          {t('ADMINISTRATION', 'Administration')}
         </DisplayText>
-        <MutedText>Everything here affects other people.</MutedText>
+        <MutedText>
+          {t('ADMIN_AFFECTS_OTHERS', 'Everything here affects other people.')}
+        </MutedText>
       </YStack>
 
       <ScreenTabs
         testID="admin-tabs"
-        label="Admin sections"
-        tabs={ADMIN_TABS}
+        label={t('ADMIN_SECTIONS', 'Admin sections')}
+        tabs={tabs}
         value={current}
         onChange={change}
       >

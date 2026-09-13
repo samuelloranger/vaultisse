@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Button, XStack, YStack } from 'tamagui'
 import { DisplayText, Eyebrow } from '@/components/Card'
 import { EmptyState, ScreenError, ScreenLoading } from '@/components/ScreenState'
+import { useLocale } from '@/locale/LocaleProvider'
 import { ConfirmDeleteDialog } from './ConfirmDeleteDialog'
 import { EntityFormDialog } from './EntityFormDialog'
 import { EntityRow } from './EntityRow'
@@ -42,6 +43,8 @@ export type EntityListScreenProps<T, TInput> = {
   title: string
   /** Singular, lower-case: "location". Used in dialog titles and empty copy. */
   noun: string
+  /** Keeps entity-specific delete consequences stable after noun translation. */
+  deleteDescriptionKind?: 'location' | 'category'
   addLabel: string
   loadingLabel: string
   errorTitle: string
@@ -93,6 +96,7 @@ export function EntityListScreen<T, TInput>({
   eyebrow,
   title,
   noun,
+  deleteDescriptionKind,
   addLabel,
   loadingLabel,
   errorTitle,
@@ -108,7 +112,7 @@ export function EntityListScreen<T, TInput>({
   toValues,
   toInput,
   toolbar,
-  expandLabels = { show: 'Show books', hide: 'Hide books' },
+  expandLabels,
   renderMeta,
   renderExpanded,
   extraActions,
@@ -117,6 +121,11 @@ export function EntityListScreen<T, TInput>({
   const [editing, setEditing] = useState<T | 'new' | null>(null)
   const [deleting, setDeleting] = useState<T | null>(null)
   const [expandedIds, setExpandedIds] = useState<number[]>([])
+  const { t } = useLocale()
+  const resolvedExpandLabels = expandLabels ?? {
+    show: t('SHOW_BOOKS', 'Show books'),
+    hide: t('HIDE_BOOKS', 'Hide books'),
+  }
 
   const emptyValues: EntityValues = Object.fromEntries(
     fields.map((field) => [field.name, ''])
@@ -163,17 +172,23 @@ export function EntityListScreen<T, TInput>({
     if (renderExpanded) {
       actions.push({
         key: 'expand',
-        label: expandedIds.includes(id) ? expandLabels.hide : expandLabels.show,
+        label: expandedIds.includes(id)
+          ? resolvedExpandLabels.hide
+          : resolvedExpandLabels.show,
         onSelect: () => toggleExpand(id),
       })
     }
 
     if (extraActions) actions.push(...extraActions(item))
 
-    actions.push({ key: 'edit', label: 'Edit', onSelect: () => openEdit(item) })
+    actions.push({
+      key: 'edit',
+      label: t('EDIT', 'Edit'),
+      onSelect: () => openEdit(item),
+    })
     actions.push({
       key: 'delete',
-      label: 'Delete',
+      label: t('DELETE', 'Delete'),
       destructive: true,
       onSelect: () => {
         remove.reset()
@@ -267,8 +282,8 @@ export function EntityListScreen<T, TInput>({
                 expandHint={
                   renderExpanded
                     ? expanded
-                      ? expandLabels.hide
-                      : expandLabels.show
+                      ? resolvedExpandLabels.hide
+                      : resolvedExpandLabels.show
                     : undefined
                 }
               >
@@ -285,11 +300,17 @@ export function EntityListScreen<T, TInput>({
           testID={`${testID}-form`}
           open
           onOpenChange={(next) => (next ? undefined : closeForm())}
-          title={editing === 'new' ? `Add ${noun}` : `Edit ${getName(editing)}`}
+          title={
+            editing === 'new'
+              ? t('ENTITY_ADD', `Add ${noun}`, { noun })
+              : t('ENTITY_EDIT', `Edit ${getName(editing)}`, {
+                  name: getName(editing),
+                })
+          }
           fields={fields}
           initialValues={editing === 'new' ? emptyValues : toValues(editing)}
-          submitLabel={editing === 'new' ? 'Add' : 'Save'}
-          pendingLabel="Saving…"
+          submitLabel={editing === 'new' ? t('ADD', 'Add') : t('SAVE', 'Save')}
+          pendingLabel={t('SAVING', 'Saving…')}
           onSubmit={submitForm}
           isPending={create.isPending || update.isPending}
           error={create.isError ? create.error : update.isError ? update.error : null}
@@ -301,8 +322,10 @@ export function EntityListScreen<T, TInput>({
           testID={`${testID}-delete`}
           open
           onOpenChange={(next) => (next ? undefined : setDeleting(null))}
-          title={`Delete ${getName(deleting)}?`}
-          description={deleteDescription(noun)}
+          title={t('ENTITY_DELETE_TITLE', `Delete ${getName(deleting)}?`, {
+            name: getName(deleting),
+          })}
+          description={deleteDescription(deleteDescriptionKind, noun, t)}
           onConfirm={() =>
             remove.mutate(getId(deleting), { onSuccess: () => setDeleting(null) })
           }
@@ -320,12 +343,32 @@ export function EntityListScreen<T, TInput>({
  * location is deleted simply has no shelf — and saying so is the difference
  * between a confirmation someone reads and one they dismiss.
  */
-function deleteDescription(noun: string): string {
-  if (noun === 'location') {
-    return 'The copies shelved here keep existing; they just stop having a shelf.'
+function deleteDescription(
+  kind: 'location' | 'category' | undefined,
+  noun: string,
+  t: (
+    code: string,
+    fallback: string,
+    values?: Record<string, string | number>
+  ) => string
+): string {
+  if (kind === 'location') {
+    return t(
+      'DELETE_LOCATION_DESCRIPTION',
+      'The copies shelved here keep existing; they just stop having a shelf.'
+    )
   }
-  if (noun === 'category') {
-    return 'Books in this category keep existing; they become uncategorised.'
+  if (kind === 'category') {
+    return t(
+      'DELETE_CATEGORY_DESCRIPTION',
+      'Books in this category keep existing; they become uncategorised.'
+    )
   }
-  return `Books by this ${noun} keep existing; they lose this ${noun}.`
+  return t(
+    'DELETE_ENTITY_DESCRIPTION',
+    `Books by this ${noun} keep existing; they lose this ${noun}.`,
+    {
+      noun,
+    }
+  )
 }

@@ -1,6 +1,7 @@
 import { Text, YStack } from 'tamagui'
 import { errorMessage, ScreenError, ScreenLoading } from '@/components/ScreenState'
 import { SettingsSection, ToggleRow } from '@/features/settings/SettingsControls'
+import { useLocale } from '@/locale/LocaleProvider'
 import { useAdminSettings, useUpdateInstanceSettings } from '@/queries/admin'
 import { AdminMetadataRefresh } from './AdminMetadataRefresh'
 
@@ -40,15 +41,17 @@ import { AdminMetadataRefresh } from './AdminMetadataRefresh'
 export function AdminLibraryTab() {
   const settings = useAdminSettings()
   const update = useUpdateInstanceSettings()
+  const { t } = useLocale()
 
-  if (settings.isPending) return <ScreenLoading label="Loading settings…" />
+  if (settings.isPending)
+    return <ScreenLoading label={t('LOADING_SETTINGS', 'Loading settings…')} />
 
   if (settings.isError) {
     return (
       <ScreenError
         error={settings.error}
         onRetry={() => settings.refetch()}
-        title="Settings did not load"
+        title={t('SETTINGS_NOT_LOADED', 'Settings did not load')}
       />
     )
   }
@@ -57,13 +60,19 @@ export function AdminLibraryTab() {
     <YStack gap="$3" testID="admin-library">
       <SettingsSection
         testID="settings-lending"
-        title="Lending"
-        description="An instance-wide setting. Changing it changes the app for everyone who shares this library."
+        title={t('LENDING', 'Lending')}
+        description={t(
+          'LENDING_SETTING_DESC',
+          'An instance-wide setting. Changing it changes the app for everyone who shares this library.'
+        )}
       >
         <ToggleRow
           testID="lending-toggle"
-          label="Track loans and borrowers"
-          description="Adds the Loans and Borrowers sections. Turning it off hides them; nothing that has already been recorded is deleted."
+          label={t('TRACK_LOANS_BORROWERS', 'Track loans and borrowers')}
+          description={t(
+            'TRACK_LOANS_BORROWERS_DESC',
+            'Adds the Loans and Borrowers sections. Turning it off hides them; nothing that has already been recorded is deleted.'
+          )}
           checked={settings.data.leasingEnabled}
           disabled={update.isPending}
           onCheckedChange={(next) => update.mutate({ leasingEnabled: next })}

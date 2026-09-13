@@ -5,6 +5,7 @@ import type { Policy } from '@/api/types'
 import { BookStockStatus } from '@/api/types'
 import { ResponsiveDialog } from '@/components/ResponsiveDialog'
 import { errorMessage } from '@/components/ScreenState'
+import { useLocale } from '@/locale/LocaleProvider'
 import { useAddBookStock, useDeleteBookStock, useUpdateBookStock } from '@/queries/book'
 import { SelectField } from './BookFields'
 import { statusLabel } from './stockStatus'
@@ -57,6 +58,7 @@ export function StockDialog({
   const add = useAddBookStock(bookId)
   const update = useUpdateBookStock(bookId)
   const remove = useDeleteBookStock(bookId)
+  const { t } = useLocale()
 
   const [status, setStatus] = useState<BookStockStatus>(
     stock?.status ?? BookStockStatus.Available
@@ -112,11 +114,21 @@ export function StockDialog({
     <ResponsiveDialog
       open={open}
       onOpenChange={onOpenChange}
-      title={stock ? `Copy ${stock.code}` : 'Add a copy'}
+      title={
+        stock
+          ? t('COPY_CODE_TITLE', `Copy ${stock.code}`, { code: stock.code })
+          : t('ADD_COPY', 'Add a copy')
+      }
       description={
         stock
-          ? 'Move it to another shelf, change its state, or discard it.'
-          : 'A scannable code is generated for the new copy automatically.'
+          ? t(
+              'EDIT_COPY_DESC',
+              'Move it to another shelf, change its state, or discard it.'
+            )
+          : t(
+              'ADD_COPY_DESC',
+              'A scannable code is generated for the new copy automatically.'
+            )
       }
       actions={
         <>
@@ -131,7 +143,7 @@ export function StockDialog({
             borderColor="$borderColor"
             color="$color"
           >
-            Cancel
+            {t('CANCEL', 'Cancel')}
           </Button>
           <Button
             testID="stock-submit"
@@ -144,7 +156,11 @@ export function StockDialog({
             backgroundColor="$primary"
             color="$onPrimary"
           >
-            {busy ? 'Saving…' : stock ? 'Save copy' : 'Add copy'}
+            {busy
+              ? t('SAVING', 'Saving…')
+              : stock
+                ? t('SAVE_COPY', 'Save copy')
+                : t('ADD_COPY_SHORT', 'Add copy')}
           </Button>
         </>
       }
@@ -152,30 +168,30 @@ export function StockDialog({
       <YStack gap="$3">
         <SelectField
           testID="stock-status"
-          label="State"
+          label={t('STATE', 'State')}
           value={status}
-          options={statuses.map((value) => ({ value, label: statusLabel(value) }))}
+          options={statuses.map((value) => ({ value, label: statusLabel(value, t) }))}
           onChange={(next) => setStatus(next ?? BookStockStatus.Available)}
-          emptyLabel="Available"
+          emptyLabel={t('AVAILABLE', 'Available')}
         />
 
         <SelectField
           testID="stock-location"
-          label="Shelf"
+          label={t('SHELF', 'Shelf')}
           value={locationId}
           options={policy.locations.map((l) => ({ value: l.id, label: l.name }))}
           onChange={setLocationId}
-          emptyLabel="Choose a shelf"
+          emptyLabel={t('CHOOSE_SHELF', 'Choose a shelf')}
         />
 
         {status === BookStockStatus.Booked ? (
           <SelectField
             testID="stock-customer"
-            label="Lent to"
+            label={t('LENT_TO', 'Lent to')}
             value={customerId}
             options={policy.customers.map((c) => ({ value: c.id, label: c.name }))}
             onChange={setCustomerId}
-            emptyLabel="Nobody yet"
+            emptyLabel={t('NOBODY_YET', 'Nobody yet')}
           />
         ) : null}
 
@@ -195,7 +211,11 @@ export function StockDialog({
             {confirmingDelete ? (
               <>
                 <Text fontSize={14} color="$color">
-                  Discard copy {stock.code}? Its loan history is kept, the copy is not.
+                  {t(
+                    'DISCARD_COPY_CONFIRM',
+                    `Discard copy ${stock.code}? Its loan history is kept, the copy is not.`,
+                    { code: stock.code }
+                  )}
                 </Text>
                 <Button
                   testID="stock-delete-confirm"
@@ -209,7 +229,9 @@ export function StockDialog({
                   backgroundColor="$red10"
                   color="$onDanger"
                 >
-                  {remove.isPending ? 'Discarding…' : 'Yes, discard it'}
+                  {remove.isPending
+                    ? t('DISCARDING', 'Discarding…')
+                    : t('YES_DISCARD', 'Yes, discard it')}
                 </Button>
                 <Button
                   testID="stock-delete-cancel"
@@ -221,7 +243,7 @@ export function StockDialog({
                   borderColor="$borderColor"
                   color="$color"
                 >
-                  Keep it
+                  {t('KEEP_IT', 'Keep it')}
                 </Button>
               </>
             ) : (
@@ -236,7 +258,7 @@ export function StockDialog({
                 borderColor="$borderColor"
                 color="$red10"
               >
-                Discard this copy
+                {t('DISCARD_COPY', 'Discard this copy')}
               </Button>
             )}
           </YStack>

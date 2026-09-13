@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from 'react'
 import { Button, Text, XStack, YStack } from 'tamagui'
 import { ToastHost, useToasts } from '@/components/Toast'
+import { useLocale } from '@/locale/LocaleProvider'
 import { usePolicy } from '@/queries/app'
 import { ScanDuplicateDialog } from './ScanDuplicateDialog'
 import { ScanSummary } from './ScanSummary'
@@ -88,6 +89,7 @@ function ScanView({
   onAddManually: (isbn: string) => void
 }) {
   const { data: policy } = usePolicy()
+  const { t, tPlural } = useLocale()
   const locations = policy.locations
   const needsLocation = locations.length > 1
 
@@ -121,10 +123,11 @@ function ScanView({
         const toast = scanEntryToast(entry, {
           onUndo: (id) => queueRef.current?.undo(id),
           onAddManually: handleAddManually,
+          translate: t,
         })
         if (toast) pushToast(toast)
       },
-      [handleAddManually, pushToast]
+      [handleAddManually, pushToast, t]
     ),
   })
   queueRef.current = queue
@@ -135,6 +138,7 @@ function ScanView({
     // stacks a second question behind the first.
     paused: chooserOpen || queue.duplicate !== null || summaryOpen,
     onDecode: queue.submit,
+    translate: t,
   })
 
   const cameraFailed =
@@ -216,21 +220,30 @@ function ScanView({
       >
         <XStack alignItems="center" gap="$2" flexWrap="wrap">
           <Button testID="scan-done" onPress={finish} {...CHROME_BUTTON}>
-            Done
+            {t('DONE', 'Done')}
           </Button>
 
           <YStack flex={1} minWidth={0}>
             <Text testID="scan-count" fontSize={15} fontWeight="600" color="$navText">
-              {queue.addedCount === 1 ? '1 added' : `${queue.addedCount} added`}
-              {queue.pendingCount > 0 ? ` · ${queue.pendingCount} pending` : ''}
+              {tPlural(
+                'SCAN_ADDED_COUNT',
+                queue.addedCount,
+                '1 added',
+                '{count} added'
+              )}
+              {queue.pendingCount > 0
+                ? t('SCAN_PENDING_COUNT', ` · ${queue.pendingCount} pending`, {
+                    count: queue.pendingCount,
+                  })
+                : ''}
             </Text>
             <Text fontSize={13} color="$navTextMuted">
               {scanner.status === 'paused'
-                ? 'Scanning paused'
+                ? t('SCANNING_PAUSED', 'Scanning paused')
                 : scanner.status === 'scanning'
-                  ? 'Point the camera at the barcode'
+                  ? t('POINT_CAMERA_BARCODE', 'Point the camera at the barcode')
                   : scanner.status === 'starting'
-                    ? 'Starting the camera…'
+                    ? t('STARTING_CAMERA', 'Starting the camera…')
                     : ''}
             </Text>
           </YStack>
@@ -243,7 +256,7 @@ function ScanView({
               {...CHROME_BUTTON}
               backgroundColor={scanner.torchOn ? '$navAccent' : '$navBgAlt'}
             >
-              Torch
+              {t('TORCH', 'Torch')}
             </Button>
           ) : null}
         </XStack>
@@ -253,10 +266,16 @@ function ScanView({
             <Button
               testID="scan-location"
               onPress={() => setChooserOpen(true)}
-              aria-label={`Shelving at ${locationName ?? 'nowhere yet'}. Change.`}
+              aria-label={t(
+                'SHELVING_AT_CHANGE',
+                `Shelving at ${locationName ?? 'nowhere yet'}. Change.`,
+                { location: locationName ?? 'nowhere yet' }
+              )}
               {...CHROME_BUTTON}
             >
-              {`Shelf: ${locationName ?? 'choose'}`}
+              {t('SHELF_CHOICE', `Shelf: ${locationName ?? 'choose'}`, {
+                location: locationName ?? 'choose',
+              })}
             </Button>
           </XStack>
         ) : null}
@@ -287,10 +306,11 @@ function ScanView({
             backgroundColor="$navBgAlt"
           >
             <Text fontFamily="$heading" fontSize={20} color="$navText">
-              The camera is not available
+              {t('CAMERA_NOT_AVAILABLE', 'The camera is not available')}
             </Text>
             <Text fontSize={15} color="$navTextMuted">
-              {scanner.error ?? 'The camera could not be started.'}
+              {scanner.error ??
+                t('CAMERA_COULD_NOT_START', 'The camera could not be started.')}
             </Text>
             <XStack gap="$2" flexWrap="wrap">
               <Button
@@ -302,10 +322,10 @@ function ScanView({
                 backgroundColor="$primary"
                 color="$onPrimary"
               >
-                Type an ISBN instead
+                {t('TYPE_ISBN_INSTEAD', 'Type an ISBN instead')}
               </Button>
               <Button testID="scan-close" onPress={onClose} {...CHROME_BUTTON}>
-                Close
+                {t('CLOSE', 'Close')}
               </Button>
             </XStack>
           </YStack>
@@ -328,11 +348,13 @@ function ScanView({
         >
           <YStack gap="$3" maxWidth={420} width="100%">
             <Text fontFamily="$heading" fontSize={22} color="$navText">
-              Where do these copies go?
+              {t('WHERE_COPIES_GO', 'Where do these copies go?')}
             </Text>
             <Text fontSize={15} color="$navTextMuted">
-              Asked once so scanning is not interrupted. You can change it between
-              books.
+              {t(
+                'SCAN_LOCATION_DESC',
+                'Asked once so scanning is not interrupted. You can change it between books.'
+              )}
             </Text>
             <YStack gap="$2">
               {locations.map((location) => (
@@ -364,7 +386,7 @@ function ScanView({
             </YStack>
             <XStack>
               <Button testID="scan-chooser-cancel" onPress={onClose} {...CHROME_BUTTON}>
-                Leave scan mode
+                {t('LEAVE_SCAN_MODE', 'Leave scan mode')}
               </Button>
             </XStack>
           </YStack>

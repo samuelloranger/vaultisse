@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { Button, Image, Spinner, Text, YStack } from 'tamagui'
 import { BookOpen } from '@/components/icons'
 import { errorMessage } from '@/components/ScreenState'
+import { useLocale } from '@/locale/LocaleProvider'
 import { useUploadBookCover } from '@/queries/book'
 
 /**
@@ -31,6 +32,7 @@ export function BookCover({
   title: string
 }) {
   const upload = useUploadBookCover(bookId)
+  const { t } = useLocale()
   const fileInput = useRef<HTMLInputElement>(null)
   const [dragging, setDragging] = useState(false)
 
@@ -70,7 +72,7 @@ export function BookCover({
         ) : imageUrl ? (
           <Image
             src={imageUrl}
-            alt={`Cover of ${title}`}
+            alt={t('BOOK_COVER_ALT', `Cover of ${title}`, { title })}
             width="100%"
             height="100%"
             objectFit="cover"
@@ -91,7 +93,7 @@ export function BookCover({
         borderColor="$borderColor"
         color="$color"
       >
-        {imageUrl ? 'Replace cover' : 'Add a cover'}
+        {imageUrl ? t('REPLACE_COVER', 'Replace cover') : t('ADD_COVER', 'Add a cover')}
       </Button>
 
       {upload.isError ? (

@@ -1,6 +1,7 @@
 import { Button, Text, YStack } from 'tamagui'
 import { ResponsiveDialog } from '@/components/ResponsiveDialog'
 import { errorMessage } from '@/components/ScreenState'
+import { useLocale } from '@/locale/LocaleProvider'
 
 /**
  * "Delete X?" — the second half of the destructive-action rule.
@@ -31,6 +32,7 @@ export function ConfirmDeleteDialog({
   error: unknown
   testID: string
 }) {
+  const { t } = useLocale()
   return (
     <ResponsiveDialog
       open={open}
@@ -49,7 +51,7 @@ export function ConfirmDeleteDialog({
             borderColor="$borderColor"
             color="$color"
           >
-            Cancel
+            {t('CANCEL', 'Cancel')}
           </Button>
           <Button
             testID={`${testID}-confirm`}
@@ -62,14 +64,14 @@ export function ConfirmDeleteDialog({
             backgroundColor="$red10"
             color="$onPrimary"
           >
-            {isPending ? 'Deleting…' : 'Delete'}
+            {isPending ? t('DELETING', 'Deleting…') : t('DELETE', 'Delete')}
           </Button>
         </>
       }
     >
       <YStack gap="$2">
         <Text fontSize={15} color="$colorMuted">
-          This cannot be undone.
+          {t('CANNOT_UNDO', 'This cannot be undone.')}
         </Text>
         {error ? (
           <Text testID={`${testID}-error`} fontSize={14} color="$red10">

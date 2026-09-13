@@ -4,6 +4,7 @@ import type { CustomerRow } from '@/api/customer'
 import { Field } from '@/components/Field'
 import { ResponsiveDialog } from '@/components/ResponsiveDialog'
 import { errorMessage } from '@/components/ScreenState'
+import { useLocale } from '@/locale/LocaleProvider'
 import { useLendBooksToCustomer } from '@/queries/customer'
 
 /**
@@ -28,6 +29,7 @@ export function CustomerLendBooksDialog({
 }) {
   const [codes, setCodes] = useState('')
   const lend = useLendBooksToCustomer()
+  const { t, tPlural } = useLocale()
 
   const parsed = codes
     .split(/[\s,]+/)
@@ -50,8 +52,11 @@ export function CustomerLendBooksDialog({
       // Mounted by the screen only while it is wanted, so `open` is constant.
       open
       onOpenChange={(next) => (next ? onOpenChange(true) : close())}
-      title={`Lend to ${customer.name}`}
-      description="Enter the code printed on each copy. One per line."
+      title={t('LEND_TO', `Lend to ${customer.name}`, { name: customer.name })}
+      description={t(
+        'LEND_COPIES_DESC',
+        'Enter the code printed on each copy. One per line.'
+      )}
       actions={
         <>
           <Button
@@ -64,7 +69,7 @@ export function CustomerLendBooksDialog({
             borderColor="$borderColor"
             color="$color"
           >
-            Cancel
+            {t('CANCEL', 'Cancel')}
           </Button>
           <Button
             testID="customer-lend-submit"
@@ -78,10 +83,15 @@ export function CustomerLendBooksDialog({
             color="$onPrimary"
           >
             {lend.isPending
-              ? 'Lending…'
+              ? t('LENDING', 'Lending…')
               : parsed.length > 1
-                ? `Lend ${parsed.length} copies`
-                : 'Lend copy'}
+                ? tPlural(
+                    'LEND_COPIES',
+                    parsed.length,
+                    'Lend {count} copy',
+                    'Lend {count} copies'
+                  )
+                : t('LEND_COPY', 'Lend copy')}
           </Button>
         </>
       }
@@ -89,10 +99,10 @@ export function CustomerLendBooksDialog({
       <YStack gap="$3">
         <Field
           testID="customer-lend-codes"
-          label="Copy codes"
+          label={t('COPY_CODES', 'Copy codes')}
           value={codes}
           onChangeText={setCodes}
-          placeholder="e.g. 0000000001"
+          placeholder={t('COPY_CODE_PLACEHOLDER', 'e.g. 0000000001')}
           autoComplete="off"
           // The codes are digits here, but `numeric` would hide the letters
           // some libraries print. `text` keeps every code typeable.
@@ -102,7 +112,14 @@ export function CustomerLendBooksDialog({
         />
         {parsed.length > 1 ? (
           <Text fontSize={14} color="$colorMuted">
-            {parsed.length} copies will go out to {customer.name}.
+            {t(
+              'COPIES_WILL_GO_OUT',
+              `${parsed.length} copies will go out to ${customer.name}.`,
+              {
+                count: parsed.length,
+                name: customer.name,
+              }
+            )}
           </Text>
         ) : null}
       </YStack>

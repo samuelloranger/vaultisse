@@ -2,6 +2,7 @@ import { Link } from '@tanstack/react-router'
 import { useState } from 'react'
 import { Button, Sheet, Text, useMedia, XStack, YStack } from 'tamagui'
 import type { Policy } from '@/api/types'
+import { useLocale } from '@/locale/LocaleProvider'
 import { usePolicy } from '@/queries/app'
 import { useColorScheme } from '@/theme/ThemeProvider'
 import { DisplayText } from './Card'
@@ -96,6 +97,18 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Admin', to: '/admin', icon: Shield, gate: 'admin' },
 ]
 
+const NAV_LABEL_CODES: Record<string, string> = {
+  Dashboard: 'NAV_DASHBOARD',
+  Library: 'NAV_LIBRARY',
+  Locations: 'NAV_LOCATIONS',
+  Categories: 'NAV_CATEGORIES',
+  Authors: 'NAV_AUTHORS',
+  Loans: 'NAV_LOANS',
+  Borrowers: 'NAV_BORROWERS',
+  Profile: 'NAV_PROFILE',
+  Admin: 'NAV_ADMIN',
+}
+
 const IMPLEMENTED_ROUTES = new Set([
   '/',
   '/library/search',
@@ -142,6 +155,7 @@ function NavRow({
   live: boolean
 }) {
   const Icon = item.icon
+  const { t } = useLocale()
   return (
     <XStack
       alignItems="center"
@@ -156,7 +170,7 @@ function NavRow({
     >
       <Icon size={18} color={active ? '$navAccent' : '$navTextMuted'} />
       <Text color="$navText" fontSize={16} fontWeight={active ? '600' : '400'}>
-        {item.label}
+        {t(NAV_LABEL_CODES[item.label] ?? item.label, item.label)}
       </Text>
     </XStack>
   )
@@ -175,8 +189,10 @@ export function NavList({ onNavigate }: { onNavigate?: () => void }) {
   // lending adds or drops these rows without a reload (see queries/user.ts).
   const { data: policy } = usePolicy()
 
+  const { t } = useLocale()
+
   return (
-    <YStack gap="$1" padding="$3" role="navigation" aria-label="Main">
+    <YStack gap="$1" padding="$3" role="navigation" aria-label={t('NAV_MAIN', 'Main')}>
       {visibleNavItems(policy).map((item) => {
         const live = IMPLEMENTED_ROUTES.has(item.to)
 
@@ -238,11 +254,12 @@ function Brand() {
 
 function ColorSchemeToggle() {
   const { scheme, setPreference } = useColorScheme()
+  const { t } = useLocale()
   const next = scheme === 'dark' ? 'light' : 'dark'
   return (
     <Button
       testID="color-scheme-toggle"
-      aria-label={`Switch to ${next} theme`}
+      aria-label={t('THEME_SWITCH', `Switch to ${next} theme`, { next })}
       onPress={() => setPreference(next)}
       icon={scheme === 'dark' ? Sun : Moon}
       // 44px in both axes: an icon-only button is the classic sub-44 offender.
@@ -257,6 +274,7 @@ function ColorSchemeToggle() {
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const media = useMedia()
+  const { t } = useLocale()
   const [drawerOpen, setDrawerOpen] = useState(false)
   // The drawer's `Sheet` is in the tree at every width — above `sm` it is
   // simply never opened — and Tamagui keeps a closed sheet's children mounted
@@ -303,7 +321,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           >
             <Button
               testID="open-nav"
-              aria-label="Open navigation"
+              aria-label={t('NAV_OPEN', 'Open navigation')}
               onPress={() => setDrawerOpen(true)}
               icon={Menu}
               minWidth={44}
@@ -365,7 +383,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     <Brand />
                     <Button
                       testID="close-nav"
-                      aria-label="Close navigation"
+                      aria-label={t('NAV_CLOSE', 'Close navigation')}
                       onPress={() => setDrawerOpen(false)}
                       icon={X}
                       minWidth={44}

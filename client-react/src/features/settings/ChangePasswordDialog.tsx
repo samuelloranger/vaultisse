@@ -4,6 +4,7 @@ import { weakPasswordRules } from '@/api/user'
 import { MutedText } from '@/components/Card'
 import { ResponsiveDialog } from '@/components/ResponsiveDialog'
 import { errorMessage } from '@/components/ScreenState'
+import { useLocale } from '@/locale/LocaleProvider'
 import { useChangePassword } from '@/queries/user'
 import { TextInputField } from './SettingsControls'
 
@@ -42,6 +43,7 @@ export function ChangePasswordDialog({
   const [newPassword, setNewPassword] = useState('')
   const [confirmation, setConfirmation] = useState('')
   const changePassword = useChangePassword()
+  const { t } = useLocale()
 
   const mismatch = confirmation !== '' && confirmation !== newPassword
   const ready =
@@ -68,8 +70,11 @@ export function ChangePasswordDialog({
     <ResponsiveDialog
       open={open}
       onOpenChange={(next) => (next ? onOpenChange(true) : close())}
-      title="Change password"
-      description="Your other devices are signed out. This one stays signed in."
+      title={t('CHANGE_PASSWORD', 'Change password')}
+      description={t(
+        'CHANGE_PASSWORD_DESC',
+        'Your other devices are signed out. This one stays signed in.'
+      )}
       actions={
         <>
           <Button
@@ -82,7 +87,7 @@ export function ChangePasswordDialog({
             borderColor="$borderColor"
             color="$color"
           >
-            Cancel
+            {t('CANCEL', 'Cancel')}
           </Button>
           <Button
             testID="password-submit"
@@ -95,7 +100,9 @@ export function ChangePasswordDialog({
             backgroundColor="$primary"
             color="$onPrimary"
           >
-            {changePassword.isPending ? 'Saving…' : 'Change password'}
+            {changePassword.isPending
+              ? t('SAVING', 'Saving…')
+              : t('CHANGE_PASSWORD', 'Change password')}
           </Button>
         </>
       }
@@ -103,7 +110,7 @@ export function ChangePasswordDialog({
       <YStack gap="$3">
         <TextInputField
           testID="password-current"
-          label="Current password"
+          label={t('CURRENT_PASSWORD', 'Current password')}
           value={currentPassword}
           onChangeText={setCurrentPassword}
           type="password"
@@ -111,28 +118,35 @@ export function ChangePasswordDialog({
         />
         <TextInputField
           testID="password-new"
-          label="New password"
+          label={t('NEW_PASSWORD', 'New password')}
           value={newPassword}
           onChangeText={setNewPassword}
           type="password"
           autoComplete="new-password"
-          hint="At least 8 characters, with an uppercase letter, a number and a special character."
+          hint={t(
+            'PASSWORD_HINT',
+            'At least 8 characters, with an uppercase letter, a number and a special character.'
+          )}
         />
         <TextInputField
           testID="password-confirm"
-          label="Repeat new password"
+          label={t('REPEAT_NEW_PASSWORD', 'Repeat new password')}
           value={confirmation}
           onChangeText={setConfirmation}
           type="password"
           autoComplete="new-password"
-          error={mismatch ? 'The two passwords do not match.' : null}
+          error={
+            mismatch
+              ? t('PASSWORDS_DO_NOT_MATCH', 'The two passwords do not match.')
+              : null
+          }
           onSubmit={submit}
         />
 
         {unmetRules ? (
           <YStack gap="$1" testID="password-rules">
             <Text fontSize={14} color="$red10">
-              That password is missing:
+              {t('PASSWORD_MISSING', 'That password is missing:')}
             </Text>
             {unmetRules.map((rule) => (
               <MutedText key={rule} fontSize={14}>

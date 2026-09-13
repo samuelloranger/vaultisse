@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Button, Text, XStack, YStack } from 'tamagui'
 import { Field } from '@/components/Field'
 import { ResponsiveDialog } from '@/components/ResponsiveDialog'
+import { useLocale } from '@/locale/LocaleProvider'
 import { usePolicy } from '@/queries/app'
 import { useCreateBookFromIsbn } from '@/queries/book'
 import { isValidIsbn, normaliseIsbn } from './isbn'
@@ -43,6 +44,24 @@ const OUTCOME_TEXT: Record<Outcome, string | null> = {
   failed: 'Could not be added. Try again.',
 }
 
+function outcomeText(outcome: Outcome, t: (code: string, fallback: string) => string) {
+  switch (outcome) {
+    case 'working':
+      return t('LOOKING_UP', 'Looking it up…')
+    case 'created':
+      return t('ADDED_TO_LIBRARY', 'Added to the library.')
+    case 'notFound':
+      return t(
+        'NO_METADATA_FOR_ISBN',
+        'No metadata found for this ISBN. Add it manually instead.'
+      )
+    case 'failed':
+      return t('BOOK_COULD_NOT_BE_ADDED', 'Could not be added. Try again.')
+    default:
+      return OUTCOME_TEXT[outcome]
+  }
+}
+
 /** Rate-limit courtesy toward Google Books / Open Library, as the old client did. */
 const DELAY_BETWEEN_LOOKUPS_MS = 1500
 
@@ -61,6 +80,7 @@ export function AddBookIsbnDialog({
   onBookCreated?: (id: number) => void
 }) {
   const { data: policy } = usePolicy()
+  const { t, tPlural } = useLocale()
   const createFromIsbn = useCreateBookFromIsbn()
 
   const [isbn, setIsbn] = useState('')
@@ -86,11 +106,11 @@ export function AddBookIsbnDialog({
   function enqueue() {
     const code = normaliseIsbn(isbn)
     if (!isValidIsbn(code)) {
-      setEntryError('That is not a valid ISBN-10 or ISBN-13.')
+      setEntryError(t('INVALID_ISBN', 'That is not a valid ISBN-10 or ISBN-13.'))
       return
     }
     if (queue.some((entry) => entry.isbn === code)) {
-      setEntryError('That ISBN is already in the list.')
+      setEntryError(t('ISBN_ALREADY_QUEUED', 'That ISBN is already in the list.'))
       return
     }
     setQueue((current) => [
@@ -132,7 +152,7 @@ export function AddBookIsbnDialog({
             ? 'notFound'
             : 'failed',
           failure?.kind === 'source_not_configured' || failure?.kind === 'no_metadata'
-            ? metadataLookupFailureMessage(failure)
+            ? metadataLookupFailureMessage(failure, t)
             : null
         )
       }
@@ -153,8 +173,11 @@ export function AddBookIsbnDialog({
     <ResponsiveDialog
       open={open}
       onOpenChange={(next) => (next ? onOpenChange(true) : close())}
-      title="Add books by ISBN"
-      description="Type or scan an ISBN and press Enter to queue it. Add as many as you like."
+      title={t('ADD_BOOKS_BY_ISBN', 'Add books by ISBN')}
+      description={t(
+        'ADD_BOOKS_BY_ISBN_DESC',
+        'Type or scan an ISBN and press Enter to queue it. Add as many as you like.'
+      )}
       actions={
         <>
           <Button
@@ -167,7 +190,9 @@ export function AddBookIsbnDialog({
             borderColor="$borderColor"
             color="$color"
           >
-            {queue.some((entry) => entry.outcome === 'created') ? 'Close' : 'Cancel'}
+            {queue.some((entry) => entry.outcome === 'created')
+              ? t('CLOSE', 'Close')
+              : t('CANCEL', 'Cancel')}
           </Button>
           <Button
             testID="isbn-submit"
@@ -180,7 +205,11 @@ export function AddBookIsbnDialog({
             backgroundColor="$primary"
             color="$onPrimary"
           >
-            {running ? 'Adding…' : `Add ${pending || ''}`.trim()}
+            {running
+              ? t('ADDING', 'Adding…')
+              : pending > 0
+                ? tPlural('ADD_PENDING', pending, 'Add {count}', 'Add {count}')
+                : t('ADD', 'Add')}
           </Button>
         </>
       }
@@ -188,14 +217,14 @@ export function AddBookIsbnDialog({
       <YStack gap="$3">
         <Field
           testID="isbn-input"
-          label="ISBN"
+          label={t('ISBN', 'ISBN')}
           value={isbn}
           onChangeText={(next) => {
             setIsbn(next)
             setEntryError(null)
           }}
           onSubmit={enqueue}
-          placeholder="e.g. 9780261102217"
+          placeholder={t('ISBN_PLACEHOLDER', 'e.g. 9780261102217')}
           autoComplete="off"
           // The barcode under a book is digits: give the numeric keypad.
           inputMode="numeric"
@@ -215,18 +244,18 @@ export function AddBookIsbnDialog({
             borderColor="$borderColor"
             color="$color"
           >
-            Add to list
+            {t('ADD_TO_LIST', 'Add to list')}
           </Button>
         </XStack>
 
         {policy.locations.length > 1 ? (
           <YStack gap="$2">
             <Text fontSize={14} color="$colorMuted">
-              Shelve the new copies at
+              {t('SHELVE_NEW_COPIES_AT', 'Shelve the new copies at')}
             </Text>
             <XStack flexWrap="wrap" gap="$2">
               <FilterChip
-                label="Decide later"
+                label={t('DECIDE_LATER', 'Decide later')}
                 selected={locationId === null}
                 onPress={() => setLocationId(null)}
               />
@@ -245,7 +274,7 @@ export function AddBookIsbnDialog({
         {queue.length > 0 ? (
           <YStack gap="$2" testID="isbn-queue">
             {queue.map((entry) => {
-              const status = entry.message ?? OUTCOME_TEXT[entry.outcome]
+              const status = entry.message ?? outcomeText(entry.outcome, t)
               return (
                 <YStack
                   key={entry.isbn}

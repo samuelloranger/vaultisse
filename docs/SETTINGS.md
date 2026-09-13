@@ -31,11 +31,13 @@ deals with raw bytes.
 
 `language` is stored and offered in the picker
 ([`ProfileCard.tsx`](../client-react/src/features/settings/ProfileCard.tsx)'s
-`UI_LANGUAGES`, which is the four *UI* locales and deliberately not the policy's
-22-entry *book* language list), but changing it does not change what's on screen
-yet: the React client fetches the policy's `labels` map and doesn't render from
-it. See the root README's
-[Internationalization](../README.md#internationalization) section.
+`UI_LANGUAGES`, which is the five *UI* locales and deliberately not the policy's
+22-entry *book* language list), and changing it updates what's on screen
+immediately: the React client applies the policy's `labels` map after the
+profile update. The selected region is applied to date and number formatting at
+the same time. A missing label has an explicit English fallback; a catalogue
+code is never shown to the user. Québec French is a draft pending the
+row-by-row review in [FR-CA-TRANSLATION-REVIEW.md](FR-CA-TRANSLATION-REVIEW.md).
 
 ## UI preferences
 

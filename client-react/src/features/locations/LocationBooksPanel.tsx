@@ -3,6 +3,7 @@ import type { LocationRow } from '@/api/location'
 import { BookStockStatus } from '@/api/types'
 import { MutedText } from '@/components/Card'
 import { EmptyState, ScreenError, ScreenLoading } from '@/components/ScreenState'
+import { useLocale } from '@/locale/LocaleProvider'
 import { useLocationBooks } from '@/queries/location'
 
 /**
@@ -25,18 +26,25 @@ import { useLocationBooks } from '@/queries/location'
  */
 
 /** `book_stocks.status` as something a person can read. */
-function statusLabel(status: number): string {
+function statusLabel(
+  status: number,
+  t: (
+    code: string,
+    fallback: string,
+    values?: Record<string, string | number>
+  ) => string
+): string {
   switch (status) {
     case BookStockStatus.Available:
-      return 'Available'
+      return t('AVAILABLE', 'Available')
     case BookStockStatus.NotAvailable:
-      return 'Not available'
+      return t('NOT_AVAILABLE', 'Not available')
     case BookStockStatus.Booked:
-      return 'On loan'
+      return t('ON_LOAN', 'On loan')
     case BookStockStatus.Damaged:
-      return 'Damaged'
+      return t('DAMAGED', 'Damaged')
     default:
-      return `Status ${status}`
+      return t('STATUS_UNKNOWN', `Status ${status}`, { status })
   }
 }
 
@@ -61,6 +69,7 @@ export function LocationBooksPanel({
   onAddBooks: () => void
 }) {
   const books = useLocationBooks(location.id)
+  const { t } = useLocale()
 
   const addButton = (
     <Button
@@ -74,12 +83,18 @@ export function LocationBooksPanel({
       color="$color"
       alignSelf="flex-start"
     >
-      Add copies
+      {t('ADD_COPIES', 'Add copies')}
     </Button>
   )
 
   if (books.isPending) {
-    return <ScreenLoading label={`Loading what is on ${location.name}…`} />
+    return (
+      <ScreenLoading
+        label={t('LOADING_LOCATION_BOOKS', `Loading what is on ${location.name}…`, {
+          name: location.name,
+        })}
+      />
+    )
   }
 
   if (books.isError) {
@@ -87,7 +102,7 @@ export function LocationBooksPanel({
       <ScreenError
         error={books.error}
         onRetry={() => books.refetch()}
-        title="Those books did not load"
+        title={t('LOCATION_BOOKS_NOT_LOADED', 'Those books did not load')}
       />
     )
   }
@@ -95,8 +110,11 @@ export function LocationBooksPanel({
   if (books.data.length === 0) {
     return (
       <EmptyState
-        title="Nothing shelved here"
-        description="Move copies onto this shelf by entering the code printed on each one."
+        title={t('NOTHING_SHELVED', 'Nothing shelved here')}
+        description={t(
+          'NOTHING_SHELVED_DESC',
+          'Move copies onto this shelf by entering the code printed on each one.'
+        )}
         action={addButton}
       />
     )
@@ -127,7 +145,7 @@ export function LocationBooksPanel({
                 {book.code}
               </MutedText>
               <MutedText fontSize={13} color={statusColor(book.status)}>
-                {statusLabel(book.status)}
+                {statusLabel(book.status, t)}
               </MutedText>
             </XStack>
           </YStack>

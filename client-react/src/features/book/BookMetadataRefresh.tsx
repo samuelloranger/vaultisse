@@ -1,6 +1,7 @@
 import { Button, Text, YStack } from 'tamagui'
 import type { MetadataField } from '@/api/bookMetadataRefresh'
 import { errorMessage } from '@/components/ScreenState'
+import { useLocale } from '@/locale/LocaleProvider'
 import { useRefreshBookMetadata } from '@/queries/bookMetadataRefresh'
 
 const FIELD_LABELS: Record<MetadataField, string> = {
@@ -15,8 +16,18 @@ const FIELD_LABELS: Record<MetadataField, string> = {
   authors: 'authors',
 }
 
-export function metadataFieldNames(fields: MetadataField[]) {
-  return fields.map((field) => FIELD_LABELS[field]).join(', ')
+export function metadataFieldNames(
+  fields: MetadataField[],
+  translate?: (code: string, fallback: string) => string
+) {
+  return fields
+    .map((field) => {
+      const fallback = FIELD_LABELS[field]
+      return translate
+        ? translate(`METADATA_FIELD_${field.toUpperCase()}`, fallback)
+        : fallback
+    })
+    .join(', ')
 }
 
 export function BookMetadataRefresh({
@@ -27,6 +38,7 @@ export function BookMetadataRefresh({
   isbn: string | null
 }) {
   const refresh = useRefreshBookMetadata(bookId)
+  const { t } = useLocale()
   return (
     <YStack gap="$2" alignItems="flex-start">
       <Button
@@ -41,39 +53,67 @@ export function BookMetadataRefresh({
           if (!refresh.isPending) refresh.mutate()
         }}
       >
-        {refresh.isPending ? 'Refreshing metadata…' : 'Refresh metadata'}
+        {refresh.isPending
+          ? t('REFRESHING_METADATA', 'Refreshing metadata…')
+          : t('REFRESH_METADATA', 'Refresh metadata')}
       </Button>
       <Text fontSize={14} color="$colorMuted">
         {isbn?.trim()
-          ? 'Fills missing details from book catalogues. Your existing details and cover are kept.'
-          : 'Use Edit to add a valid ISBN, then refresh metadata.'}
+          ? t(
+              'REFRESH_METADATA_DESC',
+              'Fills missing details from book catalogues. Your existing details and cover are kept.'
+            )
+          : t(
+              'REFRESH_METADATA_NO_ISBN',
+              'Use Edit to add a valid ISBN, then refresh metadata.'
+            )}
       </Text>
       <YStack gap="$1" role="status" aria-live="polite">
         {refresh.isPending ? (
-          <Text color="$colorMuted">Checking catalogues…</Text>
+          <Text color="$colorMuted">
+            {t('CHECKING_CATALOGUES', 'Checking catalogues…')}
+          </Text>
         ) : null}
         {refresh.isError ? (
           <Text color="$red10">
-            {errorMessage(refresh.error)} Check the ISBN or try again.
+            {errorMessage(refresh.error)}{' '}
+            {t('CHECK_ISBN_RETRY', 'Check the ISBN or try again.')}
           </Text>
         ) : null}
         {refresh.isSuccess ? (
           <>
             <Text color="$color">
               {refresh.data.changed.length
-                ? `Updated: ${metadataFieldNames(refresh.data.changed.map((change) => change.field))}.`
-                : 'No new metadata found.'}
+                ? t(
+                    'METADATA_UPDATED',
+                    `Updated: ${metadataFieldNames(
+                      refresh.data.changed.map((change) => change.field),
+                      t
+                    )}.`,
+                    {
+                      fields: metadataFieldNames(
+                        refresh.data.changed.map((change) => change.field),
+                        t
+                      ),
+                    }
+                  )
+                : t('NO_NEW_METADATA', 'No new metadata found.')}
             </Text>
             {refresh.data.stillMissing.length ? (
               <Text color="$colorMuted">
-                Still missing: {metadataFieldNames(refresh.data.stillMissing)}. You can
-                add these using Edit.
+                {t(
+                  'METADATA_STILL_MISSING',
+                  `Still missing: ${metadataFieldNames(refresh.data.stillMissing, t)}. You can add these using Edit.`,
+                  { fields: metadataFieldNames(refresh.data.stillMissing, t) }
+                )}
               </Text>
             ) : null}
             {refresh.data.failedSources.length ? (
               <Text color="$colorMuted">
-                Some catalogues could not be reached. Try again later for missing
-                details.
+                {t(
+                  'METADATA_SOURCES_FAILED',
+                  'Some catalogues could not be reached. Try again later for missing details.'
+                )}
               </Text>
             ) : null}
           </>

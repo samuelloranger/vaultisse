@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { BookDetail, BookStock } from '@/api/book'
 import { ApiError } from '@/api/http'
 import { searchBooks } from '@/api/search'
+import type { InterpolationValues } from '@/locale/LocaleProvider'
 import {
   bookQueryOptions,
   useCreateBookFromIsbn,
@@ -166,11 +167,14 @@ function newestStock(stocks: BookStock[]): BookStock | null {
 export function useScanQueue({
   locationId,
   onEntry,
+  translate,
 }: {
   /** Where copies are shelved. Null lets the server's auto-assign rule decide. */
   locationId: number | null
   /** Called whenever an entry appears or changes — the toast hook. */
   onEntry?: (entry: ScanEntry) => void
+  /** Client label translator. Omitted by hook-level tests for English fallback. */
+  translate?: (code: string, fallback: string, values?: InterpolationValues) => string
 }): ScanQueue {
   const queryClient = useQueryClient()
   const createFromIsbn = useCreateBookFromIsbn()
@@ -197,6 +201,14 @@ export function useScanQueue({
   locationRef.current = locationId
   const onEntryRef = useRef(onEntry)
   onEntryRef.current = onEntry
+  const translateRef = useRef(translate)
+  translateRef.current = translate
+
+  const label = useCallback(
+    (code: string, fallback: string, values?: InterpolationValues) =>
+      translateRef.current?.(code, fallback, values) ?? fallback,
+    []
+  )
 
   // Held as refs so the loop can call them without being re-created; the
   // mutation objects themselves are new on every render.
@@ -352,7 +364,10 @@ export function useScanQueue({
             imageUrl: detail?.image_url ?? existing?.image_url ?? null,
             copies: detail ? detail.stocks.length : null,
             undo: null,
-            message: 'Already in the library — nothing added.',
+            message: label(
+              'ALREADY_IN_LIBRARY_NOTHING_ADDED',
+              'Already in the library — nothing added.'
+            ),
           })
           return true
         }
@@ -376,8 +391,8 @@ export function useScanQueue({
             copies: null,
             undo: null,
             message: isMetadataFailure
-              ? metadataLookupFailureMessage(failure)
-              : 'No metadata found for this ISBN.',
+              ? metadataLookupFailureMessage(failure, label)
+              : label('NO_METADATA_FOUND', 'No metadata found for this ISBN.'),
             ...(isMetadataFailure ? { metadataError: failure.kind } : {}),
           })
           return true
@@ -395,7 +410,10 @@ export function useScanQueue({
               imageUrl: null,
               copies: null,
               undo: null,
-              message: 'Lookup service unavailable. Trying once more.',
+              message: label(
+                'LOOKUP_RETRYING',
+                'Lookup service unavailable. Trying once more.'
+              ),
             })
             return false
           }
@@ -406,7 +424,10 @@ export function useScanQueue({
             imageUrl: null,
             copies: null,
             undo: null,
-            message: 'The lookup service is unavailable. Not added.',
+            message: label(
+              'LOOKUP_UNAVAILABLE_NOT_ADDED',
+              'The lookup service is unavailable. Not added.'
+            ),
           })
           return true
         }
@@ -418,12 +439,15 @@ export function useScanQueue({
           imageUrl: null,
           copies: null,
           undo: null,
-          message: 'Could not be added. Try scanning it again.',
+          message: label(
+            'SCAN_COULD_NOT_BE_ADDED',
+            'Could not be added. Try scanning it again.'
+          ),
         })
         return true
       }
     },
-    [ask, fetchBook, record, write]
+    [ask, fetchBook, label, record, write]
   )
 
   const drain = useCallback(async () => {
@@ -477,7 +501,10 @@ export function useScanQueue({
           imageUrl: null,
           copies: null,
           undo: null,
-          message: 'That is not a book barcode. Look for the ISBN one.',
+          message: label(
+            'NOT_A_BOOK_BARCODE_DESC',
+            'That is not a book barcode. Look for the ISBN one.'
+          ),
         })
         return
       }
@@ -504,7 +531,7 @@ export function useScanQueue({
       setPendingCount(queueRef.current.length + (inFlightRef.current ? 1 : 0))
       void drain()
     },
-    [drain, record]
+    [drain, record, label]
   )
 
   const undo = useCallback(
@@ -534,8 +561,8 @@ export function useScanQueue({
             undo: null,
             message:
               target.kind === 'book'
-                ? 'Removed from the library.'
-                : 'That copy was removed.',
+                ? label('REMOVED_FROM_LIBRARY', 'Removed from the library.')
+                : label('COPY_REMOVED', 'That copy was removed.'),
           }
           setEntries((current) =>
             current.map((candidate) => (candidate.id === entryId ? undone : candidate))
@@ -546,13 +573,16 @@ export function useScanQueue({
           setEntries((current) =>
             current.map((candidate) =>
               candidate.id === entryId
-                ? { ...candidate, message: 'Could not be undone.' }
+                ? {
+                    ...candidate,
+                    message: label('COULD_NOT_BE_UNDONE', 'Could not be undone.'),
+                  }
                 : candidate
             )
           )
         })
     },
-    [entries]
+    [entries, label]
   )
 
   return {

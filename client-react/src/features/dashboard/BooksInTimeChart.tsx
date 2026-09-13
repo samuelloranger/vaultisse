@@ -124,7 +124,7 @@ function useReducedMotion(): boolean {
 }
 
 export function BooksInTimeChart({ booksInTime }: { booksInTime: BooksInMonth[] }) {
-  const { locale } = useLocale()
+  const { locale, t, tPlural } = useLocale()
   const theme = useTheme()
   const themeName = useThemeName()
   const media = useMedia()
@@ -147,8 +147,12 @@ export function BooksInTimeChart({ booksInTime }: { booksInTime: BooksInMonth[] 
     () => buildTrendSeries(booksInTime, { months, locale }),
     [booksInTime, months, locale]
   )
-  const summary = describeTrend(series)
-  const caption = trendCaption(series)
+  const summary = describeTrend(series, t, (code, count, one, other) =>
+    tPlural(code, count, one, other)
+  )
+  const caption = trendCaption(series, t, (code, count, one, other) =>
+    tPlural(code, count, one, other)
+  )
 
   const options = useMemo<ChartOptions<'bar'>>(
     () => ({
@@ -170,7 +174,14 @@ export function BooksInTimeChart({ booksInTime }: { booksInTime: BooksInMonth[] 
           callbacks: {
             title: (items) => series[items[0].dataIndex]?.fullLabel ?? '',
             label: (item) =>
-              item.parsed.y === 1 ? '1 book added' : `${item.parsed.y} books added`,
+              item.parsed.y === 1
+                ? t('TREND_BOOK_ADDED', '1 book added')
+                : tPlural(
+                    'TREND_BOOKS_ADDED',
+                    item.parsed.y ?? 0,
+                    '{count} book added',
+                    '{count} books added'
+                  ),
           },
         },
       },
@@ -194,7 +205,7 @@ export function BooksInTimeChart({ booksInTime }: { booksInTime: BooksInMonth[] 
         },
       },
     }),
-    [palette, reducedMotion, series]
+    [palette, reducedMotion, series, t, tPlural]
   )
 
   const data = useMemo(
@@ -217,10 +228,13 @@ export function BooksInTimeChart({ booksInTime }: { booksInTime: BooksInMonth[] 
 
   return (
     <Card gap="$3" testID="books-in-time-card">
-      <Eyebrow>Books added per month</Eyebrow>
+      <Eyebrow>{t('BOOKS_ADDED_PER_MONTH', 'Books added per month')}</Eyebrow>
       {series.length === 0 ? (
         <MutedText testID="books-in-time-empty">
-          Nothing added yet — the trend appears once the library has its first book.
+          {t(
+            'TREND_NOTHING_ADDED',
+            'Nothing added yet — the trend appears once the library has its first book.'
+          )}
         </MutedText>
       ) : (
         <>

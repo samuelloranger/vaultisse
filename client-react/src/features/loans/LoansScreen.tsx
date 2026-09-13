@@ -10,6 +10,7 @@ import {
   ScreenLoading,
 } from '@/components/ScreenState'
 import { ReturnBooksDialog } from '@/features/dashboard/ReturnBooksDialog'
+import { useDocumentTitle } from '@/lib/documentTitle'
 import { useLocale } from '@/locale/LocaleProvider'
 import { useReturnBooks } from '@/queries/book'
 import { useCustomerGroups, useCustomers } from '@/queries/customer'
@@ -59,6 +60,8 @@ export function LoansScreen() {
   const groups = useCustomerGroups()
   const customers = useCustomers()
   const returnBooks = useReturnBooks()
+  const { t, tPlural } = useLocale()
+  useDocumentTitle(t('LOANS', 'Loans'))
 
   const page = filters.page ?? 0
   const total = loans.data?.total ?? 0
@@ -75,9 +78,9 @@ export function LoansScreen() {
         flexWrap="wrap"
       >
         <YStack gap="$1" minWidth={0} flexShrink={1}>
-          <Eyebrow>Lending</Eyebrow>
+          <Eyebrow>{t('LENDING', 'Lending')}</Eyebrow>
           <DisplayText fontSize={26} lineHeight={32}>
-            Loans
+            {t('LOANS', 'Loans')}
           </DisplayText>
         </YStack>
         <XStack gap="$2" flexWrap="wrap">
@@ -92,7 +95,7 @@ export function LoansScreen() {
             borderColor="$borderColor"
             color="$color"
           >
-            Report
+            {t('REPORT', 'Report')}
           </Button>
           <Button
             testID="loans-return-open"
@@ -104,7 +107,7 @@ export function LoansScreen() {
             backgroundColor="$primary"
             color="$onPrimary"
           >
-            Return copies
+            {t('RETURN_COPIES', 'Return copies')}
           </Button>
         </XStack>
       </XStack>
@@ -139,7 +142,7 @@ export function LoansScreen() {
     return (
       <YStack gap="$4" testID="loans-screen">
         {header}
-        <ScreenLoading label="Loading loans…" />
+        <ScreenLoading label={t('LOADING_LOANS', 'Loading loans…')} />
         {dialogs}
       </YStack>
     )
@@ -152,7 +155,7 @@ export function LoansScreen() {
         <ScreenError
           error={loans.error}
           onRetry={() => loans.refetch()}
-          title="The loans did not load"
+          title={t('LOANS_NOT_LOADED', 'The loans did not load')}
         />
         {dialogs}
       </YStack>
@@ -171,13 +174,16 @@ export function LoansScreen() {
 
       {rows.length === 0 ? (
         <EmptyState
-          title="Nothing is out"
-          description="Every copy is on its shelf. Lend one from a borrower's row on the Borrowers screen."
+          title={t('NOTHING_IS_OUT', 'Nothing is out')}
+          description={t(
+            'LOANS_EMPTY_DESC',
+            "Every copy is on its shelf. Lend one from a borrower's row on the Borrowers screen."
+          )}
         />
       ) : (
         <>
           <MutedText testID="loans-count" fontSize={13}>
-            {rangeLabel(page, limit, rows.length, total)}
+            {rangeLabel(page, limit, rows.length, total, tPlural)}
           </MutedText>
 
           <YStack gap="$3">
@@ -258,7 +264,7 @@ function LoanCard({
   onReturn: () => void
   isReturning: boolean
 }) {
-  const { locale } = useLocale()
+  const { locale, t } = useLocale()
   return (
     <Card testID="loan-row" spine="left" padding="$3" gap="$2">
       <XStack alignItems="center" gap="$3" flexWrap="wrap">
@@ -304,7 +310,7 @@ function LoanCard({
           color="$color"
           flexShrink={0}
         >
-          {isReturning ? 'Returning…' : 'Return'}
+          {isReturning ? t('RETURNING', 'Returning…') : t('RETURN', 'Return')}
         </Button>
       </XStack>
     </Card>
@@ -312,9 +318,24 @@ function LoanCard({
 }
 
 /** "1–50 of 128 out" — what page you are on, said in rows rather than pages. */
-function rangeLabel(page: number, limit: number, shown: number, total: number): string {
+function rangeLabel(
+  page: number,
+  limit: number,
+  shown: number,
+  total: number,
+  pluralize?: (
+    code: string,
+    count: number,
+    oneFallback: string,
+    otherFallback: string
+  ) => string
+): string {
   if (total <= limit) {
-    return total === 1 ? '1 copy out' : `${total} copies out`
+    return pluralize
+      ? pluralize('LOAN_COPIES_OUT', total, '1 copy out', '{count} copies out')
+      : total === 1
+        ? '1 copy out'
+        : `${total} copies out`
   }
   const first = page * limit + 1
   return `${first}–${first + shown - 1} of ${total} out`

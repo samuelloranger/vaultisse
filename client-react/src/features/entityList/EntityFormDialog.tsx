@@ -3,6 +3,7 @@ import { Button, YStack } from 'tamagui'
 import { Field } from '@/components/Field'
 import { ResponsiveDialog } from '@/components/ResponsiveDialog'
 import { errorMessage } from '@/components/ScreenState'
+import { useLocale } from '@/locale/LocaleProvider'
 import type { EntityFormField, EntityValues } from './types'
 
 /**
@@ -47,6 +48,7 @@ export function EntityFormDialog({
   error: unknown
   testID: string
 }) {
+  const { t } = useLocale()
   // Seeded once, at mount. The screen mounts this component when the dialog
   // opens and drops it when it closes, so "mount" and "open" are the same
   // moment — which is why there is no re-seeding effect here to get wrong.
@@ -80,7 +82,7 @@ export function EntityFormDialog({
             borderColor="$borderColor"
             color="$color"
           >
-            Cancel
+            {t('CANCEL', 'Cancel')}
           </Button>
           <Button
             testID={`${testID}-submit`}

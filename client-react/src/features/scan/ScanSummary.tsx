@@ -1,5 +1,6 @@
 import { Button, Image, Text, XStack, YStack } from 'tamagui'
 import { ResponsiveDialog } from '@/components/ResponsiveDialog'
+import { useLocale } from '@/locale/LocaleProvider'
 import { addedTitle } from './ScanToast'
 import type { ScanEntry, ScanEntryStatus } from './useScanQueue'
 
@@ -25,18 +26,24 @@ const SUMMARY_STATUSES: ReadonlySet<ScanEntryStatus> = new Set([
   'failed',
 ])
 
-function statusLine(entry: ScanEntry): string {
+function statusLine(
+  entry: ScanEntry,
+  translate: (code: string, fallback: string) => string
+): string {
   switch (entry.status) {
     case 'added':
-      return addedTitle(entry.copies)
+      return addedTitle(entry.copies, translate)
     case 'undone':
-      return entry.message ?? 'Undone'
+      return entry.message ?? translate('UNDONE', 'Undone')
     case 'skipped':
-      return 'Skipped — already in the library'
+      return translate('SKIPPED_ALREADY', 'Skipped — already in the library')
     case 'notFound':
-      return entry.message ?? 'No metadata found for this ISBN'
+      return (
+        entry.message ??
+        translate('NO_METADATA_FOR_ISBN_SHORT', 'No metadata found for this ISBN')
+      )
     default:
-      return entry.message ?? 'Not added'
+      return entry.message ?? translate('NOT_ADDED', 'Not added')
   }
 }
 
@@ -53,6 +60,7 @@ export function ScanSummary({
 }) {
   const shown = entries.filter((entry) => SUMMARY_STATUSES.has(entry.status))
   const added = entries.filter((entry) => entry.status === 'added').length
+  const { t, tPlural } = useLocale()
 
   return (
     <ResponsiveDialog
@@ -60,13 +68,16 @@ export function ScanSummary({
       onOpenChange={(next) => {
         if (!next) onClose()
       }}
-      title="Scan session"
+      title={t('SCAN_SESSION', 'Scan session')}
       description={
         added === 0
-          ? 'Nothing was added to the library.'
-          : added === 1
-            ? '1 copy added to the library.'
-            : `${added} copies added to the library.`
+          ? t('NOTHING_ADDED_TO_LIBRARY', 'Nothing was added to the library.')
+          : tPlural(
+              'COPIES_ADDED_TO_LIBRARY',
+              added,
+              '1 copy added to the library.',
+              '{count} copies added to the library.'
+            )
       }
       actions={
         <Button
@@ -78,13 +89,13 @@ export function ScanSummary({
           backgroundColor="$primary"
           color="$onPrimary"
         >
-          Done
+          {t('DONE', 'Done')}
         </Button>
       }
     >
       {shown.length === 0 ? (
         <Text fontSize={15} color="$colorMuted">
-          No books were scanned.
+          {t('NO_BOOKS_SCANNED', 'No books were scanned.')}
         </Text>
       ) : (
         <YStack testID="scan-summary-list" gap="$1">
@@ -114,7 +125,7 @@ export function ScanSummary({
                   {entry.title ?? entry.isbn}
                 </Text>
                 <Text fontSize={13} color="$colorMuted">
-                  {statusLine(entry)}
+                  {statusLine(entry, t)}
                 </Text>
               </YStack>
 
@@ -131,7 +142,7 @@ export function ScanSummary({
                   color="$color"
                   flexShrink={0}
                 >
-                  Undo
+                  {t('UNDO', 'Undo')}
                 </Button>
               ) : null}
             </XStack>

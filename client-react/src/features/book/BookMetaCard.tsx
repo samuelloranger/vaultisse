@@ -101,7 +101,7 @@ function FieldRow({ label, value }: { label: string; value: string | null }) {
 }
 
 export function BookMetaCard({ book, policy }: { book: BookDetail; policy: Policy }) {
-  const { formatDate } = useLocale()
+  const { formatDate, t } = useLocale()
   const [draft, setDraft] = useState<Draft | null>(null)
   const update = useUpdateBook(book.id)
 
@@ -139,13 +139,13 @@ export function BookMetaCard({ book, policy }: { book: BookDetail; policy: Polic
         flexWrap="wrap"
       >
         <YStack gap="$1" flexGrow={1} flexBasis={200} minWidth={0}>
-          <Eyebrow>Book</Eyebrow>
+          <Eyebrow>{t('BOOK', 'Book')}</Eyebrow>
           <DisplayText fontSize={24} lineHeight={30}>
             {book.name}
           </DisplayText>
           {book.isbn ? (
             <Text fontFamily="$mono" fontSize={13} color="$colorMuted">
-              ISBN {book.isbn}
+              {t('ISBN_VALUE', `ISBN ${book.isbn}`, { isbn: book.isbn })}
             </Text>
           ) : null}
         </YStack>
@@ -164,7 +164,7 @@ export function BookMetaCard({ book, policy }: { book: BookDetail; policy: Polic
                 borderColor="$borderColor"
                 color="$color"
               >
-                Cancel
+                {t('CANCEL', 'Cancel')}
               </Button>
               <Button
                 testID="save-book"
@@ -176,7 +176,7 @@ export function BookMetaCard({ book, policy }: { book: BookDetail; policy: Polic
                 backgroundColor="$primary"
                 color="$onPrimary"
               >
-                {update.isPending ? 'Saving…' : 'Save'}
+                {update.isPending ? t('SAVING', 'Saving…') : t('SAVE', 'Save')}
               </Button>
             </>
           ) : (
@@ -189,7 +189,7 @@ export function BookMetaCard({ book, policy }: { book: BookDetail; policy: Polic
               backgroundColor="$primary"
               color="$onPrimary"
             >
-              Edit
+              {t('EDIT', 'Edit')}
             </Button>
           )}
         </XStack>
@@ -207,18 +207,22 @@ export function BookMetaCard({ book, policy }: { book: BookDetail; policy: Polic
             <YStack flexGrow={1} flexBasis={200} minWidth={0}>
               <Field
                 testID="edit-name"
-                label="Title"
+                label={t('TITLE', 'Title')}
                 value={draft.name}
                 onChangeText={(next) => patch({ name: next })}
                 autoComplete="off"
                 inputMode="text"
-                error={draft.name.trim() === '' ? 'A title is required.' : null}
+                error={
+                  draft.name.trim() === ''
+                    ? t('TITLE_REQUIRED', 'A title is required.')
+                    : null
+                }
               />
             </YStack>
             <YStack flexGrow={1} flexBasis={200} minWidth={0}>
               <Field
                 testID="edit-isbn"
-                label="ISBN"
+                label={t('ISBN', 'ISBN')}
                 value={draft.isbn}
                 onChangeText={(next) => patch({ isbn: next })}
                 autoComplete="off"
@@ -231,24 +235,24 @@ export function BookMetaCard({ book, policy }: { book: BookDetail; policy: Polic
             <YStack flexGrow={1} flexBasis={200} minWidth={0}>
               <SelectField
                 testID="edit-category"
-                label="Category"
+                label={t('CATEGORY', 'Category')}
                 value={draft.categoryId}
                 options={policy.categories.map((c) => ({ value: c.id, label: c.name }))}
                 onChange={(next) => patch({ categoryId: next })}
-                emptyLabel="Uncategorised"
+                emptyLabel={t('UNCATEGORISED', 'Uncategorised')}
               />
             </YStack>
             <YStack flexGrow={1} flexBasis={200} minWidth={0}>
               <SelectField
                 testID="edit-language"
-                label="Language"
+                label={t('LANGUAGE', 'Language')}
                 value={draft.languageCode}
                 options={policy.languages.map((l) => ({
                   value: l.code,
                   label: l.name,
                 }))}
                 onChange={(next) => patch({ languageCode: next })}
-                emptyLabel="Not set"
+                emptyLabel={t('NOT_SET', 'Not set')}
               />
             </YStack>
           </XStack>
@@ -257,17 +261,17 @@ export function BookMetaCard({ book, policy }: { book: BookDetail; policy: Polic
             <YStack flexGrow={1} flexBasis={200} minWidth={0}>
               <SelectField
                 testID="edit-format"
-                label="Format"
+                label={t('FORMAT', 'Format')}
                 value={draft.formatId}
                 options={policy.formats.map((f) => ({ value: f.id, label: f.name }))}
                 onChange={(next) => patch({ formatId: next })}
-                emptyLabel="Not set"
+                emptyLabel={t('NOT_SET', 'Not set')}
               />
             </YStack>
             <YStack flexGrow={1} flexBasis={200} minWidth={0}>
               <Field
                 testID="edit-pages"
-                label="Pages"
+                label={t('PAGES', 'Pages')}
                 value={draft.pages}
                 onChangeText={(next) => patch({ pages: next.replace(/[^0-9]/g, '') })}
                 autoComplete="off"
@@ -280,7 +284,7 @@ export function BookMetaCard({ book, policy }: { book: BookDetail; policy: Polic
             <YStack flexGrow={1} flexBasis={200} minWidth={0}>
               <Field
                 testID="edit-publisher"
-                label="Publisher"
+                label={t('PUBLISHER', 'Publisher')}
                 value={draft.publisher}
                 onChangeText={(next) => patch({ publisher: next })}
                 autoComplete="organization"
@@ -290,7 +294,7 @@ export function BookMetaCard({ book, policy }: { book: BookDetail; policy: Polic
             <YStack flexGrow={1} flexBasis={200} minWidth={0}>
               <DateField
                 testID="edit-published-date"
-                label="Published"
+                label={t('PUBLISHED', 'Published')}
                 value={draft.publishedDate}
                 onChange={(next) => patch({ publishedDate: next })}
               />
@@ -299,7 +303,7 @@ export function BookMetaCard({ book, policy }: { book: BookDetail; policy: Polic
 
           <TextAreaField
             testID="edit-description"
-            label="Description"
+            label={t('DESCRIPTION', 'Description')}
             value={draft.description}
             onChangeText={(next) => patch({ description: next })}
           />
@@ -312,16 +316,16 @@ export function BookMetaCard({ book, policy }: { book: BookDetail; policy: Polic
       ) : (
         <YStack gap="$3" testID="book-meta-view">
           <XStack flexWrap="wrap" gap="$3" rowGap="$3">
-            <FieldRow label="Category" value={categoryName} />
-            <FieldRow label="Language" value={languageName} />
-            <FieldRow label="Format" value={formatName} />
+            <FieldRow label={t('CATEGORY', 'Category')} value={categoryName} />
+            <FieldRow label={t('LANGUAGE', 'Language')} value={languageName} />
+            <FieldRow label={t('FORMAT', 'Format')} value={formatName} />
             <FieldRow
-              label="Pages"
+              label={t('PAGES', 'Pages')}
               value={book.pages === null ? null : String(book.pages)}
             />
-            <FieldRow label="Publisher" value={book.publisher} />
+            <FieldRow label={t('PUBLISHER', 'Publisher')} value={book.publisher} />
             <FieldRow
-              label="Published"
+              label={t('PUBLISHED', 'Published')}
               value={
                 book.published_date
                   ? formatDate(book.published_date, { dateOnly: true })
@@ -331,7 +335,7 @@ export function BookMetaCard({ book, policy }: { book: BookDetail; policy: Polic
           </XStack>
 
           <YStack gap="$1">
-            <Eyebrow>Authors</Eyebrow>
+            <Eyebrow>{t('AUTHORS', 'Authors')}</Eyebrow>
             {book.authors.length > 0 ? (
               <XStack flexWrap="wrap" gap="$2" testID="book-authors">
                 {book.authors.map((author) => (
@@ -359,7 +363,7 @@ export function BookMetaCard({ book, policy }: { book: BookDetail; policy: Polic
 
           {book.description ? (
             <YStack gap="$1">
-              <Eyebrow>Description</Eyebrow>
+              <Eyebrow>{t('DESCRIPTION', 'Description')}</Eyebrow>
               <Text fontSize={14} lineHeight={22} color="$color">
                 {book.description}
               </Text>

@@ -3,6 +3,7 @@ import { Button, Text, YStack } from 'tamagui'
 import type { CustomerGroupRow, CustomerRow } from '@/api/customer'
 import { customerBookCount } from '@/api/customer'
 import { EmptyState, errorMessage } from '@/components/ScreenState'
+import { useLocale } from '@/locale/LocaleProvider'
 import { useSetCustomerGroup } from '@/queries/customer'
 import { NativeSelect, SelectableRow } from './CustomerControls'
 
@@ -40,6 +41,7 @@ export function CustomerGroupMembersPanel({
 }) {
   const members = customers.filter((customer) => customer.group_id === group.id)
   const setGroup = useSetCustomerGroup()
+  const { t, tPlural } = useLocale()
 
   const [selected, setSelected] = useState<number[]>([])
   const [target, setTarget] = useState<number | null>(null)
@@ -78,8 +80,12 @@ export function CustomerGroupMembersPanel({
   if (members.length === 0) {
     return (
       <EmptyState
-        title="No members"
-        description={`Nobody is in ${group.name} yet. Open a borrower's actions on the Borrowers tab and choose "Move to group".`}
+        title={t('NO_MEMBERS', 'No members')}
+        description={t(
+          'GROUP_MEMBERS_EMPTY_DESC',
+          `Nobody is in ${group.name} yet. Open a borrower's actions on the Borrowers tab and choose "Move to group".`,
+          { name: group.name }
+        )}
       />
     )
   }
@@ -101,7 +107,16 @@ export function CustomerGroupMembersPanel({
             key={member.id}
             testID={`customer-group-member-${member.id}`}
             label={member.name}
-            meta={bookCountLabel(customerBookCount(member))}
+            meta={
+              customerBookCount(member) === 0
+                ? t('NOTHING_OUT', 'Nothing out')
+                : tPlural(
+                    'BORROWER_BOOKS',
+                    customerBookCount(member),
+                    '{count} book',
+                    '{count} books'
+                  )
+            }
             selected={selected.includes(member.id)}
             onToggle={() => toggle(member.id)}
           />
@@ -116,11 +131,11 @@ export function CustomerGroupMembersPanel({
       <YStack gap="$2">
         <NativeSelect
           testID={`customer-group-move-target-${group.id}`}
-          label="Move selected to"
+          label={t('MOVE_SELECTED_TO', 'Move selected to')}
           value={target}
           options={targetOptions}
           onChange={setTarget}
-          emptyLabel="No group"
+          emptyLabel={t('NO_GROUP', 'No group')}
         />
         <Button
           testID={`customer-group-move-${group.id}`}
@@ -135,10 +150,10 @@ export function CustomerGroupMembersPanel({
           alignSelf="flex-start"
         >
           {moving
-            ? 'Moving…'
+            ? t('MOVING', 'Moving…')
             : selected.length === 0
-              ? 'Select someone to move'
-              : `Move ${selected.length}`}
+              ? t('SELECT_BORROWER_TO_MOVE', 'Select someone to move')
+              : t('MOVE_COUNT', `Move ${selected.length}`, { count: selected.length })}
         </Button>
         {setGroup.isError && !moving ? (
           <Text testID="customer-group-move-error" fontSize={14} color="$red10">
@@ -148,10 +163,4 @@ export function CustomerGroupMembersPanel({
       </YStack>
     </YStack>
   )
-}
-
-/** "2 books" / "1 book" / "Nothing out". */
-function bookCountLabel(count: number): string {
-  if (count === 0) return 'Nothing out'
-  return count === 1 ? '1 book' : `${count} books`
 }

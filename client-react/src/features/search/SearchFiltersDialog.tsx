@@ -1,5 +1,6 @@
 import { Button, Text, XStack, YStack } from 'tamagui'
 import { ResponsiveDialog } from '@/components/ResponsiveDialog'
+import { useLocale } from '@/locale/LocaleProvider'
 import { DateField, FilterChip } from './SearchControls'
 import { clearedFilters, type SearchScreenParams } from './searchParams'
 
@@ -70,6 +71,7 @@ export function SearchFiltersDialog({
   sortOptions: readonly { value: SearchScreenParams['sort']; label: string }[]
   stockOptions: readonly { value: SearchScreenParams['stock']; label: string }[]
 }) {
+  const { t } = useLocale()
   function update(patch: Partial<SearchScreenParams>) {
     onParamsChange({ ...params, ...patch })
   }
@@ -78,7 +80,7 @@ export function SearchFiltersDialog({
     <ResponsiveDialog
       open={open}
       onOpenChange={onOpenChange}
-      title="Filters"
+      title={t('FILTERS', 'Filters')}
       description={resultSummary}
       actions={
         <>
@@ -92,7 +94,7 @@ export function SearchFiltersDialog({
             borderColor="$borderColor"
             color="$color"
           >
-            Clear all
+            {t('CLEAR_ALL', 'Clear all')}
           </Button>
           <Button
             testID="filters-done"
@@ -103,19 +105,19 @@ export function SearchFiltersDialog({
             backgroundColor="$primary"
             color="$onPrimary"
           >
-            Done
+            {t('DONE', 'Done')}
           </Button>
         </>
       }
     >
       <YStack gap="$2">
         <Text fontSize={14} color="$colorMuted">
-          Category
+          {t('CATEGORY', 'Category')}
         </Text>
         <XStack flexWrap="wrap" gap="$2">
           <FilterChip
             testID="category-all"
-            label="All"
+            label={t('ALL', 'All')}
             selected={params.categoryId === undefined}
             onPress={() => update({ categoryId: undefined })}
           />
@@ -138,12 +140,12 @@ export function SearchFiltersDialog({
 
       <YStack gap="$2">
         <Text fontSize={14} color="$colorMuted">
-          Copies
+          {t('COPIES', 'Copies')}
         </Text>
         <XStack flexWrap="wrap" gap="$2">
           <FilterChip
             testID="stock-any"
-            label="Any"
+            label={t('ANY', 'Any')}
             selected={params.stock === undefined}
             onPress={() => update({ stock: undefined })}
           />
@@ -162,7 +164,7 @@ export function SearchFiltersDialog({
           ))}
           <FilterChip
             testID="filter-recent"
-            label="Added recently"
+            label={t('ADDED_RECENTLY', 'Added recently')}
             selected={params.recent === true}
             onPress={() => update({ recent: params.recent ? undefined : true })}
           />
@@ -171,13 +173,13 @@ export function SearchFiltersDialog({
 
       <YStack gap="$2">
         <Text fontSize={14} color="$colorMuted">
-          Added between
+          {t('ADDED_BETWEEN', 'Added between')}
         </Text>
         <XStack flexWrap="wrap" gap="$3">
           <YStack flexGrow={1} flexBasis={150} minWidth={0}>
             <DateField
               testID="date-from"
-              label="From"
+              label={t('FROM', 'From')}
               value={params.from ?? ''}
               onChange={(next) => update({ from: next || undefined })}
             />
@@ -185,7 +187,7 @@ export function SearchFiltersDialog({
           <YStack flexGrow={1} flexBasis={150} minWidth={0}>
             <DateField
               testID="date-to"
-              label="To"
+              label={t('TO', 'To')}
               value={params.to ?? ''}
               onChange={(next) => update({ to: next || undefined })}
             />
@@ -198,7 +200,7 @@ export function SearchFiltersDialog({
           count, because neither changes which books come back. */}
       <YStack gap="$2">
         <Text fontSize={14} color="$colorMuted">
-          Display
+          {t('DISPLAY', 'Display')}
         </Text>
         <XStack flexWrap="wrap" gap="$2">
           {sortOptions.map((option) => (
@@ -215,7 +217,7 @@ export function SearchFiltersDialog({
           {/* A named control, not an icon with a tooltip. */}
           <FilterChip
             testID="toggle-group"
-            label="Group by category"
+            label={t('GROUP_BY_CATEGORY', 'Group by category')}
             selected={params.group === true}
             onPress={() => update({ group: params.group ? undefined : true })}
           />

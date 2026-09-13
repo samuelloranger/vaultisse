@@ -4,6 +4,8 @@ import type { SearchBook } from '@/api/search'
 import { Card, DisplayText, Eyebrow, MutedText } from '@/components/Card'
 import { Field } from '@/components/Field'
 import { EmptyState, ScreenError, ScreenLoading } from '@/components/ScreenState'
+import { useDocumentTitle } from '@/lib/documentTitle'
+import { useLocale } from '@/locale/LocaleProvider'
 import { usePolicy } from '@/queries/app'
 import { useSearchBooks } from '@/queries/search'
 import { ScanScreen } from '../scan/ScanScreen'
@@ -53,23 +55,11 @@ import {
  * behind "Filters", which carries the count of what it is hiding.
  */
 
-const SORT_OPTIONS = [
-  { value: 'NAME_ASC', label: 'Title A–Z' },
-  { value: 'NAME_DESC', label: 'Title Z–A' },
-  { value: 'DATE_NEWEST', label: 'Newest' },
-  { value: 'DATE_OLDEST', label: 'Oldest' },
-] as const
-
-const STOCK_OPTIONS = [
-  { value: 'HAS_STOCK', label: 'Has copies' },
-  { value: 'NO_STOCK', label: 'No copies' },
-  { value: 'ON_LOAN', label: 'On loan' },
-] as const
-
 /** Split loaded results into one section per category, uncategorised last. */
 function groupByCategory(
   books: SearchBook[],
-  categories: { id: number; name: string }[]
+  categories: { id: number; name: string }[],
+  translate?: (code: string, fallback: string) => string
 ): { key: string; title: string; books: SearchBook[] }[] {
   const buckets = new Map<number | null, SearchBook[]>()
   for (const book of books) {
@@ -82,13 +72,22 @@ function groupByCategory(
     .filter(([id]) => id !== null)
     .map(([id, group]) => ({
       key: String(id),
-      title: categories.find((c) => c.id === id)?.name ?? 'Unknown category',
+      title:
+        categories.find((c) => c.id === id)?.name ??
+        (translate
+          ? translate('UNKNOWN_CATEGORY', 'Unknown category')
+          : 'Unknown category'),
       books: group,
     }))
     .sort((a, b) => a.title.localeCompare(b.title))
 
   const loose = buckets.get(null)
-  if (loose) named.push({ key: 'uncategorised', title: 'Uncategorised', books: loose })
+  if (loose)
+    named.push({
+      key: 'uncategorised',
+      title: translate ? translate('UNCATEGORISED', 'Uncategorised') : 'Uncategorised',
+      books: loose,
+    })
 
   return named
 }
@@ -104,7 +103,21 @@ export function SearchScreen({
   onBookCreated?: (id: number) => void
 }) {
   const { data: policy } = usePolicy()
+  const { t, tPlural } = useLocale()
+  useDocumentTitle(t('LIBRARY', 'Library'))
   const results = useSearchBooks(toSearchCriteria(params))
+
+  const sortOptions = [
+    { value: 'NAME_ASC' as const, label: t('SORT_TITLE_ASC', 'Title A–Z') },
+    { value: 'NAME_DESC' as const, label: t('SORT_TITLE_DESC', 'Title Z–A') },
+    { value: 'DATE_NEWEST' as const, label: t('SORT_NEWEST', 'Newest') },
+    { value: 'DATE_OLDEST' as const, label: t('SORT_OLDEST', 'Oldest') },
+  ] as const
+  const stockOptions = [
+    { value: 'HAS_STOCK' as const, label: t('HAS_COPIES', 'Has copies') },
+    { value: 'NO_STOCK' as const, label: t('NO_COPIES', 'No copies') },
+    { value: 'ON_LOAN' as const, label: t('ON_LOAN', 'On loan') },
+  ] as const
 
   const [isbnOpen, setIsbnOpen] = useState(false)
   const [manualOpen, setManualOpen] = useState(false)
@@ -138,22 +151,20 @@ export function SearchScreen({
   const activeCount = countActiveFilters(params)
   // What the drawer says about itself while it is covering the results.
   const resultSummary = results.isSuccess
-    ? total === 1
-      ? '1 book matches'
-      : `${total} books match`
-    : 'Searching the library…'
+    ? tPlural('SEARCH_MATCHES', total, '1 book matches', '{count} books match')
+    : t('SEARCHING_LIBRARY', 'Searching the library…')
 
   return (
     <YStack gap="$4" testID="search-screen">
       <YStack gap="$1">
-        <Eyebrow>Library</Eyebrow>
+        <Eyebrow>{t('LIBRARY', 'Library')}</Eyebrow>
         <XStack alignItems="baseline" gap="$2" flexWrap="wrap">
           <DisplayText fontSize={26} lineHeight={32}>
-            Search
+            {t('SEARCH', 'Search')}
           </DisplayText>
           {results.isSuccess ? (
             <MutedText testID="search-total">
-              {total === 1 ? '1 book' : `${total} books`}
+              {tPlural('SEARCH_TOTAL', total, '1 book', '{count} books')}
             </MutedText>
           ) : null}
         </XStack>
@@ -169,7 +180,7 @@ export function SearchScreen({
           backgroundColor="$primary"
           color="$onPrimary"
         >
-          Add by ISBN
+          {t('ADD_BY_ISBN', 'Add by ISBN')}
         </Button>
         <Button
           testID="open-add-manual"
@@ -181,7 +192,7 @@ export function SearchScreen({
           borderColor="$borderColor"
           color="$color"
         >
-          Add manually
+          {t('ADD_MANUALLY', 'Add manually')}
         </Button>
         {/* Rendered only where a camera could exist. Not disabled-with-a-
             tooltip: a tooltip never opens on touch, and a control that can
@@ -197,7 +208,7 @@ export function SearchScreen({
             borderColor="$borderColor"
             color="$color"
           >
-            Scan
+            {t('SCAN', 'Scan')}
           </Button>
         ) : null}
       </XStack>
@@ -205,11 +216,11 @@ export function SearchScreen({
       <Card gap="$3" testID="search-filters">
         <Field
           testID="search-query"
-          label="Title or ISBN"
+          label={t('TITLE_OR_ISBN', 'Title or ISBN')}
           value={text}
           onChangeText={setText}
           onSubmit={() => update({ q: text.trim() || undefined })}
-          placeholder="Search the library"
+          placeholder={t('SEARCH_LIBRARY_PLACEHOLDER', 'Search the library')}
           autoComplete="off"
           inputMode="search"
         />
@@ -223,13 +234,17 @@ export function SearchScreen({
             backgroundColor="$primary"
             color="$onPrimary"
           >
-            Search
+            {t('SEARCH', 'Search')}
           </Button>
           <Button
             testID="open-filters"
             onPress={() => setFiltersOpen(true)}
             aria-label={
-              activeCount === 1 ? 'Filters, 1 active' : `Filters, ${activeCount} active`
+              activeCount === 1
+                ? t('FILTERS_ACTIVE_ONE', 'Filters, 1 active')
+                : t('FILTERS_ACTIVE', `Filters, ${activeCount} active`, {
+                    count: activeCount,
+                  })
             }
             minHeight={44}
             paddingHorizontal="$3"
@@ -242,7 +257,7 @@ export function SearchScreen({
                 the one thing it does not promise to lay out. */}
             <XStack alignItems="center" gap="$2">
               <Text fontSize={16} color="$color">
-                Filters
+                {t('FILTERS', 'Filters')}
               </Text>
               {activeCount > 0 ? (
                 <Text
@@ -274,7 +289,7 @@ export function SearchScreen({
               borderColor="$borderColor"
               color="$color"
             >
-              Clear filters
+              {t('CLEAR_FILTERS', 'Clear filters')}
             </Button>
           ) : null}
         </XStack>
@@ -287,27 +302,39 @@ export function SearchScreen({
         onParamsChange={onParamsChange}
         categories={policy.categories}
         resultSummary={resultSummary}
-        sortOptions={SORT_OPTIONS}
-        stockOptions={STOCK_OPTIONS}
+        sortOptions={sortOptions}
+        stockOptions={stockOptions}
       />
 
-      {results.isPending ? <ScreenLoading label="Searching the library…" /> : null}
+      {results.isPending ? (
+        <ScreenLoading label={t('SEARCHING_LIBRARY', 'Searching the library…')} />
+      ) : null}
 
       {results.isError ? (
         <ScreenError
           error={results.error}
           onRetry={() => results.refetch()}
-          title="The search did not load"
+          title={t('SEARCH_NOT_LOADED', 'The search did not load')}
         />
       ) : null}
 
       {results.isSuccess && books.length === 0 ? (
         <EmptyState
-          title={filtered ? 'Nothing matches those filters' : 'The library is empty'}
+          title={
+            filtered
+              ? t('NOTHING_MATCHES_FILTERS', 'Nothing matches those filters')
+              : t('LIBRARY_EMPTY', 'The library is empty')
+          }
           description={
             filtered
-              ? 'Try clearing a filter, or widen the date range.'
-              : 'Add a book by scanning its ISBN, or enter one by hand.'
+              ? t(
+                  'FILTERS_EMPTY_DESC',
+                  'Try clearing a filter, or widen the date range.'
+                )
+              : t(
+                  'LIBRARY_EMPTY_DESC',
+                  'Add a book by scanning its ISBN, or enter one by hand.'
+                )
           }
           action={
             filtered ? (
@@ -320,7 +347,7 @@ export function SearchScreen({
                 backgroundColor="$primary"
                 color="$onPrimary"
               >
-                Clear filters
+                {t('CLEAR_FILTERS', 'Clear filters')}
               </Button>
             ) : (
               <Button
@@ -332,7 +359,7 @@ export function SearchScreen({
                 backgroundColor="$primary"
                 color="$onPrimary"
               >
-                Add by ISBN
+                {t('ADD_BY_ISBN', 'Add by ISBN')}
               </Button>
             )
           }
@@ -342,7 +369,7 @@ export function SearchScreen({
       {results.isSuccess && books.length > 0 ? (
         params.group ? (
           <YStack gap="$4">
-            {groupByCategory(books, policy.categories).map((group) => (
+            {groupByCategory(books, policy.categories, t).map((group) => (
               <BookGroup key={group.key} title={group.title} books={group.books} />
             ))}
           </YStack>
@@ -365,8 +392,11 @@ export function SearchScreen({
             color="$color"
           >
             {results.isFetchingNextPage
-              ? 'Loading…'
-              : `Load more (${books.length} of ${total})`}
+              ? t('LOADING', 'Loading…')
+              : t('LOAD_MORE', `Load more (${books.length} of ${total})`, {
+                  loaded: books.length,
+                  total,
+                })}
           </Button>
         </XStack>
       ) : null}

@@ -1,6 +1,7 @@
 import { useId } from 'react'
 import { Button, Label, Text, XStack, YStack } from 'tamagui'
 import { MutedText } from '@/components/Card'
+import { useLocale } from '@/locale/LocaleProvider'
 import { useAuthors } from '@/queries/author'
 
 /**
@@ -32,6 +33,7 @@ export function AuthorPicker({
 }) {
   const id = useId()
   const authors = useAuthors()
+  const { t } = useLocale()
 
   const selectedIds = new Set(selected.map((author) => author.id))
   const available = (authors.data ?? []).filter((author) => !selectedIds.has(author.id))
@@ -39,7 +41,7 @@ export function AuthorPicker({
   return (
     <YStack gap="$2" width="100%">
       <Label htmlFor={id} fontSize={14} color="$colorMuted" lineHeight={20}>
-        Authors
+        {t('AUTHORS', 'Authors')}
       </Label>
 
       {selected.length > 0 ? (
@@ -48,7 +50,9 @@ export function AuthorPicker({
             <Button
               key={author.id}
               testID={`remove-author-${author.id}`}
-              aria-label={`Remove ${author.name}`}
+              aria-label={t('REMOVE_AUTHOR', `Remove ${author.name}`, {
+                name: author.name,
+              })}
               onPress={() => onChange(selected.filter((a) => a.id !== author.id))}
               minHeight={44}
               paddingHorizontal="$3"
@@ -67,7 +71,10 @@ export function AuthorPicker({
 
       {authors.isError ? (
         <Text fontSize={13} color="$red10">
-          The author list did not load, so authors cannot be changed right now.
+          {t(
+            'AUTHORS_LIST_NOT_LOADED',
+            'The author list did not load, so authors cannot be changed right now.'
+          )}
         </Text>
       ) : (
         <select
@@ -99,10 +106,10 @@ export function AuthorPicker({
         >
           <option value="">
             {authors.isPending
-              ? 'Loading authors…'
+              ? t('LOADING_AUTHORS', 'Loading authors…')
               : available.length === 0
-                ? 'Every author is already on this book'
-                : 'Add an author…'}
+                ? t('EVERY_AUTHOR_SELECTED', 'Every author is already on this book')
+                : t('ADD_AUTHOR_OPTION', 'Add an author…')}
           </option>
           {available.map((author) => (
             <option key={author.id} value={author.id}>
@@ -113,8 +120,10 @@ export function AuthorPicker({
       )}
 
       <MutedText>
-        New authors are created on the authors screen, or automatically by an ISBN
-        lookup.
+        {t(
+          'AUTHOR_PICKER_HELP',
+          'New authors are created on the authors screen, or automatically by an ISBN lookup.'
+        )}
       </MutedText>
     </YStack>
   )

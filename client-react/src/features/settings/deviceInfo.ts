@@ -1,4 +1,11 @@
 import type { ActivityEntry, UserSession } from '@/api/user'
+import type { InterpolationValues } from '@/locale/LocaleProvider'
+
+type Translate = (
+  code: string,
+  fallback: string,
+  values?: InterpolationValues
+) => string
 
 /**
  * Turning what the server stored into something a person can recognise.
@@ -37,19 +44,35 @@ const BROWSER_PATTERNS: [RegExp, string][] = [
 ]
 
 /** "Chrome · iPhone", or as much of it as the string supports. */
-export function describeDevice(userAgent: string | null | undefined): string {
-  if (!userAgent) return 'Unknown device'
+export function describeDevice(
+  userAgent: string | null | undefined,
+  translate?: Translate
+): string {
+  if (!userAgent)
+    return translate ? translate('UNKNOWN_DEVICE', 'Unknown device') : 'Unknown device'
   const os = OS_PATTERNS.find(([pattern]) => pattern.test(userAgent))?.[1] ?? null
   const browser =
     BROWSER_PATTERNS.find(([pattern]) => pattern.test(userAgent))?.[1] ?? null
-  if (browser && os) return `${browser} · ${os}`
-  return browser ?? os ?? 'Unknown device'
+  if (browser && os)
+    return translate
+      ? translate('DEVICE_BROWSER_OS', `${browser} · ${os}`, { browser, os })
+      : `${browser} · ${os}`
+  return (
+    browser ??
+    os ??
+    (translate ? translate('UNKNOWN_DEVICE', 'Unknown device') : 'Unknown device')
+  )
 }
 
 /** A session's second line: where it signed in from and when it was last seen. */
-export function describeSession(session: UserSession, locale = 'en-US'): string {
+export function describeSession(
+  session: UserSession,
+  locale = 'en-US',
+  translate?: Translate
+): string {
   const parts = [
-    session.ipAddress ?? 'unknown address',
+    session.ipAddress ??
+      (translate ? translate('UNKNOWN_ADDRESS', 'unknown address') : 'unknown address'),
     formatWhen(session.lastSeenDate, locale),
   ]
   return parts.join(' · ')
@@ -72,16 +95,20 @@ export function formatWhen(iso: string, locale = 'en-US'): string {
 }
 
 /** Human wording for an `activity_log.action`. */
-export function describeActivity(entry: ActivityEntry): string {
+export function describeActivity(entry: ActivityEntry, translate?: Translate): string {
   switch (entry.action) {
     case 'login':
-      return 'Signed in'
+      return translate ? translate('SIGNED_IN', 'Signed in') : 'Signed in'
     case 'login_failed':
-      return 'Failed sign-in attempt'
+      return translate
+        ? translate('FAILED_SIGN_IN', 'Failed sign-in attempt')
+        : 'Failed sign-in attempt'
     case 'logout':
-      return 'Signed out'
+      return translate ? translate('SIGNED_OUT', 'Signed out') : 'Signed out'
     case 'password_changed':
-      return 'Password changed'
+      return translate
+        ? translate('PASSWORD_CHANGED', 'Password changed')
+        : 'Password changed'
     default:
       return entry.action
   }

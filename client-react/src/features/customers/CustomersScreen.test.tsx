@@ -311,7 +311,7 @@ describe('CustomersScreen', () => {
     // `total_customers` is cast `::int` server-side, so this one really is a
     // number — and an empty group says so in words.
     const counts = screen.getAllByTestId('group-count')
-    expect(counts[0]).toHaveTextContent('1 member')
+    expect(counts[0]).toHaveTextContent('1 borrower')
     expect(counts[1]).toHaveTextContent('Empty')
 
     await user.click(screen.getByTestId('customer-groups-screen-add'))

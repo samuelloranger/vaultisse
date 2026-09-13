@@ -3,6 +3,7 @@ import { Button, Text, YStack } from 'tamagui'
 import type { CustomerRow } from '@/api/customer'
 import { ResponsiveDialog } from '@/components/ResponsiveDialog'
 import { errorMessage } from '@/components/ScreenState'
+import { useLocale } from '@/locale/LocaleProvider'
 import { useCustomerGroups, useSetCustomerGroup } from '@/queries/customer'
 import { NativeSelect } from './CustomerControls'
 
@@ -39,6 +40,7 @@ export function CustomerMoveToGroupDialog({
 }) {
   const groups = useCustomerGroups()
   const setGroup = useSetCustomerGroup()
+  const { t } = useLocale()
   const [groupId, setGroupId] = useState<number | null>(customer.group_id)
 
   function close() {
@@ -59,8 +61,11 @@ export function CustomerMoveToGroupDialog({
     <ResponsiveDialog
       open
       onOpenChange={(next) => (next ? onOpenChange(true) : close())}
-      title={`Group for ${customer.name}`}
-      description="A group is optional — a borrower can belong to none."
+      title={t('GROUP_FOR', `Group for ${customer.name}`, { name: customer.name })}
+      description={t(
+        'GROUP_OPTIONAL_DESC',
+        'A group is optional — a borrower can belong to none.'
+      )}
       actions={
         <>
           <Button
@@ -73,7 +78,7 @@ export function CustomerMoveToGroupDialog({
             borderColor="$borderColor"
             color="$color"
           >
-            Cancel
+            {t('CANCEL', 'Cancel')}
           </Button>
           <Button
             testID="customer-group-submit"
@@ -86,7 +91,7 @@ export function CustomerMoveToGroupDialog({
             backgroundColor="$primary"
             color="$onPrimary"
           >
-            {setGroup.isPending ? 'Moving…' : 'Move'}
+            {setGroup.isPending ? t('MOVING', 'Moving…') : t('MOVE', 'Move')}
           </Button>
         </>
       }
@@ -94,15 +99,15 @@ export function CustomerMoveToGroupDialog({
       <YStack gap="$3">
         <NativeSelect
           testID="customer-group-select"
-          label="Group"
+          label={t('GROUP', 'Group')}
           value={groupId}
           options={options}
           onChange={setGroupId}
-          emptyLabel="No group"
+          emptyLabel={t('NO_GROUP', 'No group')}
         />
         {options.length === 0 ? (
           <Text fontSize={14} color="$colorMuted">
-            There are no groups yet. Add one on the Groups tab.
+            {t('NO_GROUPS_YET', 'There are no groups yet. Add one on the Groups tab.')}
           </Text>
         ) : null}
         {setGroup.isError ? (

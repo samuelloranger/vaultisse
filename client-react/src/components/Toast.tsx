@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Button, Image, Text, XStack, YStack } from 'tamagui'
+import { useLocale } from '@/locale/LocaleProvider'
 import { X } from './icons'
 
 /**
@@ -124,6 +125,7 @@ const TONE_BORDER = {
 } as const satisfies Record<ToastTone, string>
 
 function Toast({ toast, onDismiss }: { toast: ToastItem; onDismiss: () => void }) {
+  const { t } = useLocale()
   return (
     <XStack
       testID={`toast-${toast.id}`}
@@ -184,7 +186,7 @@ function Toast({ toast, onDismiss }: { toast: ToastItem; onDismiss: () => void }
       <Button
         testID={`toast-dismiss-${toast.id}`}
         onPress={onDismiss}
-        aria-label="Dismiss"
+        aria-label={t('DISMISS', 'Dismiss')}
         width={44}
         height={44}
         padding={0}

@@ -1,4 +1,5 @@
 import { ApiError } from '@/api/http'
+import type { InterpolationValues } from '@/locale/LocaleProvider'
 
 export type MetadataLookupFailureKind =
   | 'source_not_configured'
@@ -58,27 +59,59 @@ export function metadataLookupFailure(error: unknown): MetadataLookupFailure | n
 }
 
 /** User-facing copy for the two 404 outcomes. It names only server-reported sources. */
-export function metadataLookupFailureMessage(failure: MetadataLookupFailure): string {
+export function metadataLookupFailureMessage(
+  failure: MetadataLookupFailure,
+  translate?: (code: string, fallback: string, values?: InterpolationValues) => string
+): string {
   switch (failure.kind) {
     case 'source_not_configured': {
       const sources = failure.unconfiguredSources
-      const configured =
+      const configuredFallback =
         sources.length > 0
           ? `${sources.join(', ')} ${sources.length === 1 ? 'is' : 'are'} not configured on this server. `
           : 'A metadata source is not configured on this server. '
-      return `Metadata source unavailable: ${configured}Ask an administrator to configure it, or add the book manually.`
+      const configured = translate
+        ? translate('METADATA_SOURCES_NOT_CONFIGURED', configuredFallback, {
+            sources: sources.join(', '),
+            count: sources.length,
+          })
+        : configuredFallback
+      return translate
+        ? translate(
+            'METADATA_SOURCE_NOT_CONFIGURED',
+            `Metadata source unavailable: ${configured}Ask an administrator to configure it, or add the book manually.`,
+            { configured }
+          )
+        : `Metadata source unavailable: ${configured}Ask an administrator to configure it, or add the book manually.`
     }
     case 'no_metadata':
-      return 'This ISBN was checked, but no catalogue returned metadata. Add it manually instead.'
+      return translate
+        ? translate(
+            'NO_METADATA_FOR_ISBN',
+            'This ISBN was checked, but no catalogue returned metadata. Add it manually instead.'
+          )
+        : 'This ISBN was checked, but no catalogue returned metadata. Add it manually instead.'
     case 'source_unavailable':
-      return 'The metadata sources were unavailable. Try again later.'
+      return translate
+        ? translate(
+            'METADATA_SOURCES_UNAVAILABLE',
+            'The metadata sources were unavailable. Try again later.'
+          )
+        : 'The metadata sources were unavailable. Try again later.'
   }
 }
 
 export function metadataLookupFailureTitle(
-  kind: MetadataLookupFailureKind | undefined
+  kind: MetadataLookupFailureKind | undefined,
+  translate?: (code: string, fallback: string) => string
 ): string {
-  return kind === 'source_not_configured'
-    ? 'Metadata source unavailable'
-    : 'No metadata for this ISBN'
+  const code =
+    kind === 'source_not_configured'
+      ? 'METADATA_SOURCE_UNAVAILABLE'
+      : 'NO_METADATA_FOR_ISBN_TITLE'
+  const fallback =
+    kind === 'source_not_configured'
+      ? 'Metadata source unavailable'
+      : 'No metadata for this ISBN'
+  return translate ? translate(code, fallback) : fallback
 }

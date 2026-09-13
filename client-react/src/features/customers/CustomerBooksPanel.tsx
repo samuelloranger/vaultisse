@@ -8,6 +8,7 @@ import {
   ScreenError,
   ScreenLoading,
 } from '@/components/ScreenState'
+import { useLocale } from '@/locale/LocaleProvider'
 import { useCustomerBooks, useReturnCustomerBook } from '@/queries/customer'
 
 /**
@@ -44,6 +45,7 @@ export function CustomerBooksPanel({
 }) {
   const books = useCustomerBooks(customer.id)
   const returnBook = useReturnCustomerBook()
+  const { t } = useLocale()
 
   const lendButton = (
     <Button
@@ -57,12 +59,18 @@ export function CustomerBooksPanel({
       color="$color"
       alignSelf="flex-start"
     >
-      Lend books
+      {t('LEND_BOOKS', 'Lend books')}
     </Button>
   )
 
   if (books.isPending) {
-    return <ScreenLoading label={`Loading what ${customer.name} has…`} />
+    return (
+      <ScreenLoading
+        label={t('LOADING_BORROWER_BOOKS', `Loading what ${customer.name} has…`, {
+          name: customer.name,
+        })}
+      />
+    )
   }
 
   if (books.isError) {
@@ -70,7 +78,7 @@ export function CustomerBooksPanel({
       <ScreenError
         error={books.error}
         onRetry={() => books.refetch()}
-        title="Those books did not load"
+        title={t('BORROWER_BOOKS_NOT_LOADED', 'Those books did not load')}
       />
     )
   }
@@ -78,8 +86,12 @@ export function CustomerBooksPanel({
   if (books.data.length === 0) {
     return (
       <EmptyState
-        title="Nothing out"
-        description={`${customer.name} has no copies on loan. Lend one by entering the code printed on it.`}
+        title={t('NOTHING_OUT', 'Nothing out')}
+        description={t(
+          'BORROWER_BOOKS_EMPTY_DESC',
+          `${customer.name} has no copies on loan. Lend one by entering the code printed on it.`,
+          { name: customer.name }
+        )}
         action={lendButton}
       />
     )
@@ -154,7 +166,9 @@ export function CustomerBooksPanel({
               color="$color"
               flexShrink={0}
             >
-              {returnBook.isPending ? 'Returning…' : 'Return'}
+              {returnBook.isPending
+                ? t('RETURNING', 'Returning…')
+                : t('RETURN', 'Return')}
             </Button>
           </XStack>
         ))}

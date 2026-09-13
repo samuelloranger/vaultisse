@@ -1,4 +1,17 @@
 import type { BooksInMonth } from '@/api/types'
+import type { InterpolationValues } from '@/locale/LocaleProvider'
+
+type Translate = (
+  code: string,
+  fallback: string,
+  values?: InterpolationValues
+) => string
+type Pluralize = (
+  code: string,
+  count: number,
+  oneFallback: string,
+  otherFallback: string
+) => string
 
 /**
  * Turning `/dashboard`'s `booksInTime` into something a chart can draw.
@@ -128,16 +141,29 @@ export function buildTrendSeries(
 }
 
 /** The one-sentence version of the chart, for screen readers and for tests. */
-export function describeTrend(series: TrendPoint[]): string {
-  if (series.length === 0) return 'No books have been added yet.'
+export function describeTrend(
+  series: TrendPoint[],
+  translate: Translate = (_code, fallback, values) =>
+    fallback.replace(/\{(\w+)\}/g, (_, key: string) =>
+      String(values?.[key] ?? `{${key}}`)
+    ),
+  pluralize: Pluralize = (_code, count, oneFallback, otherFallback) =>
+    (count === 1 ? oneFallback : otherFallback).replace('{count}', String(count))
+): string {
+  if (series.length === 0)
+    return translate('TREND_EMPTY', 'No books have been added yet.')
   const total = series.reduce((sum, point) => sum + point.count, 0)
   const span =
     series.length === 1
       ? series[0].fullLabel
       : `${series[0].fullLabel} to ${series[series.length - 1].fullLabel}`
-  const books = total === 1 ? '1 book' : `${total} books`
+  const books = pluralize('TREND_BOOKS', total, '1 book', `${total} books`)
   const detail = series.map((p) => `${p.fullLabel}: ${p.count}`).join(', ')
-  return `Books added per month, ${span}. ${books} in total. ${detail}.`
+  return translate(
+    'TREND_ARIA',
+    `Books added per month, ${span}. ${books} in total. ${detail}.`,
+    { span, books, detail }
+  )
 }
 
 /**
@@ -148,10 +174,26 @@ export function describeTrend(series: TrendPoint[]): string {
  * user gets nothing from the canvas. Printing all of that on screen as well
  * would put a paragraph of numbers under a picture of the same numbers.
  */
-export function trendCaption(series: TrendPoint[]): string {
+export function trendCaption(
+  series: TrendPoint[],
+  translate: Translate = (_code, fallback, values) =>
+    fallback.replace(/\{(\w+)\}/g, (_, key: string) =>
+      String(values?.[key] ?? `{${key}}`)
+    ),
+  pluralize: Pluralize = (_code, count, oneFallback, otherFallback) =>
+    (count === 1 ? oneFallback : otherFallback).replace('{count}', String(count))
+): string {
   if (series.length === 0) return ''
   const total = series.reduce((sum, point) => sum + point.count, 0)
-  const books = total === 1 ? '1 book' : `${total} books`
-  if (series.length === 1) return `${books} in ${series[0].fullLabel}`
-  return `${books} over the last ${series.length} months`
+  const books = pluralize('TREND_BOOKS', total, '1 book', `${total} books`)
+  if (series.length === 1)
+    return translate('TREND_CAPTION_ONE', `${books} in ${series[0].fullLabel}`, {
+      books,
+      month: series[0].fullLabel,
+    })
+  return translate(
+    'TREND_CAPTION_RANGE',
+    `${books} over the last ${series.length} months`,
+    { books, count: series.length }
+  )
 }

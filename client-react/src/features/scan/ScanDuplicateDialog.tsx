@@ -1,5 +1,6 @@
 import { Button, Image, Text, XStack, YStack } from 'tamagui'
 import { ResponsiveDialog } from '@/components/ResponsiveDialog'
+import { useLocale } from '@/locale/LocaleProvider'
 import type { ScanDuplicatePrompt } from './useScanQueue'
 
 /**
@@ -33,13 +34,22 @@ export function ScanDuplicateDialog({
   onSkip: () => void
 }) {
   const copies = prompt?.copies ?? null
+  const { t, tPlural } = useLocale()
 
   const countLine =
     copies === null
-      ? 'The library could not be checked just now, so this book may or may not already be recorded.'
+      ? t(
+          'DUPLICATE_CHECK_UNAVAILABLE',
+          'The library could not be checked just now, so this book may or may not already be recorded.'
+        )
       : copies === 1
-        ? 'One copy is already recorded.'
-        : `${copies} copies are already recorded.`
+        ? t('ONE_COPY_RECORDED', 'One copy is already recorded.')
+        : tPlural(
+            'COPIES_RECORDED',
+            copies,
+            '1 copy is already recorded.',
+            '{count} copies are already recorded.'
+          )
 
   return (
     <ResponsiveDialog
@@ -48,8 +58,11 @@ export function ScanDuplicateDialog({
       onOpenChange={(next) => {
         if (!next) onSkip()
       }}
-      title="Already in the library"
-      description="Scanning is paused until you answer. Nothing has been added yet."
+      title={t('ALREADY_IN_LIBRARY', 'Already in the library')}
+      description={t(
+        'SCANNING_PAUSED_DUPLICATE',
+        'Scanning is paused until you answer. Nothing has been added yet.'
+      )}
       actions={
         <>
           <Button
@@ -62,7 +75,7 @@ export function ScanDuplicateDialog({
             borderColor="$borderColor"
             color="$color"
           >
-            Add another copy
+            {t('ADD_ANOTHER_COPY', 'Add another copy')}
           </Button>
           <Button
             testID="scan-duplicate-skip"
@@ -73,7 +86,7 @@ export function ScanDuplicateDialog({
             backgroundColor="$primary"
             color="$onPrimary"
           >
-            Skip
+            {t('SKIP', 'Skip')}
           </Button>
         </>
       }
@@ -93,7 +106,7 @@ export function ScanDuplicateDialog({
 
         <YStack flex={1} minWidth={0} gap="$2">
           <Text fontFamily="$heading" fontSize={18} color="$color">
-            {prompt?.title ?? 'This ISBN'}
+            {prompt?.title ?? t('THIS_ISBN', 'This ISBN')}
           </Text>
           <Text
             testID="scan-duplicate-isbn"
@@ -108,7 +121,9 @@ export function ScanDuplicateDialog({
           </Text>
           {prompt?.shelves.length ? (
             <Text fontSize={14} color="$colorMuted">
-              Shelved at {prompt.shelves.join(', ')}.
+              {t('SHELVED_AT', `Shelved at ${prompt.shelves.join(', ')}.`, {
+                shelves: prompt.shelves.join(', '),
+              })}
             </Text>
           ) : null}
         </YStack>

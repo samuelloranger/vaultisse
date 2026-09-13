@@ -410,16 +410,14 @@ authentication on your server.
 ## Internationalization
 
 UI labels are stored in the database (`app_languages` / `app_labels` tables in
-`databaseSchema.sql`), translated into English, Spanish, Catalan, and Italian, and
-delivered to the client in `GET /app/policy`'s `labels` map — which keeps translations
-editable without a redeploy. Each account picks its language in Settings
-(`users.language`).
-
-**The React client does not apply those labels yet.** The rewrite replaced `vue-i18n`
-with a lightweight lookup that has not landed, so its UI strings are currently
-hardcoded English; the language selector and the server-side plumbing are both intact
-and waiting for it. See [Contributing](#contributing) for how to add a new language to
-the database.
+`databaseSchema.sql`), translated into English, Spanish, Catalan, Italian, and
+a Québec French (`fr-CA`) draft, and delivered to the client in
+`GET /app/policy`'s `labels` map — which keeps translations editable without a
+redeploy. Each account picks its language and region in Settings
+(`users.language`, `users.region`); the React client applies both immediately.
+Missing labels fall back explicitly to English. The French rows require a
+fluent owner’s approval; see
+[FR-CA-TRANSLATION-REVIEW.md](docs/FR-CA-TRANSLATION-REVIEW.md).
 
 ## Roadmap
 

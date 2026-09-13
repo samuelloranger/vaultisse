@@ -50,7 +50,7 @@ export function BookFilesCard({
   files: BookFile[]
   maxFileSizeMb?: number
 }) {
-  const { formatDate } = useLocale()
+  const { formatDate, t } = useLocale()
   const upload = useUploadBookFile(bookId)
   const remove = useDeleteBookFile(bookId)
   const fileInput = useRef<HTMLInputElement>(null)
@@ -71,7 +71,7 @@ export function BookFilesCard({
         flexWrap="wrap"
       >
         <XStack alignItems="baseline" gap="$2">
-          <Eyebrow>Ebook files</Eyebrow>
+          <Eyebrow>{t('EBOOK_FILES', 'Ebook files')}</Eyebrow>
           <MutedText>{files.length}</MutedText>
         </XStack>
         <Button
@@ -84,7 +84,9 @@ export function BookFilesCard({
           backgroundColor="$primary"
           color="$onPrimary"
         >
-          {upload.isPending ? 'Uploading…' : 'Add a file'}
+          {upload.isPending
+            ? t('UPLOADING', 'Uploading…')
+            : t('ADD_FILE', 'Add a file')}
         </Button>
       </XStack>
 
@@ -117,8 +119,11 @@ export function BookFilesCard({
           }}
         >
           <MutedText textAlign="center">
-            No backup file yet. EPUB, PDF or Kindle
-            {maxFileSizeMb ? `, up to ${maxFileSizeMb}MB` : ''}.
+            {t(
+              'NO_BACKUP_FILE',
+              `No backup file yet. EPUB, PDF or Kindle${maxFileSizeMb ? `, up to ${maxFileSizeMb}MB` : ''}.`,
+              { max: maxFileSizeMb ?? '' }
+            )}
           </MutedText>
         </YStack>
       ) : (
@@ -160,7 +165,9 @@ export function BookFilesCard({
               <Button
                 testID={`remove-file-${file.id}`}
                 onPress={() => setPendingDelete(file)}
-                aria-label={`Remove ${file.file_name}`}
+                aria-label={t('REMOVE_FILE', `Remove ${file.file_name}`, {
+                  name: file.file_name,
+                })}
                 minHeight={44}
                 fontSize={15}
                 borderRadius="$control"
@@ -168,7 +175,7 @@ export function BookFilesCard({
                 borderColor="$borderColor"
                 color="$color"
               >
-                Remove
+                {t('REMOVE', 'Remove')}
               </Button>
             </XStack>
           ))}
@@ -188,7 +195,7 @@ export function BookFilesCard({
         onOpenChange={(next) => {
           if (!next) setPendingDelete(null)
         }}
-        title="Remove this file?"
+        title={t('REMOVE_FILE_TITLE', 'Remove this file?')}
         description={pendingDelete?.file_name}
         actions={
           <>
@@ -202,7 +209,7 @@ export function BookFilesCard({
               borderColor="$borderColor"
               color="$color"
             >
-              Keep it
+              {t('KEEP_IT', 'Keep it')}
             </Button>
             <Button
               testID="file-delete-confirm"
@@ -219,13 +226,16 @@ export function BookFilesCard({
               backgroundColor="$red10"
               color="$onDanger"
             >
-              {remove.isPending ? 'Removing…' : 'Remove'}
+              {remove.isPending ? t('REMOVING', 'Removing…') : t('REMOVE', 'Remove')}
             </Button>
           </>
         }
       >
         <Text fontSize={15} color="$color">
-          The catalogue entry stays; only the backed-up file is deleted.
+          {t(
+            'REMOVE_FILE_DESC',
+            'The catalogue entry stays; only the backed-up file is deleted.'
+          )}
         </Text>
       </ResponsiveDialog>
     </Card>

@@ -9,6 +9,7 @@ import {
   SettingsSection,
   ToggleRow,
 } from '@/features/settings/SettingsControls'
+import { useLocale } from '@/locale/LocaleProvider'
 import { useAdminSettings, useUpdateInstanceSettings } from '@/queries/admin'
 
 /**
@@ -47,54 +48,76 @@ import { useAdminSettings, useUpdateInstanceSettings } from '@/queries/admin'
  * makes on the Accounts tab afterwards, one account at a time.
  */
 
-const THEMES = [
-  { value: 'beige' as const, label: 'Light' },
-  { value: 'library' as const, label: 'Dark' },
-]
-
 export function AdminRegistrationTab() {
   const settings = useAdminSettings()
   const update = useUpdateInstanceSettings()
+  const { t } = useLocale()
 
-  if (settings.isPending) return <ScreenLoading label="Loading settings…" />
+  if (settings.isPending)
+    return <ScreenLoading label={t('LOADING_SETTINGS', 'Loading settings…')} />
 
   if (settings.isError) {
     return (
       <ScreenError
         error={settings.error}
         onRetry={() => settings.refetch()}
-        title="Settings did not load"
+        title={t('SETTINGS_NOT_LOADED', 'Settings did not load')}
       />
     )
   }
 
   const current = settings.data
   const save = (patch: InstanceSettingsPatch) => update.mutate(patch)
+  const themes = [
+    { value: 'beige' as const, label: t('THEME_LIGHT', 'Light') },
+    { value: 'library' as const, label: t('THEME_DARK', 'Dark') },
+  ]
+  const languages = UI_LANGUAGES.map((option) => ({
+    ...option,
+    label: t(`LANGUAGE_OPTION_${option.value.toUpperCase()}`, option.label),
+  }))
+  const regions = REGIONS.map((option) => ({
+    ...option,
+    label: t(`REGION_${option.value}`, option.label),
+  }))
 
   return (
     <YStack gap="$3" testID="admin-registration">
       <MutedText>
-        These apply to the next account that registers. Changing one never alters an
-        account that already exists.
+        {t(
+          'NEW_ACCOUNT_DEFAULTS_INTRO',
+          'These apply to the next account that registers. Changing one never alters an account that already exists.'
+        )}
       </MutedText>
 
       <SettingsSection
         testID="settings-approval"
-        title="Approval"
-        description="Whether a new account can sign in straight away, or waits for an administrator."
+        title={t('APPROVAL', 'Approval')}
+        description={t(
+          'APPROVAL_DESC',
+          'Whether a new account can sign in straight away, or waits for an administrator.'
+        )}
       >
         <ToggleRow
           testID="approval-toggle"
-          label="Review new accounts before they can sign in"
-          description="A new registration is created disabled and appears on the Accounts tab, where enabling it is how you approve it."
+          label={t(
+            'REVIEW_NEW_ACCOUNTS',
+            'Review new accounts before they can sign in'
+          )}
+          description={t(
+            'REVIEW_NEW_ACCOUNTS_DESC',
+            'A new registration is created disabled and appears on the Accounts tab, where enabling it is how you approve it.'
+          )}
           checked={current.registrationRequiresApproval}
           disabled={update.isPending}
           onCheckedChange={(next) => save({ registrationRequiresApproval: next })}
         />
         {current.registrationApprovalFromEnv ? (
           <MutedText testID="approval-from-env" fontSize={13} lineHeight={18}>
-            Currently set by the REGISTRATION_REQUIRES_APPROVAL environment variable.
-            Changing it here takes over permanently.
+            {t(
+              'APPROVAL_FROM_ENV',
+              'Currently set by the REGISTRATION_REQUIRES_APPROVAL environment variable. Changing it here takes over permanently.'
+            )}
           </MutedText>
         ) : null}
         {/*
@@ -103,37 +126,42 @@ export function AdminRegistrationTab() {
           they were let straight in.
         */}
         <MutedText fontSize={13} lineHeight={18}>
-          The very first account on an instance is always an enabled administrator —
-          there would be nobody to approve it otherwise.
+          {t(
+            'FIRST_ACCOUNT_ADMIN',
+            'The very first account on an instance is always an enabled administrator — there would be nobody to approve it otherwise.'
+          )}
         </MutedText>
       </SettingsSection>
 
       <SettingsSection
         testID="settings-defaults"
-        title="Starting preferences"
-        description="What a new account's language, region and theme are set to. They can change all three from their own profile afterwards."
+        title={t('STARTING_PREFERENCES', 'Starting preferences')}
+        description={t(
+          'STARTING_PREFERENCES_DESC',
+          "What a new account's language, region and theme are set to. They can change all three from their own profile afterwards."
+        )}
       >
         <SelectField
           testID="default-language"
-          label="Language"
+          label={t('LANGUAGE', 'Language')}
           value={current.defaultLanguage}
-          options={UI_LANGUAGES}
+          options={languages}
           disabled={update.isPending}
           onChange={(next) => save({ defaultLanguage: next })}
         />
         <SelectField
           testID="default-region"
-          label="Region"
+          label={t('REGION', 'Region')}
           value={current.defaultRegion}
-          options={REGIONS}
+          options={regions}
           disabled={update.isPending}
           onChange={(next) => save({ defaultRegion: next })}
         />
         <ChoiceRow
           testID="default-theme"
-          label="Theme"
+          label={t('THEME', 'Theme')}
           value={current.defaultTheme}
-          options={THEMES}
+          options={themes}
           disabled={update.isPending}
           onChange={(next) => save({ defaultTheme: next })}
         />

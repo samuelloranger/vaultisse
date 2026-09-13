@@ -13,13 +13,14 @@
 /**
  * The UI locales, which is deliberately **not** the policy's 22-entry *book*
  * language list — `users.language` is what the interface is written in, and
- * these four are the ones `app_labels` has translations for.
+ * these five are the ones `app_labels` has translations for.
  *
  * The admin default is validated server-side against `app_languages`, which is
- * the table these four codes come from.
+ * the table these five codes come from.
  */
 export const UI_LANGUAGES = [
   { value: 'en', label: 'English' },
+  { value: 'fr', label: 'Français' },
   { value: 'es', label: 'Español' },
   { value: 'ca', label: 'Català' },
   { value: 'it', label: 'Italiano' },

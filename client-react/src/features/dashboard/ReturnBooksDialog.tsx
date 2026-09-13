@@ -3,6 +3,7 @@ import { Button, Text, YStack } from 'tamagui'
 import { Field } from '@/components/Field'
 import { ResponsiveDialog } from '@/components/ResponsiveDialog'
 import { errorMessage } from '@/components/ScreenState'
+import { useLocale } from '@/locale/LocaleProvider'
 import { useReturnBooks } from '@/queries/book'
 
 /**
@@ -28,6 +29,7 @@ export function ReturnBooksDialog({
 }) {
   const [codes, setCodes] = useState('')
   const returnBooks = useReturnBooks()
+  const { t, tPlural } = useLocale()
 
   const parsed = codes
     .split(/[\s,]+/)
@@ -49,8 +51,11 @@ export function ReturnBooksDialog({
     <ResponsiveDialog
       open={open}
       onOpenChange={(next) => (next ? onOpenChange(true) : close())}
-      title="Return copies"
-      description="Enter the code printed on each copy. One per line."
+      title={t('RETURN_COPIES', 'Return copies')}
+      description={t(
+        'RETURN_COPIES_DESC',
+        'Enter the code printed on each copy. One per line.'
+      )}
       actions={
         <>
           <Button
@@ -63,7 +68,7 @@ export function ReturnBooksDialog({
             borderColor="$borderColor"
             color="$color"
           >
-            Cancel
+            {t('CANCEL', 'Cancel')}
           </Button>
           <Button
             testID="return-submit"
@@ -77,10 +82,15 @@ export function ReturnBooksDialog({
             color="$onPrimary"
           >
             {returnBooks.isPending
-              ? 'Returning…'
+              ? t('RETURNING', 'Returning…')
               : parsed.length > 1
-                ? `Return ${parsed.length} copies`
-                : 'Return copy'}
+                ? tPlural(
+                    'RETURN_COPIES_COUNT',
+                    parsed.length,
+                    'Return {count} copy',
+                    'Return {count} copies'
+                  )
+                : t('RETURN_COPY', 'Return copy')}
           </Button>
         </>
       }
@@ -88,10 +98,10 @@ export function ReturnBooksDialog({
       <YStack gap="$3">
         <Field
           testID="return-codes"
-          label="Copy codes"
+          label={t('COPY_CODES', 'Copy codes')}
           value={codes}
           onChangeText={setCodes}
-          placeholder="e.g. BK-000123"
+          placeholder={t('RETURN_COPY_CODE_PLACEHOLDER', 'e.g. BK-000123')}
           autoComplete="off"
           inputMode="text"
           onSubmit={submit}
@@ -99,7 +109,9 @@ export function ReturnBooksDialog({
         />
         {parsed.length > 1 ? (
           <Text fontSize={14} color="$colorMuted">
-            {parsed.length} codes will be returned.
+            {t('CODES_WILL_BE_RETURNED', `${parsed.length} codes will be returned.`, {
+              count: parsed.length,
+            })}
           </Text>
         ) : null}
       </YStack>

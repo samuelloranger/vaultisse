@@ -1,4 +1,5 @@
 import type { ThemeName } from '@/api/user'
+import { useLocale } from '@/locale/LocaleProvider'
 import { useSetTheme } from '@/queries/user'
 import { type ColorSchemePreference, useColorScheme } from '@/theme/ThemeProvider'
 import { ChoiceRow, SettingsSection } from './SettingsControls'
@@ -39,14 +40,9 @@ const THEME_FOR_SCHEME: Record<'light' | 'dark', ThemeName> = {
   dark: 'library',
 }
 
-const OPTIONS: { value: ColorSchemePreference; label: string }[] = [
-  { value: 'light', label: 'Light' },
-  { value: 'dark', label: 'Dark' },
-  { value: 'system', label: 'System' },
-]
-
 export function AppearanceCard() {
   const { preference, scheme, setPreference } = useColorScheme()
+  const { t } = useLocale()
   const persist = useSetTheme()
 
   function choose(next: ColorSchemePreference) {
@@ -57,17 +53,26 @@ export function AppearanceCard() {
     persist.mutate(THEME_FOR_SCHEME[resolved])
   }
 
+  const options = [
+    { value: 'light' as const, label: t('THEME_LIGHT', 'Light') },
+    { value: 'dark' as const, label: t('THEME_DARK', 'Dark') },
+    { value: 'system' as const, label: t('THEME_SYSTEM', 'System') },
+  ]
+
   return (
     <SettingsSection
       testID="settings-appearance"
-      title="Appearance"
-      description="Applies to this browser right away, and to your next sign-in anywhere else."
+      title={t('APPEARANCE', 'Appearance')}
+      description={t(
+        'APPEARANCE_DESC',
+        'Applies to this browser right away, and to your next sign-in anywhere else.'
+      )}
     >
       <ChoiceRow
         testID="appearance-choice"
-        label="Theme"
+        label={t('THEME', 'Theme')}
         value={preference}
-        options={OPTIONS}
+        options={options}
         onChange={choose}
       />
     </SettingsSection>

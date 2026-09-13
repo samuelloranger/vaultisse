@@ -69,7 +69,7 @@ the name `"Electronic"` to decide it's an ebook edition, see
 
 ## The policy bootstrap
 
-All four of these lists - plus the current user's profile and UI label
+All policy reference lists - plus the current user's profile and UI label
 translations - are delivered together in one payload, fetched once right
 after login:
 
@@ -90,9 +90,13 @@ local copy. See
 [CLIENT-ARCHITECTURE.md](CLIENT-ARCHITECTURE.md#the-policy-bootstrap)
 for how that fits into app startup.
 
-The `labels` map is fetched with the rest of the payload but nothing reads it
-yet — the React client's strings are hardcoded English until the label lookup
-replacing `vue-i18n` lands.
+The `labels` map is consumed by the React client's small `LocaleProvider` hook.
+It covers visible client copy, including loading, empty, error, dialog,
+accessibility and document-title strings. A missing code falls back explicitly
+to the English fallback supplied by the component, so a raw catalogue code is
+never rendered. The `fr` catalogue is Québec French draft copy and remains
+pending human review; see
+[FR-CA-TRANSLATION-REVIEW.md](FR-CA-TRANSLATION-REVIEW.md).
 
 ## Where this lives in code
 

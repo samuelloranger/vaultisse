@@ -5,6 +5,7 @@ import { Field } from '@/components/Field'
 import { Check } from '@/components/icons'
 import { ResponsiveDialog } from '@/components/ResponsiveDialog'
 import { errorMessage } from '@/components/ScreenState'
+import { useLocale } from '@/locale/LocaleProvider'
 import { useEnableTwoFactor, useSetupTwoFactor } from '@/queries/user'
 import { copyText } from './deviceInfo'
 
@@ -45,6 +46,7 @@ export function TwoFactorSetupDialog({
   const [copied, setCopied] = useState<'none' | 'ok' | 'failed'>('none')
   const setup = useSetupTwoFactor()
   const enable = useEnableTwoFactor()
+  const { t } = useLocale()
 
   const setupMutate = setup.mutate
   // Enrolment starts when the dialog opens, not when it is rendered: the call
@@ -90,8 +92,11 @@ export function TwoFactorSetupDialog({
           if (next) return
           if (!locked) close()
         }}
-        title="Save your backup codes"
-        description="Each code works once, if you lose your authenticator. They are shown now and never again."
+        title={t('SAVE_BACKUP_CODES', 'Save your backup codes')}
+        description={t(
+          'SAVE_BACKUP_CODES_DESC',
+          'Each code works once, if you lose your authenticator. They are shown now and never again.'
+        )}
         actions={
           <>
             <Button
@@ -104,7 +109,7 @@ export function TwoFactorSetupDialog({
               borderColor="$borderColor"
               color="$color"
             >
-              Copy all
+              {t('COPY_ALL', 'Copy all')}
             </Button>
             <Button
               testID="twofactor-codes-done"
@@ -117,7 +122,7 @@ export function TwoFactorSetupDialog({
               backgroundColor="$primary"
               color="$onPrimary"
             >
-              Done
+              {t('DONE', 'Done')}
             </Button>
           </>
         }
@@ -149,12 +154,17 @@ export function TwoFactorSetupDialog({
 
           {copied === 'ok' ? (
             <MutedText testID="twofactor-copied" role="status">
-              Copied to the clipboard. Paste them somewhere safe now.
+              {t(
+                'COPIED_BACKUP_CODES',
+                'Copied to the clipboard. Paste them somewhere safe now.'
+              )}
             </MutedText>
           ) : copied === 'failed' ? (
             <Text fontSize={14} color="$red10">
-              This browser refused clipboard access. Select the codes above and copy
-              them by hand.
+              {t(
+                'CLIPBOARD_BLOCKED_CODES',
+                'This browser refused clipboard access. Select the codes above and copy them by hand.'
+              )}
             </Text>
           ) : null}
 
@@ -177,7 +187,7 @@ export function TwoFactorSetupDialog({
             borderWidth={1}
             color="$color"
           >
-            I have saved these codes
+            {t('I_SAVED_CODES', 'I have saved these codes')}
           </Button>
         </YStack>
       </ResponsiveDialog>
@@ -188,8 +198,11 @@ export function TwoFactorSetupDialog({
     <ResponsiveDialog
       open={open}
       onOpenChange={(next) => (next ? onOpenChange(true) : close())}
-      title="Set up two-factor authentication"
-      description="Add the secret below to an authenticator app, then confirm the six-digit code it shows."
+      title={t('SET_UP_2FA', 'Set up two-factor authentication')}
+      description={t(
+        'SET_UP_2FA_DESC',
+        'Add the secret below to an authenticator app, then confirm the six-digit code it shows.'
+      )}
       actions={
         <>
           <Button
@@ -202,7 +215,7 @@ export function TwoFactorSetupDialog({
             borderColor="$borderColor"
             color="$color"
           >
-            Cancel
+            {t('CANCEL', 'Cancel')}
           </Button>
           <Button
             testID="twofactor-setup-submit"
@@ -215,14 +228,16 @@ export function TwoFactorSetupDialog({
             backgroundColor="$primary"
             color="$onPrimary"
           >
-            {enable.isPending ? 'Verifying…' : 'Turn on'}
+            {enable.isPending ? t('VERIFYING', 'Verifying…') : t('TURN_ON', 'Turn on')}
           </Button>
         </>
       }
     >
       <YStack gap="$3">
         {setup.isPending ? (
-          <MutedText testID="twofactor-setup-loading">Preparing a secret…</MutedText>
+          <MutedText testID="twofactor-setup-loading">
+            {t('PREPARING_SECRET', 'Preparing a secret…')}
+          </MutedText>
         ) : setup.isError ? (
           <Text testID="twofactor-setup-error" fontSize={14} color="$red10">
             {errorMessage(setup.error)}
@@ -231,7 +246,7 @@ export function TwoFactorSetupDialog({
           <YStack gap="$3">
             <YStack gap="$2">
               <Text fontSize={14} color="$colorMuted">
-                Setup key
+                {t('SETUP_KEY', 'Setup key')}
               </Text>
               <Text
                 testID="twofactor-secret"
@@ -259,26 +274,31 @@ export function TwoFactorSetupDialog({
                   borderColor="$borderColor"
                   color="$color"
                 >
-                  Copy key
+                  {t('COPY_KEY', 'Copy key')}
                 </Button>
                 {copied === 'ok' ? (
-                  <MutedText role="status">Copied.</MutedText>
+                  <MutedText role="status">{t('COPIED', 'Copied.')}</MutedText>
                 ) : copied === 'failed' ? (
                   <Text fontSize={14} color="$red10">
-                    Clipboard blocked — select the key above instead.
+                    {t(
+                      'CLIPBOARD_BLOCKED_KEY',
+                      'Clipboard blocked — select the key above instead.'
+                    )}
                   </Text>
                 ) : null}
               </XStack>
               <MutedText fontSize={13}>
-                Setting this up on the phone you are reading this on? Copy the key — the
-                QR code is for scanning from a second device.
+                {t(
+                  'PHONE_2FA_HINT',
+                  'Setting this up on the phone you are reading this on? Copy the key — the QR code is for scanning from a second device.'
+                )}
               </MutedText>
             </YStack>
 
             <XStack justifyContent="center">
               <img
                 src={enrolment.qrCodeDataUrl}
-                alt="QR code containing the same setup key"
+                alt={t('QR_CODE_ALT', 'QR code containing the same setup key')}
                 width={160}
                 height={160}
                 style={{ width: 160, height: 160, borderRadius: 8 }}
@@ -289,10 +309,10 @@ export function TwoFactorSetupDialog({
 
         <Field
           testID="twofactor-code"
-          label="Six-digit code"
+          label={t('SIX_DIGIT_CODE', 'Six-digit code')}
           value={code}
           onChangeText={(next) => setCode(next.replace(/[^0-9]/g, '').slice(0, 6))}
-          placeholder="123456"
+          placeholder={t('SIX_DIGIT_CODE_PLACEHOLDER', '123456')}
           // The two attributes the old client had on neither of its code
           // fields: a numeric keypad instead of a full keyboard, and the hook
           // iOS and Android use to offer the code straight from the SMS/app.

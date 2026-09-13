@@ -1,4 +1,5 @@
 import type { ToastItem } from '@/components/Toast'
+import type { InterpolationValues } from '@/locale/LocaleProvider'
 import { metadataLookupFailureTitle } from '../search/metadataLookupError'
 import type { ScanEntry } from './useScanQueue'
 
@@ -35,10 +36,25 @@ const ORDINALS = [
 ] as const
 
 /** "Added", "Second copy added", …, "Copy 14 added". */
-export function addedTitle(copies: number | null): string {
-  if (copies === null || copies <= 1) return 'Added'
+type Translate = (
+  code: string,
+  fallback: string,
+  values?: InterpolationValues
+) => string
+
+export function addedTitle(copies: number | null, translate?: Translate): string {
+  if (copies === null || copies <= 1)
+    return translate ? translate('SCAN_ADDED', 'Added') : 'Added'
   const ordinal = ORDINALS[copies]
-  return ordinal ? `${ordinal} copy added` : `Copy ${copies} added`
+  return translate
+    ? translate(
+        ordinal ? `SCAN_${copies}_COPY_ADDED` : 'SCAN_COPY_ADDED',
+        ordinal ? `${ordinal} copy added` : `Copy ${copies} added`,
+        { count: copies, ordinal: ordinal ?? '' }
+      )
+    : ordinal
+      ? `${ordinal} copy added`
+      : `Copy ${copies} added`
 }
 
 /**
@@ -53,24 +69,31 @@ export function scanEntryToast(
   {
     onUndo,
     onAddManually,
+    translate,
   }: {
     onUndo: (entryId: string) => void
     onAddManually: (isbn: string) => void
+    translate?: Translate
   }
 ): Omit<ToastItem, 'id'> | null {
   switch (entry.status) {
     case 'added':
       return {
-        title: addedTitle(entry.copies),
+        title: addedTitle(entry.copies, translate),
         description: entry.title ?? entry.isbn,
         imageUrl: entry.imageUrl,
         tone: 'success',
-        action: entry.undo ? { label: 'Undo', onPress: () => onUndo(entry.id) } : null,
+        action: entry.undo
+          ? {
+              label: translate ? translate('UNDO', 'Undo') : 'Undo',
+              onPress: () => onUndo(entry.id),
+            }
+          : null,
       }
 
     case 'skipped':
       return {
-        title: 'Skipped',
+        title: translate ? translate('SKIPPED', 'Skipped') : 'Skipped',
         description: entry.title ?? entry.isbn,
         imageUrl: entry.imageUrl,
         tone: 'neutral',
@@ -78,39 +101,43 @@ export function scanEntryToast(
 
     case 'undone':
       return {
-        title: 'Undone',
+        title: translate ? translate('UNDONE', 'Undone') : 'Undone',
         description: entry.message ?? entry.title ?? entry.isbn,
         tone: 'neutral',
       }
 
     case 'notFound':
       return {
-        title: metadataLookupFailureTitle(entry.metadataError),
+        title: metadataLookupFailureTitle(entry.metadataError, translate),
         description: entry.message ?? entry.isbn,
         tone: 'neutral',
         action: {
-          label: 'Add manually',
+          label: translate ? translate('ADD_MANUALLY', 'Add manually') : 'Add manually',
           onPress: () => onAddManually(entry.isbn),
         },
       }
 
     case 'notABook':
       return {
-        title: 'Not a book barcode',
+        title: translate
+          ? translate('NOT_A_BOOK_BARCODE', 'Not a book barcode')
+          : 'Not a book barcode',
         description: entry.message,
         tone: 'neutral',
       }
 
     case 'retrying':
       return {
-        title: 'Lookup service unavailable',
+        title: translate
+          ? translate('LOOKUP_SERVICE_UNAVAILABLE', 'Lookup service unavailable')
+          : 'Lookup service unavailable',
         description: entry.message,
         tone: 'danger',
       }
 
     case 'failed':
       return {
-        title: 'Not added',
+        title: translate ? translate('NOT_ADDED', 'Not added') : 'Not added',
         description: entry.message ?? entry.isbn,
         tone: 'danger',
       }

@@ -65,12 +65,12 @@ it('keeps the selection after a failed request and offers an honest retry', asyn
   renderWithProviders(<AdminLibraryTab />)
   await user.click(await screen.findByRole('button', { name: 'Choose books' }))
   await user.click(await screen.findByRole('checkbox', { name: /One/ }))
-  await user.click(screen.getByRole('button', { name: 'Refresh 1 selected books' }))
+  await user.click(screen.getByRole('button', { name: 'Refresh 1 selected book' }))
   expect(
     await screen.findByText(/Some books may already have refreshed/)
   ).toHaveTextContent('Network unavailable')
   expect(screen.getByRole('checkbox', { name: /One/ })).toBeChecked()
-  await user.click(screen.getByRole('button', { name: 'Refresh 1 selected books' }))
+  await user.click(screen.getByRole('button', { name: 'Refresh 1 selected book' }))
   expect(fetchMock).toHaveBeenCalledTimes(2)
 })
 

@@ -4,6 +4,7 @@ import { MutedText } from '@/components/Card'
 import { Shield } from '@/components/icons'
 import { ResponsiveDialog } from '@/components/ResponsiveDialog'
 import { errorMessage } from '@/components/ScreenState'
+import { useLocale } from '@/locale/LocaleProvider'
 import { useDisableTwoFactor } from '@/queries/user'
 import { SettingsSection, TextInputField } from './SettingsControls'
 import { TwoFactorSetupDialog } from './TwoFactorSetupDialog'
@@ -25,6 +26,7 @@ function TwoFactorDisableDialog({
 }) {
   const [password, setPassword] = useState('')
   const disable = useDisableTwoFactor()
+  const { t } = useLocale()
 
   function close() {
     setPassword('')
@@ -41,8 +43,11 @@ function TwoFactorDisableDialog({
     <ResponsiveDialog
       open={open}
       onOpenChange={(next) => (next ? onOpenChange(true) : close())}
-      title="Turn off two-factor authentication"
-      description="Your backup codes are destroyed as well. Setting it up again issues a new set."
+      title={t('TURN_OFF_2FA', 'Turn off two-factor authentication')}
+      description={t(
+        'TURN_OFF_2FA_DESC',
+        'Your backup codes are destroyed as well. Setting it up again issues a new set.'
+      )}
       actions={
         <>
           <Button
@@ -55,7 +60,7 @@ function TwoFactorDisableDialog({
             borderColor="$borderColor"
             color="$color"
           >
-            Cancel
+            {t('CANCEL', 'Cancel')}
           </Button>
           <Button
             testID="twofactor-disable-submit"
@@ -68,14 +73,16 @@ function TwoFactorDisableDialog({
             backgroundColor="$red10"
             color="$onPrimary"
           >
-            {disable.isPending ? 'Turning off…' : 'Turn off'}
+            {disable.isPending
+              ? t('TURNING_OFF', 'Turning off…')
+              : t('TURN_OFF', 'Turn off')}
           </Button>
         </>
       }
     >
       <TextInputField
         testID="twofactor-disable-password"
-        label="Account password"
+        label={t('ACCOUNT_PASSWORD', 'Account password')}
         value={password}
         onChangeText={setPassword}
         type="password"
@@ -90,25 +97,35 @@ function TwoFactorDisableDialog({
 export function TwoFactorCard({ enabled }: { enabled: boolean }) {
   const [setupOpen, setSetupOpen] = useState(false)
   const [disableOpen, setDisableOpen] = useState(false)
+  const { t } = useLocale()
 
   return (
     <SettingsSection
       testID="settings-twofactor"
-      title="Two-factor authentication"
-      description="A six-digit code from an authenticator app, on top of your password."
+      title={t('TWO_FACTOR_AUTH', 'Two-factor authentication')}
+      description={t(
+        'TWO_FACTOR_AUTH_DESC',
+        'A six-digit code from an authenticator app, on top of your password.'
+      )}
     >
       <XStack alignItems="center" gap="$2">
         <Shield size={18} color={enabled ? '$accent' : '$colorMuted'} />
         <Text testID="twofactor-state" fontSize={16} color="$color">
-          {enabled ? 'On' : 'Off'}
+          {enabled ? t('ON', 'On') : t('OFF', 'Off')}
         </Text>
       </XStack>
 
       <YStack gap="$2">
         <MutedText fontSize={13}>
           {enabled
-            ? 'You are asked for a code after your password at every sign-in.'
-            : 'Anyone with your password can sign in as you. Any authenticator app works.'}
+            ? t(
+                'TWO_FACTOR_ON_DESC',
+                'You are asked for a code after your password at every sign-in.'
+              )
+            : t(
+                'TWO_FACTOR_OFF_DESC',
+                'Anyone with your password can sign in as you. Any authenticator app works.'
+              )}
         </MutedText>
         <XStack>
           {enabled ? (
@@ -122,7 +139,7 @@ export function TwoFactorCard({ enabled }: { enabled: boolean }) {
               borderColor="$borderColor"
               color="$color"
             >
-              Turn off
+              {t('TURN_OFF', 'Turn off')}
             </Button>
           ) : (
             <Button
@@ -134,7 +151,7 @@ export function TwoFactorCard({ enabled }: { enabled: boolean }) {
               backgroundColor="$primary"
               color="$onPrimary"
             >
-              Turn on
+              {t('TURN_ON', 'Turn on')}
             </Button>
           )}
         </XStack>

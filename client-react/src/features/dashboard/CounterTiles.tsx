@@ -2,6 +2,7 @@ import { XStack, YStack } from 'tamagui'
 import type { BookCounters, Dashboard } from '@/api/types'
 import { Card, DisplayText, Eyebrow, MutedText } from '@/components/Card'
 import { ArrowDownLeft, ArrowUpRight } from '@/components/icons'
+import { useLocale } from '@/locale/LocaleProvider'
 
 /**
  * The dashboard's KPI row.
@@ -58,40 +59,81 @@ export function CounterTiles({
   /** The instance-wide lending switch. Off, and the loan counts come out. */
   lending: boolean
 }) {
+  const { t, tPlural } = useLocale()
   const trendingUp = dashboard.totalThisMonth >= dashboard.totalLastMonth
   const counterParts = counters
     ? [
-        `${counters.total} in the library`,
-        `${counters.recent} added in the last 30 days`,
-        ...(lending ? [`${counters.onLoan} out`] : []),
-        `${counters.noStock} with no copies`,
+        tPlural(
+          'DASHBOARD_COUNTER_LIBRARY',
+          counters.total,
+          '{count} in the library',
+          '{count} in the library'
+        ),
+        tPlural(
+          'DASHBOARD_COUNTER_RECENT',
+          counters.recent,
+          '{count} added in the last 30 days',
+          '{count} added in the last 30 days'
+        ),
+        ...(lending
+          ? [
+              tPlural(
+                'DASHBOARD_COUNTER_OUT',
+                counters.onLoan,
+                '{count} out',
+                '{count} out'
+              ),
+            ]
+          : []),
+        tPlural(
+          'DASHBOARD_COUNTER_NO_COPIES',
+          counters.noStock,
+          '{count} with no copies',
+          '{count} with no copies'
+        ),
       ]
     : []
 
   return (
     <YStack gap="$2">
       <XStack flexWrap="wrap" gap="$2">
-        <Tile testID="tile-total" label="Books" value={dashboard.totalBooks} />
+        <Tile
+          testID="tile-total"
+          label={t('DASHBOARD_BOOKS', 'Books')}
+          value={dashboard.totalBooks}
+        />
         <Tile
           testID="tile-this-month"
-          label="Added this month"
+          label={t('DASHBOARD_ADDED_THIS_MONTH', 'Added this month')}
           value={dashboard.totalThisMonth}
           hint={
             trendingUp ? (
-              <ArrowUpRight size={18} color="$green10" aria-label="up on last month" />
+              <ArrowUpRight
+                size={18}
+                color="$green10"
+                aria-label={t('UP_ON_LAST_MONTH', 'up on last month')}
+              />
             ) : (
-              <ArrowDownLeft size={18} color="$red10" aria-label="down on last month" />
+              <ArrowDownLeft
+                size={18}
+                color="$red10"
+                aria-label={t('DOWN_ON_LAST_MONTH', 'down on last month')}
+              />
             )
           }
         />
         {lending ? (
           <Tile
             testID="tile-on-loan"
-            label="On loan"
+            label={t('ON_LOAN', 'On loan')}
             value={dashboard.totalBookedBooks}
           />
         ) : null}
-        <Tile testID="tile-authors" label="Authors" value={dashboard.totalAuthors} />
+        <Tile
+          testID="tile-authors"
+          label={t('DASHBOARD_AUTHORS', 'Authors')}
+          value={dashboard.totalAuthors}
+        />
       </XStack>
 
       {counters ? (

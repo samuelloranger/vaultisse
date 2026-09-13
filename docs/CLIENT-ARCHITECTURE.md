@@ -230,12 +230,12 @@ and arrive in `GET /app/policy`'s `labels` map, so editing a label or adding a
 language doesn't require a frontend redeploy. The account's chosen language is
 `users.language`, set from the Settings profile card.
 
-**Nothing renders from `labels` yet.** The rewrite replaced `vue-i18n` with a
-lightweight context hook, and that hook has not landed - the React client's
-strings are currently hardcoded English. The payload, the column, the language
-picker and the four translated label sets are all intact and waiting for it.
-See the root README's
-[Internationalization](../README.md#internationalization) section.
+The React client renders through the lightweight `LocaleProvider` hook. It
+combines `users.language` and `users.region` into a BCP-47 locale for dates and
+numbers, and each visible string supplies an explicit English fallback when a
+label is absent. The catalogue now includes a Québec French (`fr-CA`) draft;
+every French row still requires human approval in
+[FR-CA-TRANSLATION-REVIEW.md](FR-CA-TRANSLATION-REVIEW.md).
 
 ## Where this lives in code
 

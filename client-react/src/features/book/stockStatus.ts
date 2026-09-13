@@ -8,7 +8,22 @@ const STATUS_LABELS: Record<BookStockStatus, string> = {
   [BookStockStatus.Damaged]: 'Damaged',
 }
 
-/** Ready for the later locale hook: one lookup for every stock status surface. */
-export function statusLabel(status: BookStockStatus): string {
-  return STATUS_LABELS[status] ?? 'Unknown'
+/** One lookup for every stock-status surface, with an explicit English fallback. */
+export function statusLabel(
+  status: BookStockStatus,
+  translate?: (code: string, fallback: string) => string
+): string {
+  const fallback = STATUS_LABELS[status] ?? 'Unknown'
+  if (!translate) return fallback
+  const code =
+    status === BookStockStatus.Available
+      ? 'AVAILABLE'
+      : status === BookStockStatus.NotAvailable
+        ? 'NOT_AVAILABLE'
+        : status === BookStockStatus.Booked
+          ? 'ON_LOAN'
+          : status === BookStockStatus.Damaged
+            ? 'DAMAGED'
+            : 'STATUS_UNKNOWN'
+  return translate(code, fallback)
 }

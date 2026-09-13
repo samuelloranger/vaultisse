@@ -4,6 +4,7 @@ import type { LocationRow } from '@/api/location'
 import { Field } from '@/components/Field'
 import { ResponsiveDialog } from '@/components/ResponsiveDialog'
 import { errorMessage } from '@/components/ScreenState'
+import { useLocale } from '@/locale/LocaleProvider'
 import { useAddBooksToLocation } from '@/queries/location'
 
 /**
@@ -28,6 +29,7 @@ export function LocationAddBooksDialog({
 }) {
   const [codes, setCodes] = useState('')
   const addBooks = useAddBooksToLocation()
+  const { t, tPlural } = useLocale()
 
   const parsed = codes
     .split(/[\s,]+/)
@@ -50,8 +52,13 @@ export function LocationAddBooksDialog({
       // Mounted by the screen only while it is wanted, so `open` is constant.
       open
       onOpenChange={(next) => (next ? onOpenChange(true) : close())}
-      title={`Add copies to ${location.name}`}
-      description="Enter the code printed on each copy. One per line."
+      title={t('ADD_COPIES_TO', `Add copies to ${location.name}`, {
+        name: location.name,
+      })}
+      description={t(
+        'ADD_COPIES_DESC',
+        'Enter the code printed on each copy. One per line.'
+      )}
       actions={
         <>
           <Button
@@ -64,7 +71,7 @@ export function LocationAddBooksDialog({
             borderColor="$borderColor"
             color="$color"
           >
-            Cancel
+            {t('CANCEL', 'Cancel')}
           </Button>
           <Button
             testID="location-add-books-submit"
@@ -78,10 +85,15 @@ export function LocationAddBooksDialog({
             color="$onPrimary"
           >
             {addBooks.isPending
-              ? 'Moving…'
+              ? t('MOVING', 'Moving…')
               : parsed.length > 1
-                ? `Move ${parsed.length} copies`
-                : 'Move copy'}
+                ? tPlural(
+                    'MOVE_COPIES',
+                    parsed.length,
+                    'Move {count} copy',
+                    'Move {count} copies'
+                  )
+                : t('MOVE_COPY', 'Move copy')}
           </Button>
         </>
       }
@@ -89,10 +101,10 @@ export function LocationAddBooksDialog({
       <YStack gap="$3">
         <Field
           testID="location-add-books-codes"
-          label="Copy codes"
+          label={t('COPY_CODES', 'Copy codes')}
           value={codes}
           onChangeText={setCodes}
-          placeholder="e.g. 0000000001"
+          placeholder={t('COPY_CODE_PLACEHOLDER', 'e.g. 0000000001')}
           autoComplete="off"
           // The codes are digits, but `numeric` would hide the letters some
           // libraries print. `text` keeps every code typeable.
@@ -102,7 +114,9 @@ export function LocationAddBooksDialog({
         />
         {parsed.length > 1 ? (
           <Text fontSize={14} color="$colorMuted">
-            {parsed.length} copies will be moved here.
+            {t('COPIES_WILL_MOVE', `${parsed.length} copies will be moved here.`, {
+              count: parsed.length,
+            })}
           </Text>
         ) : null}
       </YStack>

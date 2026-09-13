@@ -3,6 +3,7 @@ import { Button, Text, YStack } from 'tamagui'
 import { MutedText } from '@/components/Card'
 import { ResponsiveDialog } from '@/components/ResponsiveDialog'
 import { errorMessage } from '@/components/ScreenState'
+import { useLocale } from '@/locale/LocaleProvider'
 import { useDeleteAccount } from '@/queries/user'
 import { SettingsSection, TextInputField } from './SettingsControls'
 
@@ -37,6 +38,7 @@ export function DeleteAccountCard() {
   const [password, setPassword] = useState('')
   const [confirmation, setConfirmation] = useState('')
   const remove = useDeleteAccount()
+  const { t } = useLocale()
 
   const ready =
     password !== '' && confirmation.trim().toLowerCase() === CONFIRMATION_WORD
@@ -57,8 +59,11 @@ export function DeleteAccountCard() {
     <SettingsSection
       testID="settings-danger"
       tone="danger"
-      title="Delete account"
-      description="Permanent. Your books stay in the shared library; only your account goes."
+      title={t('DELETE_ACCOUNT', 'Delete account')}
+      description={t(
+        'DELETE_ACCOUNT_CARD_DESC',
+        'Permanent. Your books stay in the shared library; only your account goes.'
+      )}
     >
       <YStack>
         <Button
@@ -73,7 +78,7 @@ export function DeleteAccountCard() {
           // Not red at rest. The warning belongs at the moment of choosing.
           color="$color"
         >
-          Delete my account
+          {t('DELETE_MY_ACCOUNT', 'Delete my account')}
         </Button>
       </YStack>
 
@@ -81,8 +86,8 @@ export function DeleteAccountCard() {
         <ResponsiveDialog
           open
           onOpenChange={(next) => (next ? undefined : close())}
-          title="Delete your account?"
-          description="This cannot be undone."
+          title={t('DELETE_YOUR_ACCOUNT', 'Delete your account?')}
+          description={t('CANNOT_UNDO', 'This cannot be undone.')}
           actions={
             <>
               <Button
@@ -95,7 +100,7 @@ export function DeleteAccountCard() {
                 borderColor="$borderColor"
                 color="$color"
               >
-                Cancel
+                {t('CANCEL', 'Cancel')}
               </Button>
               <Button
                 testID="delete-account-confirm"
@@ -108,20 +113,23 @@ export function DeleteAccountCard() {
                 backgroundColor="$red10"
                 color="$onPrimary"
               >
-                {remove.isPending ? 'Deleting…' : 'Delete account'}
+                {remove.isPending
+                  ? t('DELETING', 'Deleting…')
+                  : t('DELETE_ACCOUNT', 'Delete account')}
               </Button>
             </>
           }
         >
           <YStack gap="$3">
             <MutedText fontSize={14}>
-              Everything you added to the library — books, copies, authors, locations,
-              loan history — stays exactly where it is. It simply stops saying it was
-              added by you.
+              {t(
+                'DELETE_ACCOUNT_IMPACT',
+                'Everything you added to the library — books, copies, authors, locations, loan history — stays exactly where it is. It simply stops saying it was added by you.'
+              )}
             </MutedText>
             <TextInputField
               testID="delete-account-password"
-              label="Account password"
+              label={t('ACCOUNT_PASSWORD', 'Account password')}
               value={password}
               onChangeText={setPassword}
               type="password"
@@ -129,7 +137,13 @@ export function DeleteAccountCard() {
             />
             <TextInputField
               testID="delete-account-word"
-              label={`Type "${CONFIRMATION_WORD}" to confirm`}
+              label={t(
+                'TYPE_DELETE_TO_CONFIRM',
+                `Type "${CONFIRMATION_WORD}" to confirm`,
+                {
+                  word: CONFIRMATION_WORD,
+                }
+              )}
               value={confirmation}
               onChangeText={setConfirmation}
               autoComplete="off"

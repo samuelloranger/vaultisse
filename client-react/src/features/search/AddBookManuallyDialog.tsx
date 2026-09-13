@@ -3,6 +3,7 @@ import { Button, Text, TextArea, XStack, YStack } from 'tamagui'
 import { Field } from '@/components/Field'
 import { ResponsiveDialog } from '@/components/ResponsiveDialog'
 import { errorMessage } from '@/components/ScreenState'
+import { useLocale } from '@/locale/LocaleProvider'
 import { useCreateBook } from '@/queries/book'
 import { isValidIsbn, normaliseIsbn } from './isbn'
 
@@ -36,6 +37,7 @@ export function AddBookManuallyDialog({
   initialIsbn?: string
 }) {
   const createBook = useCreateBook()
+  const { t } = useLocale()
   const fileInput = useRef<HTMLInputElement>(null)
 
   const [name, setName] = useState('')
@@ -52,7 +54,7 @@ export function AddBookManuallyDialog({
 
   const isbnError =
     isbn.trim() !== '' && !isValidIsbn(isbn)
-      ? 'That is not a valid ISBN-10 or ISBN-13.'
+      ? t('INVALID_ISBN', 'That is not a valid ISBN-10 or ISBN-13.')
       : null
 
   function close() {
@@ -86,8 +88,11 @@ export function AddBookManuallyDialog({
     <ResponsiveDialog
       open={open}
       onOpenChange={(next) => (next ? onOpenChange(true) : close())}
-      title="Add a book"
-      description="Only the title is required. Everything else can be filled in later."
+      title={t('ADD_BOOK', 'Add a book')}
+      description={t(
+        'ADD_BOOK_DESC',
+        'Only the title is required. Everything else can be filled in later.'
+      )}
       actions={
         <>
           <Button
@@ -100,7 +105,7 @@ export function AddBookManuallyDialog({
             borderColor="$borderColor"
             color="$color"
           >
-            Cancel
+            {t('CANCEL', 'Cancel')}
           </Button>
           <Button
             testID="manual-submit"
@@ -113,7 +118,7 @@ export function AddBookManuallyDialog({
             backgroundColor="$primary"
             color="$onPrimary"
           >
-            {createBook.isPending ? 'Adding…' : 'Add book'}
+            {createBook.isPending ? t('ADDING', 'Adding…') : t('ADD_BOOK', 'Add book')}
           </Button>
         </>
       }
@@ -121,7 +126,7 @@ export function AddBookManuallyDialog({
       <YStack gap="$3">
         <Field
           testID="manual-name"
-          label="Title"
+          label={t('TITLE', 'Title')}
           value={name}
           onChangeText={setName}
           autoComplete="off"
@@ -131,7 +136,7 @@ export function AddBookManuallyDialog({
 
         <YStack gap="$0.75">
           <Text fontSize={14} color="$colorMuted">
-            Description
+            {t('DESCRIPTION', 'Description')}
           </Text>
           <TextArea
             testID="manual-description"
@@ -154,7 +159,7 @@ export function AddBookManuallyDialog({
 
         <Field
           testID="manual-isbn"
-          label="ISBN"
+          label={t('ISBN', 'ISBN')}
           value={isbn}
           onChangeText={setIsbn}
           autoComplete="off"
@@ -164,7 +169,7 @@ export function AddBookManuallyDialog({
 
         <YStack gap="$2">
           <Text fontSize={14} color="$colorMuted">
-            Cover
+            {t('COVER', 'Cover')}
           </Text>
           <XStack alignItems="center" gap="$3" flexWrap="wrap">
             <Button
@@ -177,10 +182,10 @@ export function AddBookManuallyDialog({
               borderColor="$borderColor"
               color="$color"
             >
-              Choose an image
+              {t('CHOOSE_IMAGE', 'Choose an image')}
             </Button>
             <Text fontSize={14} color="$colorMuted" flexShrink={1}>
-              {image ? image.name : 'PNG or JPEG, up to 4MB.'}
+              {image ? image.name : t('IMAGE_FILE_HELP', 'PNG or JPEG, up to 4MB.')}
             </Text>
           </XStack>
           {/* `display: none`, not a 1x1 transparent box: the visible button

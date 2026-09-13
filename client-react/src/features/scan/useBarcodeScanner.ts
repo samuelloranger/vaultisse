@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import type { InterpolationValues } from '@/locale/LocaleProvider'
 
 /**
  * The camera, and the two barcode decoders, behind one hook.
@@ -273,6 +274,7 @@ export function useBarcodeScanner({
   paused,
   onDecode,
   createDecoder = createBestDecoder,
+  translate,
 }: {
   /** Whether the camera should be open at all. */
   active: boolean
@@ -281,6 +283,8 @@ export function useBarcodeScanner({
   onDecode: (decode: Decode) => void
   /** Injected by tests. Defaults to native-then-zxing. */
   createDecoder?: DecoderFactory
+  /** Client label translator. Kept optional for hook-level tests. */
+  translate?: (code: string, fallback: string, values?: InterpolationValues) => string
 }): BarcodeScanner {
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
@@ -292,6 +296,8 @@ export function useBarcodeScanner({
   onDecodeRef.current = onDecode
   const createDecoderRef = useRef(createDecoder)
   createDecoderRef.current = createDecoder
+  const translateRef = useRef(translate)
+  translateRef.current = translate
 
   const [status, setStatus] = useState<ScanStatus>('idle')
   const [error, setError] = useState<string | null>(null)
@@ -311,7 +317,12 @@ export function useBarcodeScanner({
     const start = async () => {
       if (!cameraIsPlausible()) {
         setStatus('unsupported')
-        setError('This browser has no camera API. Add the ISBN by hand instead.')
+        setError(
+          translateRef.current?.(
+            'NO_CAMERA_API',
+            'This browser has no camera API. Add the ISBN by hand instead.'
+          ) ?? 'This browser has no camera API. Add the ISBN by hand instead.'
+        )
         return
       }
       // Named plainly rather than folded into the generic failure: "camera
@@ -320,7 +331,11 @@ export function useBarcodeScanner({
       if (typeof window !== 'undefined' && window.isSecureContext === false) {
         setStatus('insecure')
         setError(
-          'The camera needs a secure (https) connection. Open the library over https and try again.'
+          translateRef.current?.(
+            'CAMERA_NEEDS_HTTPS',
+            'The camera needs a secure (https) connection. Open the library over https and try again.'
+          ) ??
+            'The camera needs a secure (https) connection. Open the library over https and try again.'
         )
         return
       }
@@ -363,14 +378,28 @@ export function useBarcodeScanner({
         if (name === 'NotAllowedError' || name === 'SecurityError') {
           setStatus('denied')
           setError(
-            'Camera access was refused. Add the ISBN by hand instead, or allow the camera in your browser settings and reopen Scan.'
+            translateRef.current?.(
+              'CAMERA_ACCESS_REFUSED',
+              'Camera access was refused. Add the ISBN by hand instead, or allow the camera in your browser settings and reopen Scan.'
+            ) ??
+              'Camera access was refused. Add the ISBN by hand instead, or allow the camera in your browser settings and reopen Scan.'
           )
         } else if (name === 'NotFoundError' || name === 'OverconstrainedError') {
           setStatus('unsupported')
-          setError('No camera answered. Add the ISBN by hand instead.')
+          setError(
+            translateRef.current?.(
+              'NO_CAMERA_ANSWERED',
+              'No camera answered. Add the ISBN by hand instead.'
+            ) ?? 'No camera answered. Add the ISBN by hand instead.'
+          )
         } else {
           setStatus('error')
-          setError('The camera could not be started. Add the ISBN by hand instead.')
+          setError(
+            translateRef.current?.(
+              'CAMERA_COULD_NOT_START',
+              'The camera could not be started. Add the ISBN by hand instead.'
+            ) ?? 'The camera could not be started. Add the ISBN by hand instead.'
+          )
         }
       }
     }
@@ -412,7 +441,12 @@ export function useBarcodeScanner({
       }
       if (!decoder) {
         setStatus('unsupported')
-        setError('This browser cannot read barcodes. Add the ISBN by hand instead.')
+        setError(
+          translateRef.current?.(
+            'BARCODE_READER_UNSUPPORTED',
+            'This browser cannot read barcodes. Add the ISBN by hand instead.'
+          ) ?? 'This browser cannot read barcodes. Add the ISBN by hand instead.'
+        )
         return
       }
 
@@ -422,7 +456,12 @@ export function useBarcodeScanner({
       } catch {
         if (cancelled) return
         setStatus('error')
-        setError('The barcode reader could not start. Add the ISBN by hand instead.')
+        setError(
+          translateRef.current?.(
+            'BARCODE_READER_FAILED',
+            'The barcode reader could not start. Add the ISBN by hand instead.'
+          ) ?? 'The barcode reader could not start. Add the ISBN by hand instead.'
+        )
       }
     }
 
