@@ -41,7 +41,7 @@ ENV NODE_ENV=production \
 LABEL org.opencontainers.image.title="vaultisse" \
       org.opencontainers.image.description="Vaultisse — self-hosted personal/library book tracker" \
       org.opencontainers.image.version="${APP_VERSION}" \
-      org.opencontainers.image.source="https://github.com/AlbertAmat/vaultisse" \
+      org.opencontainers.image.source="https://github.com/samuelloranger/vaultisse" \
       org.opencontainers.image.licenses="MIT"
 
 WORKDIR /app/dist

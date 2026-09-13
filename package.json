@@ -5,7 +5,7 @@
   "description": "Version anchor for the Vaultisse release/Docker pipeline. Not published; client and server are built and versioned independently.",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/AlbertAmat/vaultisse.git"
+    "url": "git+https://github.com/samuelloranger/vaultisse.git"
   },
   "license": "MIT",
   "devDependencies": {
