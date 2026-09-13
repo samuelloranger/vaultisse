@@ -542,7 +542,7 @@ must remain unchanged while wording is reviewed.
 | EMAIL | Email | Courriel |
 | SAVE_PROFILE | Save profile | Enregistrer le profil |
 | PROFILE_SAVED | Saved. The interface language and region are active now. | Enregistré. La langue et la région de l’interface sont maintenant actives. |
-| METADATA_SOURCE_NOT_CONFIGURED | Metadata source unavailable: {configured}Ask an administrator to configure it, or add the book manually. | Source de métadonnées indisponible : {configured} Demandez à un administrateur de la configurer ou ajoutez le livre manuellement. |
+| METADATA_SOURCE_NOT_CONFIGURED | Metadata source unavailable: {configured} Ask an administrator to check the configuration, or add the book manually. | Métadonnées indisponibles : {configured} Demandez à un administrateur de vérifier la configuration ou ajoutez le livre manuellement. |
 | METADATA_SOURCES_UNAVAILABLE | The metadata sources were unavailable. Try again later. | Les sources de métadonnées sont indisponibles. Réessayez plus tard. |
 | DASHBOARD_COUNTER_LIBRARY | {count} in the library / {count} in the library | {count} dans la bibliothèque / {count} dans la bibliothèque |
 | DASHBOARD_COUNTER_RECENT | {count} added in the last 30 days / {count} added in the last 30 days | {count} ajouté au cours des 30 derniers jours / {count} ajoutés au cours des 30 derniers jours |
@@ -793,7 +793,8 @@ must remain unchanged while wording is reviewed.
 | REGION_US | United States | États-Unis |
 | LOAN_COPIES_OUT | 1 copy out / {count} copies out | 1 exemplaire prêté / {count} exemplaires prêtés |
 | TREND_BOOKS | 1 book / {count} books | 1 livre / {count} livres |
-| METADATA_SOURCES_NOT_CONFIGURED | {sources} are not configured on this server. | {sources} ne sont pas configurées sur ce serveur. |
+| METADATA_SOURCES_NOT_CONFIGURED | Configuration missing on this server for: {sources}. | Configuration manquante sur ce serveur pour : {sources}. |
+| UNSPECIFIED_METADATA_SOURCE | a metadata source | une source de métadonnées |
 | METADATA_SOURCE_UNAVAILABLE | Metadata source unavailable | Source de métadonnées indisponible |
 | NO_METADATA_FOR_ISBN_TITLE | No metadata for this ISBN | Aucune métadonnée pour cet ISBN |
 | ADMIN_METADATA_OK | No new metadata found. | Aucune nouvelle métadonnée trouvée. |

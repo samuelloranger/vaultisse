@@ -5,6 +5,7 @@ import { AdminScreen } from '@/features/admin/AdminScreen'
 import { CustomersScreen } from '@/features/customers/CustomersScreen'
 import { CounterTiles } from '@/features/dashboard/CounterTiles'
 import { formatLoanDate } from '@/features/loans/formatLoanDate'
+import { ProfileCard } from '@/features/settings/ProfileCard'
 import { customerKeys, policyKeys } from '@/queries/keys'
 import { makeDashboard, makePolicy } from '@/test/fixtures'
 import { createTestQueryClient, renderWithProviders } from '@/test/renderWithProviders'
@@ -75,7 +76,7 @@ describe('French client label sweep', () => {
     )
   })
 
-  it('localizes Admin and Profile-facing headings from policy labels', () => {
+  it('localizes the Admin forbidden state from policy labels', () => {
     renderFrench(
       <AdminScreen />,
       {
@@ -89,6 +90,24 @@ describe('French client label sweep', () => {
 
     expect(screen.getByText('Administration')).toBeInTheDocument()
     expect(screen.getByText('Accès refusé')).toBeInTheDocument()
+  })
+
+  it('localizes the Profile card and its account fields', () => {
+    renderFrench(<ProfileCard user={makePolicy().user} />, {
+      PROFILE: 'Profil',
+      PROFILE_DESC: 'Votre profil dans la bibliothèque.',
+      NAME: 'Nom',
+      EMAIL: 'Courriel',
+      LANGUAGE: 'Langue',
+      REGION: 'Région',
+      SAVE_PROFILE: 'Enregistrer le profil',
+    })
+
+    expect(screen.getByText('Profil')).toBeInTheDocument()
+    expect(screen.getByText('Courriel')).toBeInTheDocument()
+    expect(screen.getByTestId('profile-save')).toHaveTextContent(
+      'Enregistrer le profil'
+    )
   })
 
   it('keeps explicit English fallback when a French key is missing', () => {

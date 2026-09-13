@@ -66,20 +66,24 @@ export function metadataLookupFailureMessage(
   switch (failure.kind) {
     case 'source_not_configured': {
       const sources = failure.unconfiguredSources
+      const sourceLabel =
+        sources.length > 0
+          ? sources.join(', ')
+          : (translate?.('UNSPECIFIED_METADATA_SOURCE', 'a metadata source') ??
+            'a metadata source')
       const configuredFallback =
         sources.length > 0
           ? `${sources.join(', ')} ${sources.length === 1 ? 'is' : 'are'} not configured on this server. `
           : 'A metadata source is not configured on this server. '
       const configured = translate
         ? translate('METADATA_SOURCES_NOT_CONFIGURED', configuredFallback, {
-            sources: sources.join(', '),
-            count: sources.length,
+            sources: sourceLabel,
           })
         : configuredFallback
       return translate
         ? translate(
             'METADATA_SOURCE_NOT_CONFIGURED',
-            `Metadata source unavailable: ${configured}Ask an administrator to configure it, or add the book manually.`,
+            `Metadata source unavailable: ${configured}${configured.endsWith(' ') ? '' : ' '}Ask an administrator to configure it, or add the book manually.`,
             { configured }
           )
         : `Metadata source unavailable: ${configured}Ask an administrator to configure it, or add the book manually.`

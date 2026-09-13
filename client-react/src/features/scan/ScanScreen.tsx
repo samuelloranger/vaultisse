@@ -118,6 +118,7 @@ function ScanView({
 
   const queue = useScanQueue({
     locationId,
+    translate: t,
     onEntry: useCallback(
       (entry) => {
         const toast = scanEntryToast(entry, {

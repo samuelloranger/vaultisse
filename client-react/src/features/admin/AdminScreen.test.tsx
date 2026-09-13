@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AdminAccount } from '@/api/admin'
 import { ApiError } from '@/api/http'
 import { parseTabParam } from '@/components/ScreenTabs'
+import { LocaleProvider } from '@/locale/LocaleProvider'
 import { policyKeys } from '@/queries/keys'
 import { makePolicy } from '@/test/fixtures'
 import { createTestQueryClient, renderWithProviders } from '@/test/renderWithProviders'
@@ -120,6 +121,39 @@ beforeEach(() => {
 })
 
 describe('AdminScreen', () => {
+  it('renders the admin tabs with policy French labels', async () => {
+    const labels = {
+      ADMIN: 'Admin',
+      ADMINISTRATION: 'Administration',
+      ADMIN_ACCOUNTS: 'Comptes',
+      ADMIN_LIBRARY: 'Bibliothèque',
+      ADMIN_NEW_ACCOUNTS: 'Nouveaux comptes',
+      ADMIN_SECTIONS: 'Sections d’administration',
+    }
+    const queryClient = createTestQueryClient()
+    queryClient.setQueryData(
+      policyKeys.current(),
+      makePolicy({
+        user: { ...makePolicy().user, language: 'fr', region: 'CA' },
+        labels,
+      })
+    )
+    renderWithProviders(
+      <LocaleProvider language="fr" region="CA" labels={labels}>
+        <AdminScreen />
+      </LocaleProvider>,
+      { queryClient }
+    )
+
+    expect(await screen.findByTestId('admin-screen')).toBeInTheDocument()
+    expect(
+      screen.getByRole('tablist', { name: 'Sections d’administration' })
+    ).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Comptes' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Bibliothèque' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Nouveaux comptes' })).toBeInTheDocument()
+  })
+
   it('renders', async () => {
     renderAdmin()
     expect(await screen.findByTestId('admin-screen')).toBeInTheDocument()
