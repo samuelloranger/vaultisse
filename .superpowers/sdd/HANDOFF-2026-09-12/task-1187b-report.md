@@ -1,6 +1,6 @@
 # Task 1187B report
 
-Status: `DONE_PENDING_HUMAN_TRANSLATION_REVIEW`
+Status: `DONE` (owner approved Québec French wording on 2026-09-13)
 
 ## Scope delivered
 
@@ -55,19 +55,22 @@ focused client locale suite is now 5/5, and the catalogue migration suite is
 - Impeccable detector ran over changed UI files; no deterministic design
   issues were reported.
 
-## Limits and required follow-up
+## Release notes and limits
 
-- French wording is explicitly a draft. A fluent Québec French owner must
-  review every row in the review document before approval or deployment.
+- The owner approved the Québec French review document on 2026-09-13. The
+  document remains the row-by-row wording reference.
 - The implementation agent did not execute SQL. The controller subsequently
   applied it against a disposable PostgreSQL 18 container loaded from the
   pre-locale schema; 570 English and 851 French rows were inserted, and all
   2,546 labels matched a fresh install by content hash
   (`a3b67b7a2cfcc27bd8e75ff5f503f88e`). A second application refused
   without changing rows.
-- A real 390px authenticated browser pass was not available in the client
-  harness. Existing responsive structure and 44px action floors remain in
-  place; this should be checked manually with the French draft before release.
+- An isolated Chromium run with a disposable PostgreSQL database, French-Canadian
+  test account, and development-only authentication rendered Dashboard, Profile,
+  Admin, and Library at 390×844. French page titles, navigation, and representative
+  content appeared without startup errors or observed English fallback.
+  Screenshot capture and a numeric horizontal-overflow measurement were not
+  available, so a visual layout audit remains prudent before release.
 - No production deployment was performed. `AddBookIsbnDialog.test.tsx` was
   not changed by this task.
 
@@ -76,8 +79,9 @@ add fr-ca`). The original report was committed in `2f74a45`. A controller
 follow-up corrected metadata-source wording for one, many, or unnamed sources
 and added a focused regression test. Another screen-level RED/GREEN test caught
 the missing translator connection from `ScanScreen` to `useScanQueue`; rendered
-French tests now cover Profile and all three Admin tabs. The French draft still
-needs owner review.
+French tests now cover Profile and all three Admin tabs. The owner approved
+the French wording; production still runs the earlier build, and this task
+did not apply the French catalogue migration there.
 
 Exact review path:
 `/home/samuelloranger/sites/vaultisse/docs/FR-CA-TRANSLATION-REVIEW.md`
