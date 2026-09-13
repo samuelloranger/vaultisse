@@ -8,10 +8,10 @@
  * shared library that every account co-manages. `created_by` is stamped on
  * insert as attribution only and never filtered on.
  */
-import {Router, Request, Response} from 'express';
-import {requireAuth} from "../middlewares/AuthMiddleware";
-import {appService} from "../AppService";
-import {Pool} from "pg";
+import { Router, Request, Response } from "express";
+import { requireAuth } from "../middlewares/AuthMiddleware";
+import { appService } from "../AppService";
+import { Pool } from "pg";
 
 const router = Router();
 
@@ -27,7 +27,7 @@ const router = Router();
  *  [{ "id": 2, "name": "Main shelf", "description": "Front room", "total_books": 14 }]
  */
 // @ts-ignore
-router.get('', requireAuth, async (req: Request, res: Response) => {
+router.get("", requireAuth, async (req: Request, res: Response) => {
     const pool = appService.getDatabasePool();
     const client = await pool.connect();
 
@@ -41,8 +41,8 @@ router.get('', requireAuth, async (req: Request, res: Response) => {
         `);
         res.status(200).json(result.rows);
     } catch (err: any) {
-        console.error('Error executing query', err.stack);
-        res.status(500).send('Internal Server Error');
+        console.error("Error executing query", err.stack);
+        res.status(500).send("Internal Server Error");
     } finally {
         client.release();
     }
@@ -60,10 +60,10 @@ router.get('', requireAuth, async (req: Request, res: Response) => {
  *     "status": 0, "image_url": "https://..." }]
  */
 // @ts-ignore
-router.get('/:id/books', requireAuth, async (req: Request, res: Response) => {
+router.get("/:id/books", requireAuth, async (req: Request, res: Response) => {
     const locationId = Number(req.params.id);
     if (!locationId) {
-        return res.status(400).send('No location ID provided');
+        return res.status(400).send("No location ID provided");
     }
     const pool = appService.getDatabasePool();
 
@@ -71,8 +71,8 @@ router.get('/:id/books', requireAuth, async (req: Request, res: Response) => {
         const locationBooks = await getLocationBooks(pool, locationId);
         res.status(200).json(locationBooks);
     } catch (err: any) {
-        console.error('Error executing query', err.stack);
-        res.status(500).send('Internal Server Error');
+        console.error("Error executing query", err.stack);
+        res.status(500).send("Internal Server Error");
     }
 });
 
@@ -91,16 +91,16 @@ router.get('/:id/books', requireAuth, async (req: Request, res: Response) => {
  * Response (404): "Location does not exist".
  */
 // @ts-ignore
-router.post('/:id/add/books', requireAuth, async (req: Request, res: Response) => {
+router.post("/:id/add/books", requireAuth, async (req: Request, res: Response) => {
     const locationId = Number(req.params.id);
     const books: string[] = req.body.books;
 
     if (!locationId) {
-        return res.status(400).send('No location ID provided');
+        return res.status(400).send("No location ID provided");
     }
 
     if (!Array.isArray(books) || books.length === 0) {
-        return res.status(400).send('No books provided');
+        return res.status(400).send("No books provided");
     }
 
     const pool = appService.getDatabasePool();
@@ -108,22 +108,19 @@ router.post('/:id/add/books', requireAuth, async (req: Request, res: Response) =
     try {
         const exist = await existLocation(pool, locationId);
         if (!exist) {
-            return res.status(404).send('Location does not exist');
+            return res.status(404).send("Location does not exist");
         }
 
         for (const bookStockCode of books) {
-            await pool.query(
-                'UPDATE book_stocks SET location_id = $1 WHERE code = $2',
-                [locationId, bookStockCode]
-            );
+            await pool.query("UPDATE book_stocks SET location_id = $1 WHERE code = $2", [locationId, bookStockCode]);
         }
 
         const locationBooks = await getLocationBooks(pool, locationId);
 
         res.status(200).json(locationBooks);
     } catch (err: any) {
-        console.error('Error adding books to a location', err.stack);
-        res.status(500).send('Internal Server Error');
+        console.error("Error adding books to a location", err.stack);
+        res.status(500).send("Internal Server Error");
     }
 });
 
@@ -138,7 +135,7 @@ router.post('/:id/add/books', requireAuth, async (req: Request, res: Response) =
  * Example response (200): { "id": 2, "name": "Main shelf", "description": "Front room", "total_books": 0 }
  */
 // @ts-ignore
-router.post('', requireAuth, async (req: Request, res: Response) => {
+router.post("", requireAuth, async (req: Request, res: Response) => {
     const name = req.body.name;
     const description = req.body.description;
 
@@ -154,14 +151,17 @@ router.post('', requireAuth, async (req: Request, res: Response) => {
         );
 
         // fetch new data
-        const result = await pool.query(`
+        const result = await pool.query(
+            `
             SELECT locations.id,
                    locations.name,
                    locations.description,
                    (SELECT COUNT(*) FROM book_stocks WHERE book_stocks.location_id = locations.id) total_books
             FROM locations
             WHERE locations.id = $1
-        `, [insertLocation.rows[0].id])
+        `,
+            [insertLocation.rows[0].id]
+        );
 
         res.status(200).json(result.rows[0]);
     } catch (error) {
@@ -171,7 +171,6 @@ router.post('', requireAuth, async (req: Request, res: Response) => {
         client.release();
     }
 });
-
 
 /**
  * PUT /location/:id
@@ -183,27 +182,25 @@ router.post('', requireAuth, async (req: Request, res: Response) => {
  * Example response (200): the updated location row (same shape as GET /location).
  */
 // @ts-ignore
-router.put('/:id', requireAuth, async (req: Request, res: Response) => {
+router.put("/:id", requireAuth, async (req: Request, res: Response) => {
     const locationId = req.params.id;
     if (!locationId) {
-        return res.status(400).send('No location ID provided');
+        return res.status(400).send("No location ID provided");
     }
 
     // Body params
-    const {
-        name,
-        description
-    } = req.body;
+    const { name, description } = req.body;
 
     const pool = appService.getDatabasePool();
 
     try {
         appService.getLogger().debug(`Updating location ${locationId}`);
 
-        const queryResult = await pool.query(
-            'UPDATE locations SET name = $1, description = $2 WHERE id = $3',
-            [name, description, locationId]
-        );
+        const queryResult = await pool.query("UPDATE locations SET name = $1, description = $2 WHERE id = $3", [
+            name,
+            description,
+            locationId,
+        ]);
 
         if (queryResult.rowCount !== 1) {
             return res.status(500).send();
@@ -238,7 +235,7 @@ router.put('/:id', requireAuth, async (req: Request, res: Response) => {
  * Responses: 200 {"message": "Location deleted successfully"} | 404 {"error": "Location not found"}.
  */
 // @ts-ignore
-router.delete('/:id', requireAuth, async (req: Request, res: Response) => {
+router.delete("/:id", requireAuth, async (req: Request, res: Response) => {
     const id = Number(req.params.id);
 
     // Database connection
@@ -247,17 +244,17 @@ router.delete('/:id', requireAuth, async (req: Request, res: Response) => {
 
     try {
         // Validate the existence of the book
-        const locationCheck = await client.query('SELECT id FROM locations WHERE id = $1', [id]);
+        const locationCheck = await client.query("SELECT id FROM locations WHERE id = $1", [id]);
         if (locationCheck.rowCount === 0) {
-            return res.status(404).send({error: "Location not found"});
+            return res.status(404).send({ error: "Location not found" });
         }
 
-        await client.query('DELETE FROM locations WHERE id = $1', [id]);
+        await client.query("DELETE FROM locations WHERE id = $1", [id]);
 
-        res.send({message: "Location deleted successfully"});
+        res.send({ message: "Location deleted successfully" });
     } catch (e) {
         console.error("Error while deleting location", e);
-        res.status(500).send('Internal Server Error');
+        res.status(500).send("Internal Server Error");
     } finally {
         client.release();
     }
@@ -265,17 +262,15 @@ router.delete('/:id', requireAuth, async (req: Request, res: Response) => {
 
 /** Whether location `locationId` exists. */
 async function existLocation(pool: Pool, locationId: number): Promise<boolean> {
-    const queryResult = await pool.query(
-        'SELECT id FROM locations WHERE id = $1',
-        [locationId]
-    );
+    const queryResult = await pool.query("SELECT id FROM locations WHERE id = $1", [locationId]);
 
     return queryResult.rowCount === 1;
 }
 
 /** Fetch the books (with stock code/status) currently stored at `locationId`. */
 async function getLocationBooks(pool: Pool, locationId: number) {
-    const result = await pool.query(`
+    const result = await pool.query(
+        `
             SELECT book_stocks.id,
                    books.name,
                    books.id as book_id,
@@ -286,7 +281,9 @@ async function getLocationBooks(pool: Pool, locationId: number) {
                  books
             WHERE book_stocks.location_id = $1
               AND book_stocks.book_id = books.id
-        `, [locationId]);
+        `,
+        [locationId]
+    );
 
     return result.rows;
 }

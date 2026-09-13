@@ -17,7 +17,7 @@ export function validateIsbn10(isbn: string): boolean {
         sum += (10 - i) * parseInt(isbn[i], 10);
     }
     const checksum = isbn[9].toUpperCase();
-    sum += checksum === 'X' ? 10 : parseInt(checksum, 10);
+    sum += checksum === "X" ? 10 : parseInt(checksum, 10);
     return sum % 11 === 0;
 }
 

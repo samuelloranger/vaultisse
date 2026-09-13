@@ -1,7 +1,6 @@
-import {imageResponse, mockedFetch, useMockedFetch} from "../helpers/fetchMock";
-import {setupTestApp} from "../helpers/testApp";
-import {createAuthenticatedUser, ITestUser} from "../helpers/auth";
-
+import { imageResponse, mockedFetch, useMockedFetch } from "../helpers/fetchMock";
+import { setupTestApp } from "../helpers/testApp";
+import { createAuthenticatedUser, ITestUser } from "../helpers/auth";
 
 const app = setupTestApp();
 useMockedFetch();
@@ -64,7 +63,9 @@ describe("POST /import/library - validation", () => {
     });
 
     it("400s with no origin", async () => {
-        const res = await user.agent.post("/api/rest/import/library").attach("file", Buffer.from(GOODREADS_CSV), "lib.csv");
+        const res = await user.agent
+            .post("/api/rest/import/library")
+            .attach("file", Buffer.from(GOODREADS_CSV), "lib.csv");
         expect(res.status).toBe(400);
     });
 
@@ -93,15 +94,15 @@ describe("POST /import/library - goodreads origin", () => {
             .attach("file", Buffer.from(GOODREADS_CSV), "lib.csv");
 
         expect(res.status).toBe(200);
-        expect(res.body).toMatchObject({imported: 2, skipped: 0, failed: 0});
+        expect(res.body).toMatchObject({ imported: 2, skipped: 0, failed: 0 });
 
-        const searchRes = await user.agent.get("/api/rest/book/search").query({query: "Steve Jobs"});
+        const searchRes = await user.agent.get("/api/rest/book/search").query({ query: "Steve Jobs" });
         const book = searchRes.body.books.find((b: any) => b.name === "Steve Jobs");
         expect(book).toBeDefined();
         expect(book.isbn).toBe("9781451648539");
         expect(book.image_url).toBeTruthy(); // ISBN present -> cover lookup attempted (mocked as a hit).
 
-        const noIsbnRes = await user.agent.get("/api/rest/book/search").query({query: "No ISBN Book"});
+        const noIsbnRes = await user.agent.get("/api/rest/book/search").query({ query: "No ISBN Book" });
         const noIsbnBook = noIsbnRes.body.books.find((b: any) => b.name === "No ISBN Book");
         expect(noIsbnBook.isbn).toBeNull();
         expect(noIsbnBook.image_url).toBeFalsy(); // no ISBN -> no cover lookup possible.
@@ -118,7 +119,7 @@ describe("POST /import/library - goodreads origin", () => {
             .field("origin", "goodreads")
             .attach("file", Buffer.from(GOODREADS_CSV), "lib.csv");
 
-        expect(res.body).toMatchObject({imported: 0, skipped: 2, failed: 0});
+        expect(res.body).toMatchObject({ imported: 0, skipped: 2, failed: 0 });
     });
 
     it("reports a row with no title as failed without aborting the rest of the file", async () => {
@@ -135,11 +136,12 @@ describe("POST /import/library - goodreads origin", () => {
 
         expect(res.body.imported).toBe(1);
         expect(res.body.failed).toBe(1);
-        expect(res.body.errors[0]).toMatchObject({reason: "Missing title"});
+        expect(res.body.errors[0]).toMatchObject({ reason: "Missing title" });
     });
 });
 
-const VAULTISSE_CSV_HEADER = "Title,Authors,ISBN,Publisher,Published Year,Pages,Format,Category,Description,Language,Cover";
+const VAULTISSE_CSV_HEADER =
+    "Title,Authors,ISBN,Publisher,Published Year,Pages,Format,Category,Description,Language,Cover";
 
 describe("POST /import/library - vaultisse origin", () => {
     it("imports authors (semicolon-separated), category, description, language and format", async () => {
@@ -153,21 +155,28 @@ describe("POST /import/library - vaultisse origin", () => {
             .field("origin", "vaultisse")
             .attach("file", Buffer.from(csv), "lib.csv");
 
-        expect(res.body).toMatchObject({imported: 1, skipped: 0, failed: 0});
+        expect(res.body).toMatchObject({ imported: 1, skipped: 0, failed: 0 });
 
-        const bookRes = await user.agent.get("/api/rest/book/search").query({query: "Good Omens"});
+        const bookRes = await user.agent.get("/api/rest/book/search").query({ query: "Good Omens" });
         const bookId = bookRes.body.books[0].id;
         const detailRes = await user.agent.get(`/api/rest/book/${bookId}`);
 
-        expect(detailRes.body).toMatchObject({name: "Good Omens", description: "Angel and demon team up.", language_code: "en"});
+        expect(detailRes.body).toMatchObject({
+            name: "Good Omens",
+            description: "Angel and demon team up.",
+            language_code: "en",
+        });
         expect(detailRes.body.authors.map((a: any) => a.name).sort()).toEqual(["Neil Gaiman", "Terry Pratchett"]);
 
         const categoriesRes = await user.agent.get("/api/rest/category");
-        expect(categoriesRes.body.some((c: any) => c.name === "Fantasy" && c.id === detailRes.body.category_id)).toBe(true);
+        expect(categoriesRes.body.some((c: any) => c.name === "Fantasy" && c.id === detailRes.body.category_id)).toBe(
+            true
+        );
     });
 
     it("uses an explicit base64 cover as-is, without an ISBN lookup", async () => {
-        const cover = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+        const cover =
+            "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
         const csv = [VAULTISSE_CSV_HEADER, `Base64 Cover Book,Someone,,,,,,,,,"${cover}"`].join("\n");
 
         const res = await user.agent
@@ -176,7 +185,7 @@ describe("POST /import/library - vaultisse origin", () => {
             .attach("file", Buffer.from(csv), "lib.csv");
         expect(res.body.imported).toBe(1);
 
-        const bookRes = await user.agent.get("/api/rest/book/search").query({query: "Base64 Cover Book"});
+        const bookRes = await user.agent.get("/api/rest/book/search").query({ query: "Base64 Cover Book" });
         expect(bookRes.body.books[0].image_url).toBe(cover);
         expect(mockedFetch).not.toHaveBeenCalled();
     });
@@ -193,12 +202,9 @@ describe("POST /import/library - vaultisse origin", () => {
             .attach("file", Buffer.from(csv), "lib.csv");
         expect(res.body.imported).toBe(1);
 
-        const bookRes = await user.agent.get("/api/rest/book/search").query({query: "Disallowed Cover Book"});
+        const bookRes = await user.agent.get("/api/rest/book/search").query({ query: "Disallowed Cover Book" });
         expect(bookRes.body.books[0].image_url).toContain("covers.openlibrary.org");
-        expect(mockedFetch).toHaveBeenCalledWith(
-            expect.stringContaining("covers.openlibrary.org"),
-            expect.anything()
-        );
+        expect(mockedFetch).toHaveBeenCalledWith(expect.stringContaining("covers.openlibrary.org"), expect.anything());
     });
 
     it("leaves the cover empty when the ISBN fallback lookup finds nothing", async () => {
@@ -211,7 +217,7 @@ describe("POST /import/library - vaultisse origin", () => {
             .attach("file", Buffer.from(csv), "lib.csv");
         expect(res.body.imported).toBe(1);
 
-        const bookRes = await user.agent.get("/api/rest/book/search").query({query: "No Cover Book"});
+        const bookRes = await user.agent.get("/api/rest/book/search").query({ query: "No Cover Book" });
         expect(bookRes.body.books[0].image_url).toBeFalsy();
     });
 
@@ -237,7 +243,7 @@ describe("POST /import/library - vaultisse origin", () => {
         expect(second.body.skipped).toBe(1);
 
         // The one imported copy is visible to the account that didn't import it.
-        const theirSearch = await otherUser.agent.get("/api/rest/book/search").query({query: "Cross Account Import"});
+        const theirSearch = await otherUser.agent.get("/api/rest/book/search").query({ query: "Cross Account Import" });
         expect(theirSearch.body.books.some((b: any) => b.isbn === isbn)).toBe(true);
     });
 });

@@ -7,9 +7,9 @@
  * there is one shared library that every account co-manages. `created_by` is
  * stamped on insert as attribution only and never filtered on.
  */
-import { Router, Request, Response } from 'express';
-import {appService} from "../AppService";
-import {requireAuth} from "../middlewares/AuthMiddleware";
+import { Router, Request, Response } from "express";
+import { appService } from "../AppService";
+import { requireAuth } from "../middlewares/AuthMiddleware";
 
 const router = Router();
 
@@ -23,7 +23,7 @@ const router = Router();
  * Example response (200): [{ "id": 4, "name": "J.R.R. Tolkien" }]
  */
 // @ts-ignore
-router.get('', requireAuth, async (req: Request, res: Response) => {
+router.get("", requireAuth, async (req: Request, res: Response) => {
     const pool = appService.getDatabasePool();
     const client = await pool.connect();
 
@@ -35,8 +35,8 @@ router.get('', requireAuth, async (req: Request, res: Response) => {
         `);
         res.status(200).json(result.rows);
     } catch (err: any) {
-        console.error('Error executing query', err.stack);
-        res.status(500).send('Internal Server Error');
+        console.error("Error executing query", err.stack);
+        res.status(500).send("Internal Server Error");
     } finally {
         client.release();
     }
@@ -53,7 +53,7 @@ router.get('', requireAuth, async (req: Request, res: Response) => {
  * Example response (200): [{ "id": 4, "name": "J.R.R. Tolkien" }]
  */
 // @ts-ignore
-router.post('/search', requireAuth, async (req: Request, res: Response) => {
+router.post("/search", requireAuth, async (req: Request, res: Response) => {
     const query = req.body.query;
 
     const pool = appService.getDatabasePool();
@@ -62,12 +62,15 @@ router.post('/search', requireAuth, async (req: Request, res: Response) => {
     try {
         appService.getLogger().debug(`search authors with query ${query}`);
         // fetch new data
-        const result = await pool.query(`
+        const result = await pool.query(
+            `
             SELECT authors.id,
                    authors.name
             FROM authors
             WHERE LOWER(authors.name) ILIKE $1
-        `, [`%${query.toLocaleLowerCase()}%`])
+        `,
+            [`%${query.toLocaleLowerCase()}%`]
+        );
 
         res.status(200).json(result.rows);
     } catch (error) {
@@ -88,7 +91,7 @@ router.post('/search', requireAuth, async (req: Request, res: Response) => {
  * Example response (200): { "id": 4, "name": "J.R.R. Tolkien" }
  */
 // @ts-ignore
-router.post('', requireAuth, async (req: Request, res: Response) => {
+router.post("", requireAuth, async (req: Request, res: Response) => {
     const name = req.body.name;
 
     const pool = appService.getDatabasePool();
@@ -97,18 +100,21 @@ router.post('', requireAuth, async (req: Request, res: Response) => {
 
     try {
         appService.getLogger().debug(`Adding author with name ${name}`);
-        const insertAuthor = await client.query(
-            "INSERT INTO authors (name, created_by) VALUES ($1, $2) RETURNING id",
-            [name, userId]
-        );
+        const insertAuthor = await client.query("INSERT INTO authors (name, created_by) VALUES ($1, $2) RETURNING id", [
+            name,
+            userId,
+        ]);
 
         // fetch new data
-        const result = await pool.query(`
+        const result = await pool.query(
+            `
             SELECT authors.id,
                    authors.name
             FROM authors
             WHERE authors.id = $1
-        `, [insertAuthor.rows[0].id])
+        `,
+            [insertAuthor.rows[0].id]
+        );
 
         res.status(200).json(result.rows[0]);
     } catch (error) {
@@ -118,7 +124,6 @@ router.post('', requireAuth, async (req: Request, res: Response) => {
         client.release();
     }
 });
-
 
 /**
  * PUT /author/:id
@@ -130,26 +135,23 @@ router.post('', requireAuth, async (req: Request, res: Response) => {
  * Example response (200): { "id": 4, "name": "..." }
  */
 // @ts-ignore
-router.put('/:id', requireAuth, async (req: Request, res: Response) => {
+router.put("/:id", requireAuth, async (req: Request, res: Response) => {
     const authorId = req.params.id;
     if (!authorId) {
-        return res.status(400).send('No author ID provided');
+        return res.status(400).send("No author ID provided");
     }
 
     // Body params
-    const {name} = req.body;
+    const { name } = req.body;
 
     const pool = appService.getDatabasePool();
 
     try {
         appService.getLogger().debug(`Updating author ${authorId}`);
 
-        const queryResult = await pool.query(
-            'UPDATE authors SET name = $1 WHERE id = $2',
-            [name, authorId]
-        );
+        const queryResult = await pool.query("UPDATE authors SET name = $1 WHERE id = $2", [name, authorId]);
 
-        if(queryResult.rowCount !== 1) {
+        if (queryResult.rowCount !== 1) {
             return res.status(500).send();
         }
 
@@ -180,7 +182,7 @@ router.put('/:id', requireAuth, async (req: Request, res: Response) => {
  * Responses: 200 {"message": "Author deleted successfully"} | 404 {"error": "Author not found"}.
  */
 // @ts-ignore
-router.delete('/:id', requireAuth, async (req: Request, res: Response) => {
+router.delete("/:id", requireAuth, async (req: Request, res: Response) => {
     const id = Number(req.params.id);
     appService.getLogger().debug(`Delete author, id: ${id}`);
 
@@ -190,17 +192,17 @@ router.delete('/:id', requireAuth, async (req: Request, res: Response) => {
 
     try {
         // Validate the existence of the book
-        const authorCheck = await client.query('SELECT id FROM authors WHERE id = $1', [id]);
+        const authorCheck = await client.query("SELECT id FROM authors WHERE id = $1", [id]);
         if (authorCheck.rowCount === 0) {
-            return res.status(404).send({error: "Author not found"});
+            return res.status(404).send({ error: "Author not found" });
         }
 
-        await client.query( 'DELETE FROM authors WHERE id = $1', [id]);
+        await client.query("DELETE FROM authors WHERE id = $1", [id]);
 
-        res.send({message: "Author deleted successfully"});
+        res.send({ message: "Author deleted successfully" });
     } catch (e) {
         console.error("Error while deleting author", e);
-        res.status(500).send('Internal Server Error');
+        res.status(500).send("Internal Server Error");
     } finally {
         client.release();
     }

@@ -13,5 +13,5 @@ export enum SortType {
     /** Most recently added first. */
     DATE_NEWEST = "DATE_NEWEST",
     /** Least recently added first. */
-    DATE_OLDEST = "DATE_OLDEST"
+    DATE_OLDEST = "DATE_OLDEST",
 }

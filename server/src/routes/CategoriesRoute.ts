@@ -8,9 +8,9 @@
  * co-manages. `created_by` is stamped on insert as attribution only and never
  * filtered on.
  */
-import { Router, Request, Response } from 'express';
-import {requireAuth} from "../middlewares/AuthMiddleware";
-import {appService} from "../AppService";
+import { Router, Request, Response } from "express";
+import { requireAuth } from "../middlewares/AuthMiddleware";
+import { appService } from "../AppService";
 
 const router = Router();
 
@@ -24,7 +24,7 @@ const router = Router();
  * Example response (200): [{ "id": 3, "name": "Fantasy" }]
  */
 // @ts-ignore
-router.get('', requireAuth, async (req: Request, res: Response) => {
+router.get("", requireAuth, async (req: Request, res: Response) => {
     const pool = appService.getDatabasePool();
     const client = await pool.connect();
 
@@ -36,8 +36,8 @@ router.get('', requireAuth, async (req: Request, res: Response) => {
         `);
         res.status(200).json(result.rows);
     } catch (err: any) {
-        console.error('Error executing query', err.stack);
-        res.status(500).send('Internal Server Error');
+        console.error("Error executing query", err.stack);
+        res.status(500).send("Internal Server Error");
     } finally {
         client.release();
     }
@@ -53,7 +53,7 @@ router.get('', requireAuth, async (req: Request, res: Response) => {
  * Example response (200): { "id": 3, "name": "Fantasy" }
  */
 // @ts-ignore
-router.post('', requireAuth, async (req: Request, res: Response) => {
+router.post("", requireAuth, async (req: Request, res: Response) => {
     const name = req.body.name;
 
     const pool = appService.getDatabasePool();
@@ -68,12 +68,15 @@ router.post('', requireAuth, async (req: Request, res: Response) => {
         );
 
         // fetch new data
-        const result = await pool.query(`
+        const result = await pool.query(
+            `
             SELECT categories.id,
                    categories.name
             FROM categories
             WHERE categories.id = $1
-        `, [insertCategory.rows[0].id])
+        `,
+            [insertCategory.rows[0].id]
+        );
 
         res.status(200).json(result.rows[0]);
     } catch (error) {
@@ -83,7 +86,6 @@ router.post('', requireAuth, async (req: Request, res: Response) => {
         client.release();
     }
 });
-
 
 /**
  * PUT /category/:id
@@ -95,28 +97,23 @@ router.post('', requireAuth, async (req: Request, res: Response) => {
  * Example response (200): { "id": 3, "name": "..." }
  */
 // @ts-ignore
-router.put('/:id', requireAuth, async (req: Request, res: Response) => {
+router.put("/:id", requireAuth, async (req: Request, res: Response) => {
     const categoryId = req.params.id;
     if (!categoryId) {
-        return res.status(400).send('No category ID provided');
+        return res.status(400).send("No category ID provided");
     }
 
     // Body params
-    const {
-        name
-    } = req.body;
+    const { name } = req.body;
 
     const pool = appService.getDatabasePool();
 
     try {
         appService.getLogger().debug(`Updating category ${categoryId}`);
 
-        const queryResult = await pool.query(
-            'UPDATE categories SET name = $1 WHERE id = $2',
-            [name, categoryId]
-        );
+        const queryResult = await pool.query("UPDATE categories SET name = $1 WHERE id = $2", [name, categoryId]);
 
-        if(queryResult.rowCount !== 1) {
+        if (queryResult.rowCount !== 1) {
             return res.status(500).send();
         }
 
@@ -147,7 +144,7 @@ router.put('/:id', requireAuth, async (req: Request, res: Response) => {
  * Responses: 200 {"message": "Category deleted successfully"} | 404 {"error": "Category not found"}.
  */
 // @ts-ignore
-router.delete('/:id', requireAuth, async (req: Request, res: Response) => {
+router.delete("/:id", requireAuth, async (req: Request, res: Response) => {
     const id = Number(req.params.id);
     appService.getLogger().debug(`Delete category, id: ${id}`);
 
@@ -157,20 +154,17 @@ router.delete('/:id', requireAuth, async (req: Request, res: Response) => {
 
     try {
         // Validate the existence of the book
-        const categoryCheck = await client.query(
-            'SELECT id FROM categories WHERE id = $1',
-            [id]
-        );
+        const categoryCheck = await client.query("SELECT id FROM categories WHERE id = $1", [id]);
         if (categoryCheck.rowCount === 0) {
-            return res.status(404).send({error: "Category not found"});
+            return res.status(404).send({ error: "Category not found" });
         }
 
-        await client.query( 'DELETE FROM categories WHERE id = $1', [id]);
+        await client.query("DELETE FROM categories WHERE id = $1", [id]);
 
-        res.send({message: "Category deleted successfully"});
+        res.send({ message: "Category deleted successfully" });
     } catch (e) {
         console.error("Error while deleting category", e);
-        res.status(500).send('Internal Server Error');
+        res.status(500).send("Internal Server Error");
     } finally {
         client.release();
     }

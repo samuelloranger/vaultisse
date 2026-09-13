@@ -1,5 +1,5 @@
-import {IBookStockBase} from "./IBookStockBase";
-import {IBookBase} from "./IBookBase";
+import { IBookStockBase } from "./IBookStockBase";
+import { IBookBase } from "./IBookBase";
 
 /**
  * Response shape for `GET /book/:bookCode/add/md` - the book plus the single

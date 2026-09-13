@@ -9,13 +9,22 @@
  * kept deliberately simple: one column per `IImportedBook` field, plain
  * values, no origin-specific quirks to work around.
  */
-import {parse} from "csv-parse/sync";
-import {IImportedBook} from "./IImportedBook";
-import {normalizeAndValidateIsbn} from "../../../utils/IsbnVerification";
+import { parse } from "csv-parse/sync";
+import { IImportedBook } from "./IImportedBook";
+import { normalizeAndValidateIsbn } from "../../../utils/IsbnVerification";
 
 export const VAULTISSE_CSV_HEADERS = [
-    "Title", "Authors", "ISBN", "Publisher", "Published Year",
-    "Pages", "Format", "Category", "Description", "Language", "Cover"
+    "Title",
+    "Authors",
+    "ISBN",
+    "Publisher",
+    "Published Year",
+    "Pages",
+    "Format",
+    "Category",
+    "Description",
+    "Language",
+    "Cover",
 ];
 
 /** Wraps every field in quotes (escaping internal ones) - always valid CSV, no need to reason about which fields happen to contain a comma. */
@@ -24,19 +33,31 @@ function toCsvRow(values: string[]): string {
 }
 
 /** Handed out by `GET /import/template/vaultisse` - the header row plus one filled-in example row to copy/replace. */
-export const VAULTISSE_CSV_TEMPLATE = [
-    toCsvRow(VAULTISSE_CSV_HEADERS),
-    toCsvRow([
-        "The Hobbit", "J.R.R. Tolkien", "9780261102217", "HarperCollins", "1937",
-        "310", "Paperback", "Fantasy", "A hobbit's unexpected journey.", "en",
-        "https://covers.openlibrary.org/b/isbn/9780261102217-M.jpg"
-    ])
-].join("\r\n") + "\r\n";
+export const VAULTISSE_CSV_TEMPLATE =
+    [
+        toCsvRow(VAULTISSE_CSV_HEADERS),
+        toCsvRow([
+            "The Hobbit",
+            "J.R.R. Tolkien",
+            "9780261102217",
+            "HarperCollins",
+            "1937",
+            "310",
+            "Paperback",
+            "Fantasy",
+            "A hobbit's unexpected journey.",
+            "en",
+            "https://covers.openlibrary.org/b/isbn/9780261102217-M.jpg",
+        ]),
+    ].join("\r\n") + "\r\n";
 
 /** Multiple authors are semicolon-separated (`;`) - unlike Goodreads' comma-separated column, a name itself may contain a comma ("Lastname, Firstname"). */
 function toAuthors(value: string | undefined): string[] {
     if (!value) return [];
-    return value.split(";").map((name) => name.trim()).filter(Boolean);
+    return value
+        .split(";")
+        .map((name) => name.trim())
+        .filter(Boolean);
 }
 
 function toPages(value: string | undefined): number | null {

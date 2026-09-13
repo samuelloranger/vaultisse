@@ -49,10 +49,10 @@
  * A provider is skipped entirely once `isBookMetadataComplete` holds, so a
  * lookup that already has everything makes no further request.
  */
-import {IBookMetadata, emptyBookMetadata} from "../types/book/IBookMetadata";
-import {ExternalHttpError} from "./ExternalHttpError";
-import {fetchBnfMetadata} from "./BnfUnimarc";
-import {validatedRegion} from "./Regions";
+import { IBookMetadata, emptyBookMetadata } from "../types/book/IBookMetadata";
+import { ExternalHttpError } from "./ExternalHttpError";
+import { fetchBnfMetadata } from "./BnfUnimarc";
+import { validatedRegion } from "./Regions";
 
 export type MetadataSourceId = "google-books" | "open-library" | "bnf";
 
@@ -92,26 +92,36 @@ export interface IBookLookupResult {
  * mapped, since a record may carry either.
  */
 const ISO_639_2_TO_1: Record<string, string> = {
-    alb: "sq", sqi: "sq",
+    alb: "sq",
+    sqi: "sq",
     ara: "ar",
-    arm: "hy", hye: "hy",
-    baq: "eu", eus: "eu",
+    arm: "hy",
+    hye: "hy",
+    baq: "eu",
+    eus: "eu",
     bul: "bg",
     cat: "ca",
-    chi: "zh", zho: "zh",
-    cze: "cs", ces: "cs",
+    chi: "zh",
+    zho: "zh",
+    cze: "cs",
+    ces: "cs",
     dan: "da",
-    dut: "nl", nld: "nl",
+    dut: "nl",
+    nld: "nl",
     eng: "en",
     est: "et",
     fin: "fi",
-    fre: "fr", fra: "fr",
-    ger: "de", deu: "de",
-    gre: "el", ell: "el",
+    fre: "fr",
+    fra: "fr",
+    ger: "de",
+    deu: "de",
+    gre: "el",
+    ell: "el",
     heb: "he",
     hin: "hi",
     hun: "hu",
-    ice: "is", isl: "is",
+    ice: "is",
+    isl: "is",
     ind: "id",
     gle: "ga",
     ita: "it",
@@ -121,19 +131,23 @@ const ISO_639_2_TO_1: Record<string, string> = {
     lav: "lv",
     lit: "lt",
     nor: "no",
-    per: "fa", fas: "fa",
+    per: "fa",
+    fas: "fa",
     pol: "pl",
     por: "pt",
-    rum: "ro", ron: "ro",
+    rum: "ro",
+    ron: "ro",
     rus: "ru",
-    slo: "sk", slk: "sk",
+    slo: "sk",
+    slk: "sk",
     slv: "sl",
     spa: "es",
     swe: "sv",
     tur: "tr",
     ukr: "uk",
     vie: "vi",
-    wel: "cy", cym: "cy",
+    wel: "cy",
+    cym: "cy",
 };
 
 /**
@@ -232,7 +246,11 @@ export function isBookMetadataComplete(metadata: IBookMetadata): boolean {
  * Never throws: a provider that fails is recorded in `failed` and the others
  * carry on. `metadata` is null only when no provider had the book.
  */
-export async function lookupBookMetadata(isbn: string, googleApiKey: string | undefined, region = "US"): Promise<IBookLookupResult> {
+export async function lookupBookMetadata(
+    isbn: string,
+    googleApiKey: string | undefined,
+    region = "US"
+): Promise<IBookLookupResult> {
     const country = validatedRegion(region);
     const french = isFrenchLanguageIsbn(isbn);
     const order: MetadataSourceId[] = french
@@ -354,7 +372,12 @@ function __fieldsFilled(before: IBookMetadata, after: IBookMetadata): (keyof IBo
  * because the quota needs time to refill; a 5xx backs off in 300ms steps
  * because it does not, and Scan mode is waiting.
  */
-async function __fetchGoogleBooks(isbn: string, apiKey: string, retries = 3, region = "US"): Promise<IBookMetadata | null> {
+async function __fetchGoogleBooks(
+    isbn: string,
+    apiKey: string,
+    retries = 3,
+    region = "US"
+): Promise<IBookMetadata | null> {
     try {
         const url = new URL("https://www.googleapis.com/books/v1/volumes");
         url.searchParams.set("q", `isbn:${isbn}`);
@@ -363,7 +386,7 @@ async function __fetchGoogleBooks(isbn: string, apiKey: string, retries = 3, reg
 
         const response = await fetch(url, {
             signal: AbortSignal.timeout(9000),
-            headers: {"User-Agent": "vaultisse-server/1.0"},
+            headers: { "User-Agent": "vaultisse-server/1.0" },
         });
 
         // `fetch` resolves on 4xx/5xx where axios rejected, so the status has
@@ -384,7 +407,7 @@ async function __fetchGoogleBooks(isbn: string, apiKey: string, retries = 3, reg
             const step = 4 - retries;
             const delay = (error as ExternalHttpError).status === 429 ? step * 1000 : step * 300;
 
-            await new Promise(r => setTimeout(r, delay));
+            await new Promise((r) => setTimeout(r, delay));
 
             return __fetchGoogleBooks(isbn, apiKey, retries - 1, region);
         }
@@ -443,9 +466,10 @@ async function __fetchOpenLibrary(isbn: string): Promise<IBookMetadata | null> {
         categories: Array.isArray(doc.subject) ? doc.subject : [],
         publisher: doc.publisher?.[0] ?? null,
         publishedDate: doc.first_publish_year ? String(doc.first_publish_year) : null,
-        pageCount: typeof doc.number_of_pages_median === "number" && doc.number_of_pages_median > 0
-            ? doc.number_of_pages_median
-            : null,
+        pageCount:
+            typeof doc.number_of_pages_median === "number" && doc.number_of_pages_median > 0
+                ? doc.number_of_pages_median
+                : null,
         // Three-letter ISO 639-2/B, same as the BnF - normalizeLanguageCode maps it.
         language: doc.language?.[0] ?? null,
         // The covers API is a separate call, see fetchOpenLibraryCover.
@@ -469,7 +493,7 @@ export async function fetchOpenLibraryCover(isbn: string): Promise<string | null
         // A missing cover answers 404 here, which `fetch` resolves rather
         // than throwing - hence the explicit status check. The body is never
         // read (only its existence and type matter), so it is cancelled.
-        const response = await fetch(url, {signal: AbortSignal.timeout(3000)});
+        const response = await fetch(url, { signal: AbortSignal.timeout(3000) });
         await response.body?.cancel();
 
         const contentType = String(response.headers.get("content-type") ?? "");

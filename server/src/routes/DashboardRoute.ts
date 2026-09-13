@@ -5,9 +5,9 @@
  * Mounted at `/api/rest/dashboard`. A single read-only aggregate endpoint
  * powering the dashboard view's KPIs and charts.
  */
-import { Router, Request, Response } from 'express';
-import {appService} from "../AppService";
-import {requireAuth} from "../middlewares/AuthMiddleware";
+import { Router, Request, Response } from "express";
+import { appService } from "../AppService";
+import { requireAuth } from "../middlewares/AuthMiddleware";
 
 const router = Router();
 
@@ -48,7 +48,7 @@ const router = Router();
  * prop checks) expect actual numbers.
  */
 // @ts-ignore
-router.get('', requireAuth, async (req: Request, res: Response) => {
+router.get("", requireAuth, async (req: Request, res: Response) => {
     const pool = appService.getDatabasePool();
 
     try {
@@ -65,7 +65,7 @@ router.get('', requireAuth, async (req: Request, res: Response) => {
             totalLocations,
             totalAuthors,
             categoryShelfRows,
-            currentlyOnLoan
+            currentlyOnLoan,
         ] = await Promise.all([
             pool.query(`
                     SELECT b.id,
@@ -81,10 +81,14 @@ router.get('', requireAuth, async (req: Request, res: Response) => {
             `),
             pool.query(`SELECT COUNT(*) AS count FROM books`),
             pool.query(`SELECT COUNT(*) AS count FROM books WHERE date_created >= date_trunc('month', CURRENT_DATE)`),
-            pool.query(`SELECT COUNT(*) AS count FROM books WHERE date_created >= date_trunc('month', CURRENT_DATE - interval '1 month') AND date_created < date_trunc('month', CURRENT_DATE)`),
+            pool.query(
+                `SELECT COUNT(*) AS count FROM books WHERE date_created >= date_trunc('month', CURRENT_DATE - interval '1 month') AND date_created < date_trunc('month', CURRENT_DATE)`
+            ),
             pool.query(`SELECT COUNT(*) AS count FROM categories`),
             pool.query(`SELECT COUNT(*) AS count FROM customers`),
-            pool.query(`SELECT date_trunc('month', date_created) AS month, COUNT(*) AS total_books FROM books GROUP BY month ORDER BY month`),
+            pool.query(
+                `SELECT date_trunc('month', date_created) AS month, COUNT(*) AS total_books FROM books GROUP BY month ORDER BY month`
+            ),
             pool.query(`SELECT status, COUNT(*) AS count FROM book_stocks GROUP BY status`),
             pool.query(`SELECT COUNT(*) AS count FROM book_stocks WHERE customer_id IS NOT NULL`),
             pool.query(`SELECT COUNT(*) AS count FROM locations`),
@@ -124,26 +128,29 @@ router.get('', requireAuth, async (req: Request, res: Response) => {
                     WHERE bs.status = 2
                     ORDER BY bs.id DESC
                         LIMIT 5
-            `)
+            `),
         ]);
 
         // Fold the denormalized category/book rows into one entry per
         // category, each carrying its sample of books.
-        const categoryShelvesById = new Map<number, { id: number; name: string; count: number; books: { id: number; name: string; image_url: string | null }[] }>();
+        const categoryShelvesById = new Map<
+            number,
+            { id: number; name: string; count: number; books: { id: number; name: string; image_url: string | null }[] }
+        >();
         for (const row of categoryShelfRows.rows) {
             if (!categoryShelvesById.has(row.category_id)) {
                 categoryShelvesById.set(row.category_id, {
                     id: row.category_id,
                     name: row.category_name,
                     count: Number(row.count),
-                    books: []
+                    books: [],
                 });
             }
             if (row.book_id !== null) {
                 categoryShelvesById.get(row.category_id)!.books.push({
                     id: row.book_id,
                     name: row.book_name,
-                    image_url: row.image_url
+                    image_url: row.image_url,
                 });
             }
         }
@@ -155,18 +162,17 @@ router.get('', requireAuth, async (req: Request, res: Response) => {
             totalLastMonth: Number(totalLastMonth.rows[0].count),
             totalCategories: Number(totalCategories.rows[0].count),
             totalCustomers: Number(totalCustomers.rows[0].count),
-            booksInTime: booksInTime.rows.map((row) => ({...row, total_books: Number(row.total_books)})),
-            stockStatus: stockStatus.rows.map((row) => ({...row, count: Number(row.count)})),
+            booksInTime: booksInTime.rows.map((row) => ({ ...row, total_books: Number(row.total_books) })),
+            stockStatus: stockStatus.rows.map((row) => ({ ...row, count: Number(row.count) })),
             totalBookedBooks: Number(totalBookedBooks.rows[0].count),
             totalLocations: Number(totalLocations.rows[0].count),
             totalAuthors: Number(totalAuthors.rows[0].count),
             categoryShelves: Array.from(categoryShelvesById.values()),
             currentlyOnLoan: currentlyOnLoan.rows,
         });
-
     } catch (err) {
         console.error(err);
-        res.status(500).json({ error: 'Failed to fetch dashboard data' });
+        res.status(500).json({ error: "Failed to fetch dashboard data" });
     }
 });
 

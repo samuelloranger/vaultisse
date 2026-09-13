@@ -8,10 +8,10 @@
  * chain. The BnF bodies are the recorded SRU fixtures from
  * `test/fixtures/bnf/`. Nothing here reaches the network.
  */
-import {beforeEach, describe, expect, it} from "bun:test";
+import { beforeEach, describe, expect, it } from "bun:test";
 import fs from "fs";
 import path from "path";
-import {jsonResponse, mockedFetch, useMockedFetch} from "../helpers/fetchMock";
+import { jsonResponse, mockedFetch, useMockedFetch } from "../helpers/fetchMock";
 import {
     isBookMetadataComplete,
     isFrenchLanguageIsbn,
@@ -19,7 +19,7 @@ import {
     mergeBookMetadata,
     normalizeLanguageCode,
 } from "../../src/utils/BookMetadata";
-import {emptyBookMetadata} from "../../src/types/book/IBookMetadata";
+import { emptyBookMetadata } from "../../src/types/book/IBookMetadata";
 
 useMockedFetch();
 
@@ -45,7 +45,7 @@ function googlePartialFrench() {
                     publishedDate: "2025-10-08",
                     description: "Comme beaucoup de femmes célibataires de New York...",
                     language: "fr",
-                    imageLinks: {thumbnail: "https://books.google.com/books/content?id=abc"},
+                    imageLinks: { thumbnail: "https://books.google.com/books/content?id=abc" },
                     // No `publisher`, no `categories`, and:
                     pageCount: 0,
                 },
@@ -68,7 +68,7 @@ function googleComplete() {
                     categories: ["Fiction"],
                     pageCount: 1178,
                     language: "en",
-                    imageLinks: {thumbnail: "https://books.google.com/books/content?id=xyz"},
+                    imageLinks: { thumbnail: "https://books.google.com/books/content?id=xyz" },
                 },
             },
         ],
@@ -81,7 +81,7 @@ function requestedUrls(): string[] {
 }
 
 function called(host: string): boolean {
-    return requestedUrls().some(url => url.includes(host));
+    return requestedUrls().some((url) => url.includes(host));
 }
 
 describe("normalizeLanguageCode", () => {
@@ -136,8 +136,8 @@ describe("isFrenchLanguageIsbn", () => {
 
 describe("mergeBookMetadata", () => {
     it("fills holes without overwriting what is already there", () => {
-        const base = {...emptyBookMetadata(), title: "Le boyfriend", pageCount: null};
-        const incoming = {...emptyBookMetadata(), title: "Something else", publisher: "City roman", pageCount: 391};
+        const base = { ...emptyBookMetadata(), title: "Le boyfriend", pageCount: null };
+        const incoming = { ...emptyBookMetadata(), title: "Something else", publisher: "City roman", pageCount: 391 };
 
         expect(mergeBookMetadata(base, incoming)).toMatchObject({
             title: "Le boyfriend",
@@ -147,8 +147,8 @@ describe("mergeBookMetadata", () => {
     });
 
     it("treats a non-empty list as filled", () => {
-        const base = {...emptyBookMetadata(), authors: ["Freida McFadden"]};
-        const incoming = {...emptyBookMetadata(), authors: ["Someone Else"], categories: ["Fiction"]};
+        const base = { ...emptyBookMetadata(), authors: ["Freida McFadden"] };
+        const incoming = { ...emptyBookMetadata(), authors: ["Someone Else"], categories: ["Fiction"] };
 
         expect(mergeBookMetadata(base, incoming)).toMatchObject({
             authors: ["Freida McFadden"],
@@ -174,11 +174,11 @@ describe("isBookMetadataComplete", () => {
     });
 
     it("does not hold for a zeroed page count", () => {
-        expect(isBookMetadataComplete({...full, pageCount: 0})).toBe(false);
+        expect(isBookMetadataComplete({ ...full, pageCount: 0 })).toBe(false);
     });
 
     it("ignores categories and cover, which two of the three sources never have", () => {
-        expect(isBookMetadataComplete({...full, categories: [], imageUrl: null})).toBe(true);
+        expect(isBookMetadataComplete({ ...full, categories: [], imageUrl: null })).toBe(true);
     });
 });
 
@@ -188,15 +188,15 @@ describe("lookupBookMetadata - chain order and thrift", () => {
 
         await lookupBookMetadata(ENGLISH_ISBN, "a-key", "CA");
 
-        const googleUrl = requestedUrls().find(url => url.includes("googleapis.com"));
+        const googleUrl = requestedUrls().find((url) => url.includes("googleapis.com"));
         expect(googleUrl).toContain("country=CA");
     });
 
     it("stops after Google when Google has everything", () => {
         mockedFetch.mockImplementation(() => Promise.resolve(jsonResponse(googleComplete())));
 
-        return lookupBookMetadata(ENGLISH_ISBN, "a-key").then(result => {
-            expect(result.metadata).toMatchObject({title: "The Lord of the Rings", pageCount: 1178});
+        return lookupBookMetadata(ENGLISH_ISBN, "a-key").then((result) => {
+            expect(result.metadata).toMatchObject({ title: "The Lord of the Rings", pageCount: 1178 });
             expect(result.sources).toEqual(["google-books"]);
             expect(requestedUrls()).toHaveLength(1);
             expect(called("catalogue.bnf.fr")).toBe(false);
@@ -268,7 +268,7 @@ describe("lookupBookMetadata - chain order and thrift", () => {
 
         const result = await lookupBookMetadata("9787508519913", "a-key");
 
-        expect(result.metadata).toMatchObject({title: "Christian arts in China", language: "eng"});
+        expect(result.metadata).toMatchObject({ title: "Christian arts in China", language: "eng" });
         expect(result.sources).toEqual(["bnf"]);
     });
 });
@@ -287,7 +287,7 @@ describe("lookupBookMetadata - when a source is missing or broken", () => {
 
         expect(result.unconfigured).toEqual(["google-books"]);
         expect(called("googleapis.com")).toBe(false);
-        expect(result.metadata).toMatchObject({title: "La prof", pageCount: 388});
+        expect(result.metadata).toMatchObject({ title: "La prof", pageCount: 388 });
         expect(result.sources).toEqual(["bnf"]);
     });
 
@@ -298,7 +298,7 @@ describe("lookupBookMetadata - when a source is missing or broken", () => {
             attempts += 1;
             return Promise.resolve(
                 attempts < 3
-                    ? jsonResponse({error: "Service temporarily unavailable"}, 503)
+                    ? jsonResponse({ error: "Service temporarily unavailable" }, 503)
                     : jsonResponse(googleComplete())
             );
         });
@@ -321,7 +321,7 @@ describe("lookupBookMetadata - when a source is missing or broken", () => {
         const result = await lookupBookMetadata(LE_BOYFRIEND, "a-key");
 
         // Degraded, not failed: the holes stay holes.
-        expect(result.metadata).toMatchObject({title: "Le boyfriend", publisher: null, pageCount: null});
+        expect(result.metadata).toMatchObject({ title: "Le boyfriend", publisher: null, pageCount: null });
         expect(result.sources).toEqual(["google-books"]);
         expect(result.failed).toEqual(["bnf"]);
     });
@@ -341,7 +341,7 @@ describe("lookupBookMetadata - when a source is missing or broken", () => {
             Promise.resolve(
                 String(input).includes("catalogue.bnf.fr")
                     ? new Response(fixture("no-match-9789999999999"))
-                    : jsonResponse({docs: []})
+                    : jsonResponse({ docs: [] })
             )
         );
 
@@ -364,6 +364,6 @@ describe("lookupBookMetadata - when a source is missing or broken", () => {
         const result = await lookupBookMetadata(LE_BOYFRIEND, "a-key");
 
         expect(result.failed).toEqual(["google-books"]);
-        expect(result.metadata).toMatchObject({title: "Le boyfriend", pageCount: 391});
+        expect(result.metadata).toMatchObject({ title: "Le boyfriend", pageCount: 391 });
     });
 });

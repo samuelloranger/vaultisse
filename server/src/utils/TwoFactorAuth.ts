@@ -10,7 +10,7 @@
 // otplib v13 dropped the old `authenticator` singleton (generateSecret/keyuri/check)
 // for a functional API - generateSecret/generateURI/verify, verify being async
 // since it goes through a pluggable (default: pure-JS Noble) crypto backend.
-import {generateSecret as generateOtpSecret, generateURI, verify as verifyOtp} from "otplib";
+import { generateSecret as generateOtpSecret, generateURI, verify as verifyOtp } from "otplib";
 import QRCode from "qrcode";
 import crypto from "crypto";
 
@@ -23,7 +23,7 @@ export function generateTotpSecret(): string {
 
 /** Builds the `otpauth://` URI an authenticator app scans/imports to add the account. */
 export function buildOtpAuthUrl(accountName: string, secret: string): string {
-    return generateURI({issuer: ISSUER, label: accountName, secret});
+    return generateURI({ issuer: ISSUER, label: accountName, secret });
 }
 
 /** Renders an `otpauth://` URI as a scannable QR code (PNG `data:` URL). */
@@ -38,7 +38,7 @@ export async function verifyTotpCode(secret: string, code: string): Promise<bool
     }
 
     try {
-        const result = await verifyOtp({secret, token: code});
+        const result = await verifyOtp({ secret, token: code });
         return result.valid;
     } catch {
         return false;

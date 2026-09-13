@@ -24,11 +24,11 @@
  * can each get a fresh bucket against the shared authLimiter (5 req/5min per
  * IP) instead of tripping it after a handful of auth-related tests.
  */
-import {afterAll} from "bun:test";
+import { afterAll } from "bun:test";
 import fs from "fs";
 import path from "path";
-import {Client} from "pg";
-import {getTestDbConfig} from "./testDbConfig";
+import { Client } from "pg";
+import { getTestDbConfig } from "./testDbConfig";
 
 const dbConfig = getTestDbConfig();
 
@@ -101,6 +101,6 @@ await db.end();
  * `AppService` - and its pg pool - pointed at the developer's real database.
  */
 afterAll(async () => {
-    const {teardownTestApp} = await import("../helpers/testApp");
+    const { teardownTestApp } = await import("../helpers/testApp");
     await teardownTestApp();
 });

@@ -5,9 +5,9 @@
  * in December 2020, so this CSV export is the only supported way left to get
  * a user's library out of Goodreads and into Vaultisse.
  */
-import {parse} from "csv-parse/sync";
-import {IImportedBook} from "./IImportedBook";
-import {normalizeAndValidateIsbn} from "../../../utils/IsbnVerification";
+import { parse } from "csv-parse/sync";
+import { IImportedBook } from "./IImportedBook";
+import { normalizeAndValidateIsbn } from "../../../utils/IsbnVerification";
 
 /**
  * Goodreads wraps ISBN/ISBN13 in an Excel "treat as text" formula
@@ -23,7 +23,7 @@ function unwrapExcelFormula(value: string | undefined): string {
 /** Common Goodreads `Binding` values that don't literally match a `formats.name` row (see `assets/db/databaseSchema.sql`). */
 const BINDING_SYNONYMS: Record<string, string> = {
     "kindle edition": "Electronic",
-    "ebook": "Electronic",
+    ebook: "Electronic",
     "leather bound": "Leatherbound",
 };
 
@@ -51,12 +51,8 @@ function toIsbn(row: Record<string, string>): string | null {
 }
 
 function toAuthors(row: Record<string, string>): string[] {
-    const additional = row["Additional Authors"]
-        ? row["Additional Authors"].split(",").map((name) => name.trim())
-        : [];
-    return [row.Author, ...additional]
-        .map((name) => name?.trim())
-        .filter((name): name is string => !!name);
+    const additional = row["Additional Authors"] ? row["Additional Authors"].split(",").map((name) => name.trim()) : [];
+    return [row.Author, ...additional].map((name) => name?.trim()).filter((name): name is string => !!name);
 }
 
 /**

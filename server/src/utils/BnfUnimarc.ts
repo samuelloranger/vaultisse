@@ -45,8 +45,8 @@
  * Everything in this file except `fetchBnfMetadata` is pure and is tested
  * against recorded real SRU responses in `test/fixtures/bnf/`.
  */
-import {IBookMetadata, emptyBookMetadata} from "../types/book/IBookMetadata";
-import {ExternalHttpError} from "./ExternalHttpError";
+import { IBookMetadata, emptyBookMetadata } from "../types/book/IBookMetadata";
+import { ExternalHttpError } from "./ExternalHttpError";
 
 /** BnF SRU endpoint. HTTPS: the plain-HTTP form the docs show also works, but there is no reason to use it. */
 const BNF_SRU_ENDPOINT = "https://catalogue.bnf.fr/api/SRU";
@@ -73,7 +73,7 @@ const AUTHOR_ROLE_CODES = new Set(["070"]);
 interface IUnimarcField {
     tag: string;
     ind2: string;
-    subfields: Array<{code: string; value: string}>;
+    subfields: Array<{ code: string; value: string }>;
 }
 
 /**
@@ -104,7 +104,7 @@ export function bnfSruUrl(isbn: string): string {
 export async function fetchBnfMetadata(isbn: string): Promise<IBookMetadata | null> {
     const response = await fetch(bnfSruUrl(isbn), {
         signal: AbortSignal.timeout(BNF_TIMEOUT_MS),
-        headers: {"User-Agent": "vaultisse-server/1.0"},
+        headers: { "User-Agent": "vaultisse-server/1.0" },
     });
 
     if (!response.ok) {
@@ -142,9 +142,9 @@ export function parseBnfUnimarc(xml: string): IBookMetadata | null {
     // 606 is the RAMEAU subject heading (a real name, "Sexisme"). 686 is a
     // classification *number* ("803") and is deliberately not read.
     metadata.categories = fields
-        .filter(field => field.tag === "606")
-        .flatMap(field => field.subfields.filter(sub => sub.code === "a").map(sub => sub.value))
-        .filter(value => value.length > 0);
+        .filter((field) => field.tag === "606")
+        .flatMap((field) => field.subfields.filter((sub) => sub.code === "a").map((sub) => sub.value))
+        .filter((value) => value.length > 0);
 
     const publication = __publicationField(fields);
     metadata.publisher = publication ? __subfield(publication, "c") : null;
@@ -250,15 +250,15 @@ function __extractAuthors(fields: IUnimarcField[]): string[] {
         const name = __personName(field);
         if (!name) continue;
 
-        const roleCodes = field.subfields.filter(sub => sub.code === "4").map(sub => sub.value.trim());
+        const roleCodes = field.subfields.filter((sub) => sub.code === "4").map((sub) => sub.value.trim());
         if (roleCodes.length > 0) {
-            if (roleCodes.some(code => AUTHOR_ROLE_CODES.has(code))) {
+            if (roleCodes.some((code) => AUTHOR_ROLE_CODES.has(code))) {
                 confirmed.push(name);
             }
             continue;
         }
 
-        const roleText = field.subfields.find(sub => sub.code === "c")?.value;
+        const roleText = field.subfields.find((sub) => sub.code === "c")?.value;
         if (roleText) {
             if (/auteur/i.test(roleText)) {
                 confirmed.push(name);
@@ -297,10 +297,10 @@ function __personName(field: IUnimarcField): string | null {
  */
 function __publicationField(fields: IUnimarcField[]): IUnimarcField | null {
     const candidates = fields.filter(
-        field => (field.tag === "214" || field.tag === "210") && field.ind2 !== "3" && field.ind2 !== "4"
+        (field) => (field.tag === "214" || field.tag === "210") && field.ind2 !== "3" && field.ind2 !== "4"
     );
 
-    return candidates.find(field => field.ind2 === "0") ?? candidates[0] ?? null;
+    return candidates.find((field) => field.ind2 === "0") ?? candidates[0] ?? null;
 }
 
 /**
@@ -332,14 +332,14 @@ function __parseFirstRecord(xml: string): IUnimarcField[] | null {
         const tag = /\btag="([^"]*)"/.exec(match[1])?.[1];
         if (!tag) continue;
 
-        const subfields: Array<{code: string; value: string}> = [];
+        const subfields: Array<{ code: string; value: string }> = [];
         const subfield = /<(?:[\w.-]+:)?subfield\b[^>]*\bcode="([^"]*)"[^>]*>([\s\S]*?)<\/(?:[\w.-]+:)?subfield>/g;
 
         for (const sub of match[2].matchAll(subfield)) {
-            subfields.push({code: sub[1], value: __decodeXmlText(sub[2])});
+            subfields.push({ code: sub[1], value: __decodeXmlText(sub[2]) });
         }
 
-        fields.push({tag, ind2: /\bind2="([^"]*)"/.exec(match[1])?.[1] ?? " ", subfields});
+        fields.push({ tag, ind2: /\bind2="([^"]*)"/.exec(match[1])?.[1] ?? " ", subfields });
     }
 
     return fields.length > 0 ? fields : null;
@@ -347,13 +347,13 @@ function __parseFirstRecord(xml: string): IUnimarcField[] | null {
 
 /** First `$code` of the first `tag` field, trimmed, or null. */
 function __firstSubfield(fields: IUnimarcField[], tag: string, code: string): string | null {
-    const field = fields.find(candidate => candidate.tag === tag);
+    const field = fields.find((candidate) => candidate.tag === tag);
     return field ? __subfield(field, code) : null;
 }
 
 /** First `$code` of this field, trimmed, or null when absent or blank. */
 function __subfield(field: IUnimarcField, code: string): string | null {
-    const value = field.subfields.find(sub => sub.code === code)?.value.trim();
+    const value = field.subfields.find((sub) => sub.code === code)?.value.trim();
     return value ? value : null;
 }
 

@@ -4,7 +4,7 @@
  * revocation. See AppService.createSessionToken (the `sid` claim embeds
  * `session_key`) and AuthMiddleware.ts (the per-request lookup).
  */
-import {Pool, PoolClient} from "pg";
+import { Pool, PoolClient } from "pg";
 import crypto from "crypto";
 
 export interface CreatedSession {
@@ -36,5 +36,5 @@ export async function createUserSession(
         [userId, sessionKey, userAgent ?? null, ipAddress ?? null]
     );
 
-    return {sessionKey, sessionId: result.rows[0].id};
+    return { sessionKey, sessionId: result.rows[0].id };
 }

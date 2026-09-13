@@ -1,4 +1,4 @@
-import {validateIsbn10, validateIsbn13, normalizeAndValidateIsbn} from "../../src/utils/IsbnVerification";
+import { validateIsbn10, validateIsbn13, normalizeAndValidateIsbn } from "../../src/utils/IsbnVerification";
 
 describe("validateIsbn10", () => {
     it("accepts a known-valid ISBN-10", () => {

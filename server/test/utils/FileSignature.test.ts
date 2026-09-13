@@ -1,4 +1,4 @@
-import {isValidPdf, isValidEpub, isValidMobi} from "../../src/utils/FileSignature";
+import { isValidPdf, isValidEpub, isValidMobi } from "../../src/utils/FileSignature";
 
 describe("isValidPdf", () => {
     it("accepts a buffer starting with the PDF header", () => {

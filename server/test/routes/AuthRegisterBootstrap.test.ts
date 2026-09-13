@@ -32,11 +32,11 @@
 import request from "supertest";
 import fs from "fs";
 import path from "path";
-import {Client, Pool} from "pg";
-import {setupTestApp} from "../helpers/testApp";
-import {nextFakeIp, TEST_PASSWORD} from "../helpers/auth";
-import {appService} from "../../src/AppService";
-import {getTestDbConfig} from "../setup/testDbConfig";
+import { Client, Pool } from "pg";
+import { setupTestApp } from "../helpers/testApp";
+import { nextFakeIp, TEST_PASSWORD } from "../helpers/auth";
+import { appService } from "../../src/AppService";
+import { getTestDbConfig } from "../setup/testDbConfig";
 
 const config = getTestDbConfig();
 const BOOTSTRAP_DB = `${config.database}_bootstrap`;
@@ -49,7 +49,7 @@ let sharedPool: Pool;
 let previousApproval: string | undefined;
 
 async function adminClient(): Promise<Client> {
-    const client = new Client({...config, database: "postgres"});
+    const client = new Client({ ...config, database: "postgres" });
     await client.connect();
     return client;
 }
@@ -68,15 +68,13 @@ function register(suffix: string) {
 }
 
 async function accounts(): Promise<Record<string, any>[]> {
-    const {rows} = await appService.getDatabasePool().query(
-        "SELECT code, role, disabled FROM users ORDER BY id"
-    );
+    const { rows } = await appService.getDatabasePool().query("SELECT code, role, disabled FROM users ORDER BY id");
     return rows;
 }
 
 /** `m_databasePool` is `private readonly` to the compiler only; this is the runtime field. */
 function setAppServicePool(pool: Pool): void {
-    (appService as unknown as {m_databasePool: Pool}).m_databasePool = pool;
+    (appService as unknown as { m_databasePool: Pool }).m_databasePool = pool;
 }
 
 beforeAll(async () => {
@@ -85,7 +83,7 @@ beforeAll(async () => {
     await admin.query(`CREATE DATABASE "${BOOTSTRAP_DB}"`);
     await admin.end();
 
-    const db = new Client({...config, database: BOOTSTRAP_DB});
+    const db = new Client({ ...config, database: BOOTSTRAP_DB });
     await db.connect();
     await db.query(fs.readFileSync(SCHEMA_PATH, "utf-8"));
     await db.end();
@@ -128,15 +126,15 @@ describe("POST /register on a brand-new instance", () => {
         expect(first.status).toBe(201);
         // Not held for approval, even though REGISTRATION_REQUIRES_APPROVAL is
         // on - there is no admin yet who could ever approve it.
-        expect(first.body).toMatchObject({success: true, requiresApproval: false});
+        expect(first.body).toMatchObject({ success: true, requiresApproval: false });
 
         const second = await register("second");
         expect(second.status).toBe(201);
-        expect(second.body).toMatchObject({success: true, requiresApproval: true});
+        expect(second.body).toMatchObject({ success: true, requiresApproval: true });
 
         expect(await accounts()).toEqual([
-            {code: "bootstrap_first", role: "admin", disabled: false},
-            {code: "bootstrap_second", role: "user", disabled: true},
+            { code: "bootstrap_first", role: "admin", disabled: false },
+            { code: "bootstrap_second", role: "user", disabled: true },
         ]);
 
         // The bootstrap admin can actually log in and use the panel it was
@@ -145,10 +143,10 @@ describe("POST /register on a brand-new instance", () => {
         const loginRes = await agent
             .post("/login")
             .set("X-Forwarded-For", nextFakeIp())
-            .send({username: "bootstrap_first", password: TEST_PASSWORD});
+            .send({ username: "bootstrap_first", password: TEST_PASSWORD });
         expect(loginRes.status).toBe(200);
         expect((await agent.get("/api/rest/admin/users")).status).toBe(200);
-        expect((await agent.get("/api/rest/app/policy")).body.user).toMatchObject({role: "admin", isAdmin: true});
+        expect((await agent.get("/api/rest/app/policy")).body.user).toMatchObject({ role: "admin", isAdmin: true });
     });
 
     it("promotes exactly one of two simultaneous first registrations", async () => {

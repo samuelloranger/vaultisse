@@ -1,8 +1,8 @@
-import express, {Express, Request} from "express"; // Express framework for building APIs
-import http, {Server} from "http"; // Node HTTP module to create server
-import pg from 'pg'; // PostgreSQL client
-import {routes} from "./routes/Routes"; // Import all application routes
-import {Logger} from "./utils/Logger"; // Custom logger utility
+import express, { Express, Request } from "express"; // Express framework for building APIs
+import http, { Server } from "http"; // Node HTTP module to create server
+import pg from "pg"; // PostgreSQL client
+import { routes } from "./routes/Routes"; // Import all application routes
+import { Logger } from "./utils/Logger"; // Custom logger utility
 import AuthRoute from "./routes/AuthRoute"; // Auth-related routes
 import cors from "cors"; // Cross-Origin Resource Sharing middleware
 import cookieParser from "cookie-parser"; // Middleware to parse cookies
@@ -10,7 +10,7 @@ import jwt from "jsonwebtoken"; // JSON Web Token library for authentication
 import helmet from "helmet"; // Middleware to set secure HTTP headers
 import rateLimit from "express-rate-limit";
 import path from "path"; // Middleware to limit repeated requests
-import {blockWritesInDemo} from "./middlewares/DemoModeMiddleware"; // Rejects writes when DEMO_MODE=true
+import { blockWritesInDemo } from "./middlewares/DemoModeMiddleware"; // Rejects writes when DEMO_MODE=true
 import "./types/express"; // Request.sessionId/sessionKey ambient augmentation - imported for its side effect, see that file's comment
 
 /**
@@ -39,9 +39,10 @@ export function normalizeGoogleApiKey(raw: string | undefined): string | undefin
  * neither can be expressed in terms of the other without exporting a helper
  * across a module boundary that currently has no other reason to exist.
  */
-const clientDistPath = process.env.NODE_ENV === "production"
-    ? path.join(__dirname, "../../client")
-    : path.join(__dirname, "../../client-react/dist");
+const clientDistPath =
+    process.env.NODE_ENV === "production"
+        ? path.join(__dirname, "../../client")
+        : path.join(__dirname, "../../client-react/dist");
 
 /**
  * The PWA install surface, served from the client build **without a session**.
@@ -205,7 +206,7 @@ export class AppService {
         }
 
         this.m_app.use(express.json()); // Parse JSON request bodies
-        this.m_app.use(express.urlencoded({extended: true})); // Parse URL-encoded bodies
+        this.m_app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
 
         /*
          * Express 5 leaves `req.body` undefined when nothing parsed a body -
@@ -233,40 +234,48 @@ export class AppService {
         this.m_app.use(blockWritesInDemo);
 
         // use static from compiled app in /assets/app
-        this.m_app.use(express.static(path.join(__dirname,  "assets", "app")));
+        this.m_app.use(express.static(path.join(__dirname, "assets", "app")));
 
         // Secure HTTP headers
-        this.m_app.use(helmet({
-            contentSecurityPolicy: {
-                useDefaults: true,
-                directives: {
-                    defaultSrc: ["'self'"],
-                    // Explicit, though `default-src` already covers it: without
-                    // this directive named here, narrowing `default-src` later
-                    // would block the manifest, and a blocked manifest fails
-                    // *silently* - the page renders, and the app simply stops
-                    // being installable with nothing in the network log to say
-                    // why. (`worker-src` is deliberately absent: it falls back
-                    // to `script-src`, which already allows `'self'`, so a
-                    // future service worker needs no change here.)
-                    manifestSrc: ["'self'"],
-                    scriptSrc: ["'self'", frontEndUrl, "'unsafe-inline'"],
-                    styleSrc: ["'self'", "'unsafe-inline'"],
-                    // Login/register use Google Fonts. Scope this exception to
-                    // stylesheet elements and that one stylesheet origin, so
-                    // inline style attributes and arbitrary third-party CSS
-                    // remain covered by the tighter style-src policy above.
-                    "style-src-elem": ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-                    frameSrc: ["'self'", "data:", "blob:"],
-                    // Book covers are either our own uploads (data: URIs) or fetched
-                    // from these two ISBN metadata providers - kept in sync with the
-                    // isAllowedImageUrl() allowlist in BooksRoute.ts.
-                    imgSrc: ["'self'", "data:", "https://books.google.com", "http://books.google.com", "https://covers.openlibrary.org"],
-                    "script-src-attr": ["'unsafe-inline'"],
-                    "script-src-elem": ["'unsafe-inline'", "'self'", frontEndUrl, "'unsafe-inline'"]
+        this.m_app.use(
+            helmet({
+                contentSecurityPolicy: {
+                    useDefaults: true,
+                    directives: {
+                        defaultSrc: ["'self'"],
+                        // Explicit, though `default-src` already covers it: without
+                        // this directive named here, narrowing `default-src` later
+                        // would block the manifest, and a blocked manifest fails
+                        // *silently* - the page renders, and the app simply stops
+                        // being installable with nothing in the network log to say
+                        // why. (`worker-src` is deliberately absent: it falls back
+                        // to `script-src`, which already allows `'self'`, so a
+                        // future service worker needs no change here.)
+                        manifestSrc: ["'self'"],
+                        scriptSrc: ["'self'", frontEndUrl, "'unsafe-inline'"],
+                        styleSrc: ["'self'", "'unsafe-inline'"],
+                        // Login/register use Google Fonts. Scope this exception to
+                        // stylesheet elements and that one stylesheet origin, so
+                        // inline style attributes and arbitrary third-party CSS
+                        // remain covered by the tighter style-src policy above.
+                        "style-src-elem": ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+                        frameSrc: ["'self'", "data:", "blob:"],
+                        // Book covers are either our own uploads (data: URIs) or fetched
+                        // from these two ISBN metadata providers - kept in sync with the
+                        // isAllowedImageUrl() allowlist in BooksRoute.ts.
+                        imgSrc: [
+                            "'self'",
+                            "data:",
+                            "https://books.google.com",
+                            "http://books.google.com",
+                            "https://covers.openlibrary.org",
+                        ],
+                        "script-src-attr": ["'unsafe-inline'"],
+                        "script-src-elem": ["'unsafe-inline'", "'self'", frontEndUrl, "'unsafe-inline'"],
+                    },
                 },
-            },
-        }));
+            })
+        );
 
         /*
          * The PWA install surface - see PUBLIC_PWA_FILES above for why these
@@ -281,7 +290,7 @@ export class AppService {
          * default of ETag revalidation is the right trade - a conditional GET
          * per icon is a rounding error next to an icon that cannot be updated.
          */
-        const pwaStatic = express.static(clientDistPath, {index: false, fallthrough: true});
+        const pwaStatic = express.static(clientDistPath, { index: false, fallthrough: true });
         this.m_app.use((req, res, next) => {
             if (req.method !== "GET" && req.method !== "HEAD") return next();
             const file = publicPwaFile(req.path);
@@ -300,10 +309,12 @@ export class AppService {
         this.m_app.use(limiter);
 
         // CORS configuration to allow requests from frontend
-        this.m_app.use(cors({
-            origin: frontEndUrl,
-            credentials: true,
-        }));
+        this.m_app.use(
+            cors({
+                origin: frontEndUrl,
+                credentials: true,
+            })
+        );
 
         // Setup database configuration
         this.m_databaseConf = {
@@ -330,21 +341,22 @@ export class AppService {
         if (!process.env.JWT_SECRET) {
             throw new Error("JWT_SECRET environment variable is required");
         }
-        this.m_jwtSecret    = process.env.JWT_SECRET;
-        this.m_sessionTime  = Number(process.env.SESSION_TIME);
+        this.m_jwtSecret = process.env.JWT_SECRET;
+        this.m_sessionTime = Number(process.env.SESSION_TIME);
         this.m_allowDevAuth = process.env.ALLOW_DEV_AUTH === "true";
 
         this.m_googleApiKey = normalizeGoogleApiKey(process.env.GOOGLE_BOOKS_API_KEY);
 
         const parsedMaxImportFileSizeMb = Number(process.env.MAX_IMPORT_FILE_SIZE_MB);
-        this.m_maxImportFileSizeMb = Number.isFinite(parsedMaxImportFileSizeMb) && parsedMaxImportFileSizeMb > 0
-            ? parsedMaxImportFileSizeMb
-            : 10;
+        this.m_maxImportFileSizeMb =
+            Number.isFinite(parsedMaxImportFileSizeMb) && parsedMaxImportFileSizeMb > 0
+                ? parsedMaxImportFileSizeMb
+                : 10;
 
-        this.m_server       = null;
+        this.m_server = null;
 
         // Initialize logger
-        this.m_logger       = new Logger(String(process.env.LOGGER_PATH));
+        this.m_logger = new Logger(String(process.env.LOGGER_PATH));
     }
 
     /**
@@ -378,7 +390,7 @@ export class AppService {
         }
 
         // Log server start
-        this.m_logger.info(`Server running on port ${this.m_port};`)
+        this.m_logger.info(`Server running on port ${this.m_port};`);
     }
 
     /** Get Express application instance */
@@ -445,8 +457,8 @@ export class AppService {
      * @private
      */
     private __loadRoutes() {
-        console.log("")
-        console.log("Routes:")
+        console.log("");
+        console.log("Routes:");
 
         const consoleRoutesArr = ["/"]; // Array to display registered routes
 
@@ -457,10 +469,10 @@ export class AppService {
         for (const route in routes) {
             const fullRoute = AppService.ROUTE_PREFIX + route;
             this.m_app.use(fullRoute, routes[route]);
-            consoleRoutesArr.push(fullRoute)
+            consoleRoutesArr.push(fullRoute);
         }
 
-        console.table(consoleRoutesArr) // Display routes in console
+        console.table(consoleRoutesArr); // Display routes in console
     }
 
     /** Get instance of logger */
@@ -480,7 +492,7 @@ export class AppService {
     public getSessionUser(req: Request) {
         const token = req.cookies.token;
         if (!token) {
-            throw Error("No session")
+            throw Error("No session");
         }
 
         let decoded: jwt.JwtPayload;
@@ -488,7 +500,7 @@ export class AppService {
             decoded = jwt.verify(token, this.getJwtSecret(), {
                 algorithms: ["HS256"],
                 audience: "vaultisse",
-                issuer: "vaultisse.com"
+                issuer: "vaultisse.com",
             }) as { user_id: number; exp: number };
         } catch (_err) {
             throw new Error("Error while getting session user");
@@ -511,15 +523,11 @@ export class AppService {
      * @param sessionKey
      */
     public createSessionToken(userId: number, tokenVersion: number, sessionKey: string): string {
-        return jwt.sign(
-            {user_id: userId, token_version: tokenVersion, sid: sessionKey},
-            this.getJwtSecret(),
-            {
-                expiresIn: Math.floor(this.getSessionTime() / 1000),
-                audience: "vaultisse",
-                issuer: "vaultisse.com"
-            }
-        );
+        return jwt.sign({ user_id: userId, token_version: tokenVersion, sid: sessionKey }, this.getJwtSecret(), {
+            expiresIn: Math.floor(this.getSessionTime() / 1000),
+            audience: "vaultisse",
+            issuer: "vaultisse.com",
+        });
     }
 
     /**
@@ -532,15 +540,11 @@ export class AppService {
      * @param userId
      */
     public createPending2faToken(userId: number): string {
-        return jwt.sign(
-            {user_id: userId},
-            this.getJwtSecret(),
-            {
-                expiresIn: 5 * 60, // 5 minutes - just long enough to type a code
-                audience: "vaultisse-2fa-pending",
-                issuer: "vaultisse.com"
-            }
-        );
+        return jwt.sign({ user_id: userId }, this.getJwtSecret(), {
+            expiresIn: 5 * 60, // 5 minutes - just long enough to type a code
+            audience: "vaultisse-2fa-pending",
+            issuer: "vaultisse.com",
+        });
     }
 
     /**
@@ -557,7 +561,7 @@ export class AppService {
             const decoded = jwt.verify(token, this.getJwtSecret(), {
                 algorithms: ["HS256"],
                 audience: "vaultisse-2fa-pending",
-                issuer: "vaultisse.com"
+                issuer: "vaultisse.com",
             }) as { user_id: number };
             return decoded.user_id;
         } catch {
@@ -582,7 +586,7 @@ export class AppService {
      */
     public hashPassword(plainPassword: string): Promise<string> {
         const cost = 12; // good balance between security and speed
-        return Bun.password.hash(plainPassword, {algorithm: "bcrypt", cost});
+        return Bun.password.hash(plainPassword, { algorithm: "bcrypt", cost });
     }
 
     /**

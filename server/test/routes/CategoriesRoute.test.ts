@@ -1,6 +1,6 @@
 import request from "supertest";
-import {setupTestApp} from "../helpers/testApp";
-import {createAuthenticatedUser, ITestUser} from "../helpers/auth";
+import { setupTestApp } from "../helpers/testApp";
+import { createAuthenticatedUser, ITestUser } from "../helpers/auth";
 
 const app = setupTestApp();
 
@@ -39,25 +39,25 @@ describe("category CRUD", () => {
 
     it("creates, lists, renames and deletes a category", async () => {
         const name = `Fantasy ${suffix}`;
-        const createRes = await user.agent.post("/api/rest/category").send({name});
+        const createRes = await user.agent.post("/api/rest/category").send({ name });
         expect(createRes.status).toBe(200);
-        expect(createRes.body).toMatchObject({name});
+        expect(createRes.body).toMatchObject({ name });
         const id = createRes.body.id;
         expect(typeof id).toBe("number");
 
         const listRes = await user.agent.get("/api/rest/category");
-        expect(listRes.body).toEqual(expect.arrayContaining([{id, name}]));
+        expect(listRes.body).toEqual(expect.arrayContaining([{ id, name }]));
 
         const renamed = `Sci-Fi ${suffix}`;
-        const renameRes = await user.agent.put(`/api/rest/category/${id}`).send({name: renamed});
+        const renameRes = await user.agent.put(`/api/rest/category/${id}`).send({ name: renamed });
         expect(renameRes.status).toBe(200);
-        expect(renameRes.body).toMatchObject({id, name: renamed});
+        expect(renameRes.body).toMatchObject({ id, name: renamed });
 
         const deleteRes = await user.agent.delete(`/api/rest/category/${id}`);
         expect(deleteRes.status).toBe(200);
 
         const finalListRes = await user.agent.get("/api/rest/category");
-        expect(finalListRes.body).not.toEqual(expect.arrayContaining([expect.objectContaining({id})]));
+        expect(finalListRes.body).not.toEqual(expect.arrayContaining([expect.objectContaining({ id })]));
     });
 
     it("404s deleting a category that doesn't exist", async () => {
@@ -72,20 +72,20 @@ describe("category CRUD", () => {
         const otherUser = await createAuthenticatedUser(app);
 
         const name = `Shared Across Accounts ${suffix}`;
-        const createRes = await user.agent.post("/api/rest/category").send({name});
+        const createRes = await user.agent.post("/api/rest/category").send({ name });
         const id = createRes.body.id;
 
         const otherListRes = await otherUser.agent.get("/api/rest/category");
-        expect(otherListRes.body).toEqual(expect.arrayContaining([{id, name}]));
+        expect(otherListRes.body).toEqual(expect.arrayContaining([{ id, name }]));
 
         const renamed = `Renamed By Someone Else ${suffix}`;
-        const otherRenameRes = await otherUser.agent.put(`/api/rest/category/${id}`).send({name: renamed});
+        const otherRenameRes = await otherUser.agent.put(`/api/rest/category/${id}`).send({ name: renamed });
         expect(otherRenameRes.status).toBe(200);
-        expect(otherRenameRes.body).toMatchObject({id, name: renamed});
+        expect(otherRenameRes.body).toMatchObject({ id, name: renamed });
 
         // ...and the rename is visible to the original author, not a private copy.
         const ownerListRes = await user.agent.get("/api/rest/category");
-        expect(ownerListRes.body).toEqual(expect.arrayContaining([{id, name: renamed}]));
+        expect(ownerListRes.body).toEqual(expect.arrayContaining([{ id, name: renamed }]));
 
         const otherDeleteRes = await otherUser.agent.delete(`/api/rest/category/${id}`);
         expect(otherDeleteRes.status).toBe(200);
@@ -98,10 +98,10 @@ describe("category CRUD", () => {
         const otherUser = await createAuthenticatedUser(app);
         const name = `Duplicate Category ${Date.now()}`;
 
-        const first = await user.agent.post("/api/rest/category").send({name});
+        const first = await user.agent.post("/api/rest/category").send({ name });
         expect(first.status).toBe(200);
 
-        const second = await otherUser.agent.post("/api/rest/category").send({name});
+        const second = await otherUser.agent.post("/api/rest/category").send({ name });
         expect(second.status).toBe(500);
 
         await user.agent.delete(`/api/rest/category/${first.body.id}`);

@@ -15,5 +15,5 @@ export enum SearchFilter {
     /** Books with at least one stock currently on loan (status 2). */
     ON_LOAN = "ON_LOAN",
     /** Books added in the last 30 days. */
-    RECENT = "RECENT"
+    RECENT = "RECENT",
 }

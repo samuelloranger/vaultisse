@@ -12,5 +12,5 @@ export enum BookStockStatusEnum {
     /** Currently lent/checked out to a customer. */
     BOOKED = 2,
     /** Marked as damaged. */
-    DAMAGE = 3
+    DAMAGE = 3,
 }

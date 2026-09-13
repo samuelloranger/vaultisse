@@ -30,11 +30,11 @@
  * render, which is worse than no control: it would read as broken. It stays a
  * column with no writer until the dialog lands.
  */
-import {Router, Request, Response} from "express";
-import {appService} from "../../AppService";
-import {requireAdmin} from "../../middlewares/AdminMiddleware";
-import {recordActivity, ActivityAction} from "../../utils/ActivityLog";
-import {isValidRegion} from "../../utils/Regions";
+import { Router, Request, Response } from "express";
+import { appService } from "../../AppService";
+import { requireAdmin } from "../../middlewares/AdminMiddleware";
+import { recordActivity, ActivityAction } from "../../utils/ActivityLog";
+import { isValidRegion } from "../../utils/Regions";
 
 const router = Router();
 
@@ -87,9 +87,7 @@ async function readSettings(): Promise<Record<string, any>> {
 
     return {
         ...row,
-        registrationRequiresApproval: inherited
-            ? registrationApprovalFromEnv()
-            : row.registrationRequiresApproval,
+        registrationRequiresApproval: inherited ? registrationApprovalFromEnv() : row.registrationRequiresApproval,
         registrationApprovalFromEnv: inherited,
     };
 }
@@ -114,7 +112,7 @@ router.get("/", requireAdmin, async (_req: Request, res: Response) => {
         res.status(200).json(await readSettings());
     } catch (err: any) {
         appService.getLogger().error("Error reading instance settings: " + err);
-        res.status(500).json({message: "Internal server error"});
+        res.status(500).json({ message: "Internal server error" });
     }
 });
 
@@ -145,13 +143,7 @@ router.get("/", requireAdmin, async (_req: Request, res: Response) => {
 router.patch("/", requireAdmin, async (req: Request, res: Response) => {
     const pool = appService.getDatabasePool();
     const callerId = appService.getSessionUser(req);
-    const {
-        leasingEnabled,
-        registrationRequiresApproval,
-        defaultLanguage,
-        defaultRegion,
-        defaultTheme,
-    } = req.body;
+    const { leasingEnabled, registrationRequiresApproval, defaultLanguage, defaultRegion, defaultTheme } = req.body;
 
     const updates: string[] = [];
     const values: any[] = [];
@@ -166,14 +158,14 @@ router.patch("/", requireAdmin, async (req: Request, res: Response) => {
 
     if (leasingEnabled !== undefined) {
         if (typeof leasingEnabled !== "boolean") {
-            return res.status(400).json({message: "Invalid leasingEnabled"});
+            return res.status(400).json({ message: "Invalid leasingEnabled" });
         }
         set("leasing_enabled", "leasingEnabled", leasingEnabled);
     }
 
     if (registrationRequiresApproval !== undefined) {
         if (typeof registrationRequiresApproval !== "boolean") {
-            return res.status(400).json({message: "Invalid registrationRequiresApproval"});
+            return res.status(400).json({ message: "Invalid registrationRequiresApproval" });
         }
         // Always a concrete boolean, never back to NULL: once an admin has
         // made this decision in the app, the .env flag stops being consulted
@@ -185,27 +177,27 @@ router.patch("/", requireAdmin, async (req: Request, res: Response) => {
 
     if (defaultLanguage !== undefined) {
         if (typeof defaultLanguage !== "string" || !(await isKnownLanguage(defaultLanguage))) {
-            return res.status(400).json({message: "Invalid defaultLanguage"});
+            return res.status(400).json({ message: "Invalid defaultLanguage" });
         }
         set("default_language", "defaultLanguage", defaultLanguage);
     }
 
     if (defaultRegion !== undefined) {
         if (!isValidRegion(defaultRegion)) {
-            return res.status(400).json({message: "Invalid defaultRegion"});
+            return res.status(400).json({ message: "Invalid defaultRegion" });
         }
         set("default_region", "defaultRegion", defaultRegion);
     }
 
     if (defaultTheme !== undefined) {
         if (typeof defaultTheme !== "string" || !VALID_THEMES.includes(defaultTheme)) {
-            return res.status(400).json({message: "Invalid defaultTheme"});
+            return res.status(400).json({ message: "Invalid defaultTheme" });
         }
         set("default_theme", "defaultTheme", defaultTheme);
     }
 
     if (updates.length === 0) {
-        return res.status(400).json({message: "Nothing to update - send at least one setting."});
+        return res.status(400).json({ message: "Nothing to update - send at least one setting." });
     }
 
     const client = await pool.connect();
@@ -213,10 +205,7 @@ router.patch("/", requireAdmin, async (req: Request, res: Response) => {
     try {
         await client.query("BEGIN");
         values.push(SETTINGS_ID);
-        await client.query(
-            `UPDATE app_settings SET ${updates.join(", ")} WHERE id = $${values.length}`,
-            values
-        );
+        await client.query(`UPDATE app_settings SET ${updates.join(", ")} WHERE id = $${values.length}`, values);
 
         // These change the app for every account on the instance, which is the
         // whole reason the write is admin-only. An instance-wide change with no
@@ -225,7 +214,7 @@ router.patch("/", requireAdmin, async (req: Request, res: Response) => {
         await recordActivity(client, callerId, ActivityAction.INSTANCE_SETTINGS_CHANGED, {
             entityType: ENTITY_TYPE,
             entityId: SETTINGS_ID,
-            metadata: {ip: req.ip, ...changed},
+            metadata: { ip: req.ip, ...changed },
         });
 
         await client.query("COMMIT");
@@ -234,7 +223,7 @@ router.patch("/", requireAdmin, async (req: Request, res: Response) => {
     } catch (err: any) {
         await client.query("ROLLBACK").catch(() => undefined);
         appService.getLogger().error("Error updating instance settings: " + err);
-        res.status(500).json({message: "Internal server error"});
+        res.status(500).json({ message: "Internal server error" });
     } finally {
         client.release();
     }

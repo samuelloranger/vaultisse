@@ -5,7 +5,7 @@
  * logging (books, loans, ...) can reuse this same table instead of
  * growing a new one per feature.
  */
-import {Pool, PoolClient} from "pg";
+import { Pool, PoolClient } from "pg";
 
 /**
  * Every event written to `activity_log`. The `action` DB column itself is a

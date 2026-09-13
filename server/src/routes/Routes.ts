@@ -35,4 +35,4 @@ export const routes: Record<string, Router> = {
     // Instance-wide settings (app_settings). Also admin-only - these change
     // the app for every account, which is why they do not live under /user.
     "/admin/settings": AdminSettingsRoute,
-}
+};

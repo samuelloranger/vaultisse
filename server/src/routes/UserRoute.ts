@@ -8,9 +8,9 @@
  * routes require auth and act on the caller's own account only (id taken
  * from the session, never from params).
  */
-import {Router, Request, Response} from 'express';
-import {requireAuth, DEV_SESSION_KEY} from "../middlewares/AuthMiddleware";
-import {appService} from "../AppService";
+import { Router, Request, Response } from "express";
+import { requireAuth, DEV_SESSION_KEY } from "../middlewares/AuthMiddleware";
+import { appService } from "../AppService";
 import multer from "multer";
 import rateLimit from "express-rate-limit";
 import {
@@ -18,11 +18,11 @@ import {
     buildOtpAuthUrl,
     generateQrCodeDataUrl,
     verifyTotpCode,
-    generateBackupCodes
+    generateBackupCodes,
 } from "../utils/TwoFactorAuth";
-import {recordActivity, ActivityAction, AUTH_ACTIVITY_ACTIONS} from "../utils/ActivityLog";
-import {handleUploadError} from "../middlewares/UploadErrorMiddleware";
-import {isValidRegion} from "../utils/Regions";
+import { recordActivity, ActivityAction, AUTH_ACTIVITY_ACTIONS } from "../utils/ActivityLog";
+import { handleUploadError } from "../middlewares/UploadErrorMiddleware";
+import { isValidRegion } from "../utils/Regions";
 
 const router = Router();
 
@@ -48,14 +48,14 @@ const storage = multer.memoryStorage();
 const maxProfileImageSizeMb = 2;
 const upload = multer({
     storage,
-    limits: {fileSize: maxProfileImageSizeMb * 1024 * 1024},
+    limits: { fileSize: maxProfileImageSizeMb * 1024 * 1024 },
     fileFilter: (req: Request, file: Express.Multer.File, cb: (error: any, acceptFile: boolean) => void) => {
         // @ts-ignore
         if (file.mimetype !== "image/png" && file.mimetype !== "image/jpeg") {
             return cb(new Error("Only PNG or JPG images are allowed"), false);
         }
         cb(null, true);
-    }
+    },
 });
 
 /**
@@ -73,32 +73,39 @@ const upload = multer({
  *            400 {"error": "No PNG file uploaded"} |
  *            413 {"error": "File exceeds the maximum allowed upload size of 2MB"}.
  */
-router.post("/image", requireAuth, upload.single("image"), handleUploadError(maxProfileImageSizeMb, "json"), async (req: Request, res: Response) => {
-    const pool = appService.getDatabasePool();
-    const client = await pool.connect();
+router.post(
+    "/image",
+    requireAuth,
+    upload.single("image"),
+    handleUploadError(maxProfileImageSizeMb, "json"),
+    async (req: Request, res: Response) => {
+        const pool = appService.getDatabasePool();
+        const client = await pool.connect();
 
-    try {
-        if (!req.file) {
-            return res.status(400).json({error: "No PNG file uploaded"});
-        }
+        try {
+            if (!req.file) {
+                return res.status(400).json({ error: "No PNG file uploaded" });
+            }
 
-        // Update user image in DB
-        await client.query(`
+            // Update user image in DB
+            await client.query(
+                `
                     UPDATE users
                     SET image = $1
                     WHERE id = $2
             `,
-            [req.file.buffer, appService.getSessionUser(req)] // req.user.id comes from requireAuth
-        );
+                [req.file.buffer, appService.getSessionUser(req)] // req.user.id comes from requireAuth
+            );
 
-        res.status(200).json({message: "Image uploaded successfully"});
-    } catch (err: any) {
-        console.error("Error executing query", err.stack);
-        res.status(500).send("Internal Server Error");
-    } finally {
-        client.release();
+            res.status(200).json({ message: "Image uploaded successfully" });
+        } catch (err: any) {
+            console.error("Error executing query", err.stack);
+            res.status(500).send("Internal Server Error");
+        } finally {
+            client.release();
+        }
     }
-});
+);
 
 /**
  * DELETE /user/image
@@ -114,7 +121,8 @@ router.delete("/image", requireAuth, async (req: Request, res: Response) => {
     const client = await pool.connect();
 
     try {
-        await client.query(`
+        await client.query(
+            `
                     UPDATE users
                     SET image = null
                     WHERE id = $1
@@ -122,7 +130,7 @@ router.delete("/image", requireAuth, async (req: Request, res: Response) => {
             [appService.getSessionUser(req)] // req.user.id comes from requireAuth
         );
 
-        res.status(200).json({message: "Image removed successfully"});
+        res.status(200).json({ message: "Image removed successfully" });
     } catch (err: any) {
         console.error("Error executing query", err.stack);
         res.status(500).send("Internal Server Error");
@@ -148,13 +156,14 @@ router.put("", requireAuth, async (req: Request, res: Response) => {
     const userId = appService.getSessionUser(req);
     try {
         // Body params
-        const {name, email, language, region} = req.body;
+        const { name, email, language, region } = req.body;
 
         if (!isValidRegion(region)) {
-            return res.status(400).json({error: "Invalid region"});
+            return res.status(400).json({ error: "Invalid region" });
         }
 
-        await client.query(`
+        await client.query(
+            `
                     UPDATE users
                     SET name = $1,
                         email = $2,
@@ -165,7 +174,7 @@ router.put("", requireAuth, async (req: Request, res: Response) => {
             [name, email, language, region, userId]
         );
 
-        res.status(200).json({message: "User updated successfully"});
+        res.status(200).json({ message: "User updated successfully" });
     } catch (err: any) {
         console.error("Error executing query", err.stack);
         res.status(500).send("Internal Server Error");
@@ -186,10 +195,10 @@ router.put("", requireAuth, async (req: Request, res: Response) => {
  *            400 {"error": "Invalid theme"}.
  */
 router.patch("/theme", requireAuth, async (req: Request, res: Response) => {
-    const {theme} = req.body;
+    const { theme } = req.body;
 
     if (theme !== "beige" && theme !== "library") {
-        return res.status(400).json({error: "Invalid theme"});
+        return res.status(400).json({ error: "Invalid theme" });
     }
 
     const pool = appService.getDatabasePool();
@@ -203,7 +212,7 @@ router.patch("/theme", requireAuth, async (req: Request, res: Response) => {
             [theme, userId]
         );
 
-        res.status(200).json({message: "Theme updated successfully"});
+        res.status(200).json({ message: "Theme updated successfully" });
     } catch (err: any) {
         console.error("Error executing query", err.stack);
         res.status(500).send("Internal Server Error");
@@ -223,10 +232,10 @@ router.patch("/theme", requireAuth, async (req: Request, res: Response) => {
  *            400 {"error": "Invalid sidebarRail"}.
  */
 router.patch("/sidebar-rail", requireAuth, async (req: Request, res: Response) => {
-    const {sidebarRail} = req.body;
+    const { sidebarRail } = req.body;
 
     if (typeof sidebarRail !== "boolean") {
-        return res.status(400).json({error: "Invalid sidebarRail"});
+        return res.status(400).json({ error: "Invalid sidebarRail" });
     }
 
     const pool = appService.getDatabasePool();
@@ -240,7 +249,7 @@ router.patch("/sidebar-rail", requireAuth, async (req: Request, res: Response) =
             [sidebarRail, userId]
         );
 
-        res.status(200).json({message: "Sidebar preference updated successfully"});
+        res.status(200).json({ message: "Sidebar preference updated successfully" });
     } catch (err: any) {
         console.error("Error executing query", err.stack);
         res.status(500).send("Internal Server Error");
@@ -278,21 +287,21 @@ router.patch("/sidebar-rail", requireAuth, async (req: Request, res: Response) =
 router.delete("", requireAuth, passwordChangeLimiter, async (req: Request, res: Response) => {
     const pool = appService.getDatabasePool();
     const userId = appService.getSessionUser(req);
-    const {password} = req.body;
+    const { password } = req.body;
 
     if (!password) {
-        return res.status(400).json({message: "Missing password"});
+        return res.status(400).json({ message: "Missing password" });
     }
 
     try {
         const userResult = await pool.query("SELECT password FROM users WHERE id = $1", [userId]);
         if (userResult.rows.length === 0) {
-            return res.status(401).json({message: "Invalid password."});
+            return res.status(401).json({ message: "Invalid password." });
         }
 
         const passwordMatches = await appService.comparePassword(password, userResult.rows[0].password);
         if (!passwordMatches) {
-            return res.status(401).json({message: "Invalid password."});
+            return res.status(401).json({ message: "Invalid password." });
         }
 
         const client = await pool.connect();
@@ -343,7 +352,7 @@ router.post("/password", requireAuth, passwordChangeLimiter, async (req: Request
         const userResult = await pool.query(userQuery, [userId]);
 
         if (userResult.rows.length === 0) {
-            return res.status(401).json({message: "Invalid username or password."});
+            return res.status(401).json({ message: "Invalid username or password." });
         }
 
         const user = userResult.rows[0];
@@ -369,7 +378,7 @@ router.post("/password", requireAuth, passwordChangeLimiter, async (req: Request
             return res.status(400).json({
                 success: false,
                 message: "Password does not meet the requirements",
-                missing: errors
+                missing: errors,
             });
         }
 
@@ -395,22 +404,26 @@ router.post("/password", requireAuth, passwordChangeLimiter, async (req: Request
             );
         }
 
-        await recordActivity(pool, userId, ActivityAction.PASSWORD_CHANGED, {metadata: {ip: req.ip}});
+        await recordActivity(pool, userId, ActivityAction.PASSWORD_CHANGED, { metadata: { ip: req.ip } });
 
         // Reuses the same session_key (req.sessionKey) so this device's
         // user_sessions row - deliberately left un-revoked above - still
         // matches the reissued token's `sid` claim.
-        const newToken = appService.createSessionToken(userId, updateResult.rows[0].token_version, req.sessionKey ?? DEV_SESSION_KEY);
+        const newToken = appService.createSessionToken(
+            userId,
+            updateResult.rows[0].token_version,
+            req.sessionKey ?? DEV_SESSION_KEY
+        );
         res.cookie("token", newToken, {
             httpOnly: true,
             secure: process.env.NODE_ENV === "production",
             sameSite: "strict",
-            maxAge: appService.getSessionTime()
+            maxAge: appService.getSessionTime(),
         });
 
         return res.json({
             success: true,
-            message: "Password updated successfully"
+            message: "Password updated successfully",
         });
     } catch (_err: any) {
         res.status(500).send("Internal Server Error");
@@ -454,7 +467,7 @@ router.get("/sessions", requireAuth, async (req: Request, res: Response) => {
             [userId, cutoff]
         );
 
-        const sessions = result.rows.map((row) => ({...row, isCurrent: row.id === req.sessionId}));
+        const sessions = result.rows.map((row) => ({ ...row, isCurrent: row.id === req.sessionId }));
 
         res.status(200).json(sessions);
     } catch (err: any) {
@@ -484,7 +497,7 @@ router.delete("/sessions/:id", requireAuth, async (req: Request, res: Response) 
     const sessionId = Number(req.params.id);
 
     if (!Number.isInteger(sessionId)) {
-        return res.status(400).json({error: "Invalid session id"});
+        return res.status(400).json({ error: "Invalid session id" });
     }
 
     try {
@@ -497,16 +510,16 @@ router.delete("/sessions/:id", requireAuth, async (req: Request, res: Response) 
         );
 
         if (result.rowCount === 0) {
-            return res.status(404).json({error: "Session not found"});
+            return res.status(404).json({ error: "Session not found" });
         }
 
-        await recordActivity(pool, userId, ActivityAction.LOGOUT, {metadata: {ip: req.ip, sessionId}});
+        await recordActivity(pool, userId, ActivityAction.LOGOUT, { metadata: { ip: req.ip, sessionId } });
 
         if (sessionId === req.sessionId) {
             res.clearCookie("token");
         }
 
-        res.status(200).json({message: "Session revoked successfully"});
+        res.status(200).json({ message: "Session revoked successfully" });
     } catch (err: any) {
         console.error("Error executing query", err.stack);
         res.status(500).send("Internal Server Error");
@@ -578,7 +591,7 @@ router.post("/security-notice/accept", requireAuth, async (req: Request, res: Re
             [userId]
         );
 
-        res.status(200).json({message: "Security notice accepted"});
+        res.status(200).json({ message: "Security notice accepted" });
     } catch (err: any) {
         console.error("Error executing query", err.stack);
         res.status(500).send("Internal Server Error");
@@ -609,7 +622,7 @@ router.post("/terms-of-service/accept", requireAuth, async (req: Request, res: R
             [userId]
         );
 
-        res.status(200).json({message: "Terms of service accepted"});
+        res.status(200).json({ message: "Terms of service accepted" });
     } catch (err: any) {
         console.error("Error executing query", err.stack);
         res.status(500).send("Internal Server Error");
@@ -636,7 +649,7 @@ router.post("/2fa/setup", requireAuth, async (req: Request, res: Response) => {
     try {
         const userResult = await pool.query("SELECT email FROM users WHERE id = $1", [userId]);
         if (userResult.rows.length === 0) {
-            return res.status(404).json({message: "User not found"});
+            return res.status(404).json({ message: "User not found" });
         }
 
         const secret = generateTotpSecret();
@@ -645,7 +658,7 @@ router.post("/2fa/setup", requireAuth, async (req: Request, res: Response) => {
         const otpauthUrl = buildOtpAuthUrl(userResult.rows[0].email, secret);
         const qrCodeDataUrl = await generateQrCodeDataUrl(otpauthUrl);
 
-        res.status(200).json({secret, qrCodeDataUrl});
+        res.status(200).json({ secret, qrCodeDataUrl });
     } catch (err: any) {
         console.error("Error executing query", err.stack);
         res.status(500).send("Internal Server Error");
@@ -672,10 +685,10 @@ router.post("/2fa/setup", requireAuth, async (req: Request, res: Response) => {
 router.post("/2fa/enable", requireAuth, twoFaLimiter, async (req: Request, res: Response) => {
     const pool = appService.getDatabasePool();
     const userId = appService.getSessionUser(req);
-    const {code} = req.body;
+    const { code } = req.body;
 
     if (!code) {
-        return res.status(400).json({message: "Missing verification code"});
+        return res.status(400).json({ message: "Missing verification code" });
     }
 
     try {
@@ -683,11 +696,11 @@ router.post("/2fa/enable", requireAuth, twoFaLimiter, async (req: Request, res: 
         const secret = userResult.rows[0]?.totp_secret;
 
         if (!secret) {
-            return res.status(400).json({message: "Start setup before enabling two-factor authentication."});
+            return res.status(400).json({ message: "Start setup before enabling two-factor authentication." });
         }
 
         if (!(await verifyTotpCode(secret, String(code).trim()))) {
-            return res.status(401).json({message: "Invalid verification code."});
+            return res.status(401).json({ message: "Invalid verification code." });
         }
 
         const backupCodes = generateBackupCodes();
@@ -702,10 +715,10 @@ router.post("/2fa/enable", requireAuth, twoFaLimiter, async (req: Request, res: 
             await client.query("UPDATE users SET totp_enabled = TRUE WHERE id = $1", [userId]);
             await client.query("DELETE FROM user_backup_codes WHERE user_id = $1", [userId]);
             for (const hash of hashedCodes) {
-                await client.query(
-                    "INSERT INTO user_backup_codes (user_id, code_hash) VALUES ($1, $2)",
-                    [userId, hash]
-                );
+                await client.query("INSERT INTO user_backup_codes (user_id, code_hash) VALUES ($1, $2)", [
+                    userId,
+                    hash,
+                ]);
             }
             await client.query("COMMIT");
         } catch (err) {
@@ -715,7 +728,7 @@ router.post("/2fa/enable", requireAuth, twoFaLimiter, async (req: Request, res: 
             client.release();
         }
 
-        res.status(200).json({success: true, backupCodes});
+        res.status(200).json({ success: true, backupCodes });
     } catch (err: any) {
         console.error("Error executing query", err.stack);
         res.status(500).send("Internal Server Error");
@@ -738,27 +751,27 @@ router.post("/2fa/enable", requireAuth, twoFaLimiter, async (req: Request, res: 
 router.post("/2fa/disable", requireAuth, passwordChangeLimiter, async (req: Request, res: Response) => {
     const pool = appService.getDatabasePool();
     const userId = appService.getSessionUser(req);
-    const {password} = req.body;
+    const { password } = req.body;
 
     if (!password) {
-        return res.status(400).json({message: "Missing password"});
+        return res.status(400).json({ message: "Missing password" });
     }
 
     try {
         const userResult = await pool.query("SELECT password FROM users WHERE id = $1", [userId]);
         if (userResult.rows.length === 0) {
-            return res.status(401).json({message: "Invalid password."});
+            return res.status(401).json({ message: "Invalid password." });
         }
 
         const passwordMatches = await appService.comparePassword(password, userResult.rows[0].password);
         if (!passwordMatches) {
-            return res.status(401).json({message: "Invalid password."});
+            return res.status(401).json({ message: "Invalid password." });
         }
 
         await pool.query("UPDATE users SET totp_enabled = FALSE, totp_secret = NULL WHERE id = $1", [userId]);
         await pool.query("DELETE FROM user_backup_codes WHERE user_id = $1", [userId]);
 
-        res.status(200).json({success: true, message: "Two-factor authentication disabled"});
+        res.status(200).json({ success: true, message: "Two-factor authentication disabled" });
     } catch (err: any) {
         console.error("Error executing query", err.stack);
         res.status(500).send("Internal Server Error");

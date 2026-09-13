@@ -32,12 +32,12 @@
  * `created_by ... ON DELETE SET NULL` (see assets/db/upgrade/1.2.0/1.sql), so
  * removing a member leaves the household's books exactly where they were.
  */
-import {Router, Request, Response} from "express";
-import {appService} from "../../AppService";
-import {requireAdmin, ADMIN_ROLE} from "../../middlewares/AdminMiddleware";
-import {recordActivity, ActivityAction} from "../../utils/ActivityLog";
-import {AdvisoryLock} from "../../utils/AdvisoryLocks";
-import {PoolClient} from "pg";
+import { Router, Request, Response } from "express";
+import { appService } from "../../AppService";
+import { requireAdmin, ADMIN_ROLE } from "../../middlewares/AdminMiddleware";
+import { recordActivity, ActivityAction } from "../../utils/ActivityLog";
+import { AdvisoryLock } from "../../utils/AdvisoryLocks";
+import { PoolClient } from "pg";
 
 const router = Router();
 
@@ -67,7 +67,7 @@ const ACCOUNT_COLUMNS = `
 
 /** Shapes one account row for the client, flagging the caller's own account. */
 function toAccount(row: Record<string, any>, callerId: number) {
-    return {...row, isSelf: row.id === callerId};
+    return { ...row, isSelf: row.id === callerId };
 }
 
 interface ITargetAccount {
@@ -93,14 +93,14 @@ interface IRejection {
  * `AdvisoryLock.ADMIN_SET`, which is what makes the count a decision two
  * concurrent requests can't both act on.
  */
-async function loadTarget(client: PoolClient, targetId: number): Promise<{
+async function loadTarget(
+    client: PoolClient,
+    targetId: number
+): Promise<{
     target: ITargetAccount | null;
     otherUsableAdmins: number;
 }> {
-    const targetResult = await client.query(
-        "SELECT id, role, disabled, code FROM users WHERE id = $1",
-        [targetId]
-    );
+    const targetResult = await client.query("SELECT id, role, disabled, code FROM users WHERE id = $1", [targetId]);
 
     const adminResult = await client.query(
         "SELECT COUNT(*)::int AS count FROM users WHERE role = $1 AND disabled = FALSE AND id <> $2",
@@ -131,10 +131,9 @@ async function loadTarget(client: PoolClient, targetId: number): Promise<{
  */
 async function revokeAllSessions(client: PoolClient, userId: number): Promise<void> {
     await client.query("UPDATE users SET token_version = token_version + 1 WHERE id = $1", [userId]);
-    await client.query(
-        "UPDATE user_sessions SET revoked_date = NOW() WHERE user_id = $1 AND revoked_date IS NULL",
-        [userId]
-    );
+    await client.query("UPDATE user_sessions SET revoked_date = NOW() WHERE user_id = $1 AND revoked_date IS NULL", [
+        userId,
+    ]);
 }
 
 /**
@@ -167,7 +166,7 @@ router.get("/", requireAdmin, async (req: Request, res: Response) => {
         res.status(200).json(result.rows.map((row) => toAccount(row, callerId)));
     } catch (err: any) {
         appService.getLogger().error("Error listing accounts: " + err);
-        res.status(500).json({message: "Internal server error"});
+        res.status(500).json({ message: "Internal server error" });
     }
 });
 
@@ -198,19 +197,19 @@ router.patch("/:id", requireAdmin, async (req: Request, res: Response) => {
     const pool = appService.getDatabasePool();
     const callerId = appService.getSessionUser(req);
     const targetId = Number(req.params.id);
-    const {role, disabled} = req.body;
+    const { role, disabled } = req.body;
 
     if (!Number.isInteger(targetId)) {
-        return res.status(400).json({message: "Invalid account id"});
+        return res.status(400).json({ message: "Invalid account id" });
     }
     if (role === undefined && disabled === undefined) {
-        return res.status(400).json({message: "Nothing to update - send `role` and/or `disabled`."});
+        return res.status(400).json({ message: "Nothing to update - send `role` and/or `disabled`." });
     }
     if (role !== undefined && !VALID_ROLES.includes(role)) {
-        return res.status(400).json({message: "Invalid role"});
+        return res.status(400).json({ message: "Invalid role" });
     }
     if (disabled !== undefined && typeof disabled !== "boolean") {
-        return res.status(400).json({message: "Invalid disabled"});
+        return res.status(400).json({ message: "Invalid disabled" });
     }
 
     const client = await pool.connect();
@@ -222,11 +221,11 @@ router.patch("/:id", requireAdmin, async (req: Request, res: Response) => {
         // both pass. See utils/AdvisoryLocks.ts.
         await client.query("SELECT pg_advisory_xact_lock($1)", [AdvisoryLock.ADMIN_SET]);
 
-        const {target, otherUsableAdmins} = await loadTarget(client, targetId);
+        const { target, otherUsableAdmins } = await loadTarget(client, targetId);
 
         if (!target) {
             await client.query("ROLLBACK");
-            return res.status(404).json({message: "Account not found"});
+            return res.status(404).json({ message: "Account not found" });
         }
 
         const nextRole: string = role ?? target.role;
@@ -242,17 +241,17 @@ router.patch("/:id", requireAdmin, async (req: Request, res: Response) => {
         if (wasUsableAdmin && !willBeUsableAdmin && otherUsableAdmins === 0) {
             rejection = {
                 status: 403,
-                message: "This is the only administrator left - promote another account first."
+                message: "This is the only administrator left - promote another account first.",
             };
         } else if (targetId === callerId && nextRole !== target.role) {
-            rejection = {status: 403, message: "You cannot change your own role."};
+            rejection = { status: 403, message: "You cannot change your own role." };
         } else if (targetId === callerId && nextDisabled && !target.disabled) {
-            rejection = {status: 403, message: "You cannot disable your own account."};
+            rejection = { status: 403, message: "You cannot disable your own account." };
         }
 
         if (rejection) {
             await client.query("ROLLBACK");
-            return res.status(rejection.status).json({message: rejection.message});
+            return res.status(rejection.status).json({ message: rejection.message });
         }
 
         const updated = await client.query(
@@ -271,7 +270,7 @@ router.patch("/:id", requireAdmin, async (req: Request, res: Response) => {
             await recordActivity(client, callerId, ActivityAction.USER_ROLE_CHANGED, {
                 entityType: ENTITY_TYPE,
                 entityId: targetId,
-                metadata: {ip: req.ip, targetCode: target.code, from: target.role, to: nextRole}
+                metadata: { ip: req.ip, targetCode: target.code, from: target.role, to: nextRole },
             });
         }
 
@@ -283,7 +282,7 @@ router.patch("/:id", requireAdmin, async (req: Request, res: Response) => {
                 {
                     entityType: ENTITY_TYPE,
                     entityId: targetId,
-                    metadata: {ip: req.ip, targetCode: target.code}
+                    metadata: { ip: req.ip, targetCode: target.code },
                 }
             );
         }
@@ -294,7 +293,7 @@ router.patch("/:id", requireAdmin, async (req: Request, res: Response) => {
     } catch (err: any) {
         await client.query("ROLLBACK").catch(() => undefined);
         appService.getLogger().error("Error updating account: " + err);
-        res.status(500).json({message: "Internal server error"});
+        res.status(500).json({ message: "Internal server error" });
     } finally {
         client.release();
     }
@@ -328,7 +327,7 @@ router.delete("/:id", requireAdmin, async (req: Request, res: Response) => {
     const targetId = Number(req.params.id);
 
     if (!Number.isInteger(targetId)) {
-        return res.status(400).json({message: "Invalid account id"});
+        return res.status(400).json({ message: "Invalid account id" });
     }
 
     const client = await pool.connect();
@@ -337,11 +336,11 @@ router.delete("/:id", requireAdmin, async (req: Request, res: Response) => {
         await client.query("BEGIN");
         await client.query("SELECT pg_advisory_xact_lock($1)", [AdvisoryLock.ADMIN_SET]);
 
-        const {target, otherUsableAdmins} = await loadTarget(client, targetId);
+        const { target, otherUsableAdmins } = await loadTarget(client, targetId);
 
         if (!target) {
             await client.query("ROLLBACK");
-            return res.status(404).json({message: "Account not found"});
+            return res.status(404).json({ message: "Account not found" });
         }
 
         let rejection: IRejection | null = null;
@@ -349,18 +348,18 @@ router.delete("/:id", requireAdmin, async (req: Request, res: Response) => {
         if (target.role === ADMIN_ROLE && !target.disabled && otherUsableAdmins === 0) {
             rejection = {
                 status: 403,
-                message: "This is the only administrator left - promote another account first."
+                message: "This is the only administrator left - promote another account first.",
             };
         } else if (targetId === callerId) {
             rejection = {
                 status: 403,
-                message: "You cannot delete your own account here - use Settings > Delete account."
+                message: "You cannot delete your own account here - use Settings > Delete account.",
             };
         }
 
         if (rejection) {
             await client.query("ROLLBACK");
-            return res.status(rejection.status).json({message: rejection.message});
+            return res.status(rejection.status).json({ message: rejection.message });
         }
 
         await client.query("DELETE FROM users WHERE id = $1", [targetId]);
@@ -372,16 +371,16 @@ router.delete("/:id", requireAdmin, async (req: Request, res: Response) => {
         await recordActivity(client, callerId, ActivityAction.USER_DELETED, {
             entityType: ENTITY_TYPE,
             entityId: targetId,
-            metadata: {ip: req.ip, targetCode: target.code}
+            metadata: { ip: req.ip, targetCode: target.code },
         });
 
         await client.query("COMMIT");
 
-        res.status(200).json({message: "Account deleted"});
+        res.status(200).json({ message: "Account deleted" });
     } catch (err: any) {
         await client.query("ROLLBACK").catch(() => undefined);
         appService.getLogger().error("Error deleting account: " + err);
-        res.status(500).json({message: "Internal server error"});
+        res.status(500).json({ message: "Internal server error" });
     } finally {
         client.release();
     }

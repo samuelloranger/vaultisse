@@ -1,5 +1,5 @@
-import {setupTestApp} from "../helpers/testApp";
-import {createAuthenticatedUser, ITestUser} from "../helpers/auth";
+import { setupTestApp } from "../helpers/testApp";
+import { createAuthenticatedUser, ITestUser } from "../helpers/auth";
 
 const app = setupTestApp();
 
@@ -11,14 +11,14 @@ beforeAll(async () => {
 
 describe("customer groups", () => {
     it("creates, lists, renames and deletes a group", async () => {
-        const createRes = await user.agent.post("/api/rest/customer/group").send({name: "Class 4B"});
+        const createRes = await user.agent.post("/api/rest/customer/group").send({ name: "Class 4B" });
         expect(createRes.status).toBe(201);
         const id = createRes.body.id;
 
         const listRes = await user.agent.get("/api/rest/customer/group");
         expect(listRes.body.some((g: any) => g.id === id && g.total_customers === 0)).toBe(true);
 
-        const renameRes = await user.agent.put(`/api/rest/customer/group/${id}`).send({name: "Class 5B"});
+        const renameRes = await user.agent.put(`/api/rest/customer/group/${id}`).send({ name: "Class 5B" });
         expect(renameRes.status).toBe(200);
 
         const deleteRes = await user.agent.delete(`/api/rest/customer/group/${id}`);
@@ -26,13 +26,13 @@ describe("customer groups", () => {
     });
 
     it("rejects an empty group name", async () => {
-        const res = await user.agent.post("/api/rest/customer/group").send({name: "   "});
+        const res = await user.agent.post("/api/rest/customer/group").send({ name: "   " });
         expect(res.status).toBe(400);
     });
 
     it("409s creating a group with a name already in use", async () => {
-        await user.agent.post("/api/rest/customer/group").send({name: "Duplicate Group"});
-        const res = await user.agent.post("/api/rest/customer/group").send({name: "Duplicate Group"});
+        await user.agent.post("/api/rest/customer/group").send({ name: "Duplicate Group" });
+        const res = await user.agent.post("/api/rest/customer/group").send({ name: "Duplicate Group" });
         expect(res.status).toBe(409);
     });
 
@@ -42,10 +42,10 @@ describe("customer groups", () => {
         const otherUser = await createAuthenticatedUser(app);
         const name = `Cross Account Group ${Date.now()}`;
 
-        const first = await user.agent.post("/api/rest/customer/group").send({name});
+        const first = await user.agent.post("/api/rest/customer/group").send({ name });
         expect(first.status).toBe(201);
 
-        const res = await otherUser.agent.post("/api/rest/customer/group").send({name});
+        const res = await otherUser.agent.post("/api/rest/customer/group").send({ name });
         expect(res.status).toBe(409);
 
         await user.agent.delete(`/api/rest/customer/group/${first.body.id}`);
@@ -54,8 +54,8 @@ describe("customer groups", () => {
 
 describe("customer CRUD and group assignment", () => {
     it("creates, renames, assigns/unassigns a group, and deletes a customer", async () => {
-        const groupId = (await user.agent.post("/api/rest/customer/group").send({name: "Assignable Group"})).body.id;
-        const createRes = await user.agent.post("/api/rest/customer").send({name: "Jane Doe"});
+        const groupId = (await user.agent.post("/api/rest/customer/group").send({ name: "Assignable Group" })).body.id;
+        const createRes = await user.agent.post("/api/rest/customer").send({ name: "Jane Doe" });
         expect(createRes.status).toBe(200);
         const customerId = createRes.body.id;
 
@@ -67,7 +67,7 @@ describe("customer CRUD and group assignment", () => {
         expect(unassignRes.status).toBe(200);
         expect(unassignRes.body.group_id).toBeNull();
 
-        const renameRes = await user.agent.put(`/api/rest/customer/${customerId}`).send({name: "Jane Smith"});
+        const renameRes = await user.agent.put(`/api/rest/customer/${customerId}`).send({ name: "Jane Smith" });
         expect(renameRes.status).toBe(200);
         expect(renameRes.body.name).toBe("Jane Smith");
 
@@ -83,22 +83,26 @@ describe("customer CRUD and group assignment", () => {
     // any group, and everyone sees the result.
     it("assigns a customer to a group another account created", async () => {
         const otherUser = await createAuthenticatedUser(app);
-        const otherGroupId = (await otherUser.agent.post("/api/rest/customer/group").send({name: `Theirs ${Date.now()}`})).body.id;
-        const customerId = (await user.agent.post("/api/rest/customer").send({name: "Test"})).body.id;
+        const otherGroupId = (
+            await otherUser.agent.post("/api/rest/customer/group").send({ name: `Theirs ${Date.now()}` })
+        ).body.id;
+        const customerId = (await user.agent.post("/api/rest/customer").send({ name: "Test" })).body.id;
 
         const res = await user.agent.put(`/api/rest/customer/${customerId}/group/${otherGroupId}`);
         expect(res.status).toBe(200);
         expect(res.body.group_id).toBe(otherGroupId);
 
         const otherListRes = await otherUser.agent.get("/api/rest/customer");
-        expect(otherListRes.body.customers.some((c: any) => c.id === customerId && c.group_id === otherGroupId)).toBe(true);
+        expect(otherListRes.body.customers.some((c: any) => c.id === customerId && c.group_id === otherGroupId)).toBe(
+            true
+        );
 
         await user.agent.delete(`/api/rest/customer/${customerId}`);
     });
 
     // Still 404 - not ownership, just a group id that names nothing.
     it("404s assigning to a group that doesn't exist", async () => {
-        const customerId = (await user.agent.post("/api/rest/customer").send({name: "Test"})).body.id;
+        const customerId = (await user.agent.post("/api/rest/customer").send({ name: "Test" })).body.id;
         const res = await user.agent.put(`/api/rest/customer/${customerId}/group/999999999`);
         expect(res.status).toBe(404);
         await user.agent.delete(`/api/rest/customer/${customerId}`);
@@ -107,13 +111,18 @@ describe("customer CRUD and group assignment", () => {
 
 describe("lending and returning books via a customer", () => {
     it("lends a book to a customer and returns it", async () => {
-        const customerId = (await user.agent.post("/api/rest/customer").send({name: "Borrower"})).body.id;
-        const locationId = (await user.agent.post("/api/rest/location").send({name: "Shelf", description: ""})).body.id;
+        const customerId = (await user.agent.post("/api/rest/customer").send({ name: "Borrower" })).body.id;
+        const locationId = (await user.agent.post("/api/rest/location").send({ name: "Shelf", description: "" })).body
+            .id;
         const bookId = (await user.agent.post("/api/rest/book").field("name", "Lendable Book")).body;
-        const stockRes = await user.agent.post(`/api/rest/book/${bookId}/stock`).send({status: 0, location_id: locationId});
+        const stockRes = await user.agent
+            .post(`/api/rest/book/${bookId}/stock`)
+            .send({ status: 0, location_id: locationId });
         const stockCode = stockRes.body.code;
 
-        const lendRes = await user.agent.post(`/api/rest/customer/${customerId}/add/books`).send({books: [stockCode]});
+        const lendRes = await user.agent
+            .post(`/api/rest/customer/${customerId}/add/books`)
+            .send({ books: [stockCode] });
         expect(lendRes.status).toBe(200);
         expect(lendRes.body.some((b: any) => b.code === stockCode)).toBe(true);
 
@@ -125,7 +134,7 @@ describe("lending and returning books via a customer", () => {
         // a stock this test never created.
         const bookRes = await user.agent.get(`/api/rest/book/${bookId}`);
         const stock = bookRes.body.stocks.find((s: any) => s.code === stockCode);
-        expect(stock).toMatchObject({status: 0, customer_id: null});
+        expect(stock).toMatchObject({ status: 0, customer_id: null });
     });
 
     // Anyone can lend out and take back any copy, and the loan is visible to
@@ -133,12 +142,19 @@ describe("lending and returning books via a customer", () => {
     it("lets another account return a book this one lent out, and both see it", async () => {
         const otherUser = await createAuthenticatedUser(app);
 
-        const customerId = (await user.agent.post("/api/rest/customer").send({name: `Shared Borrower ${Date.now()}`})).body.id;
-        const locationId = (await user.agent.post("/api/rest/location").send({name: `Shared Shelf ${Date.now()}`, description: ""})).body.id;
+        const customerId = (await user.agent.post("/api/rest/customer").send({ name: `Shared Borrower ${Date.now()}` }))
+            .body.id;
+        const locationId = (
+            await user.agent.post("/api/rest/location").send({ name: `Shared Shelf ${Date.now()}`, description: "" })
+        ).body.id;
         const bookId = (await user.agent.post("/api/rest/book").field("name", "Co-managed Book")).body;
-        const stockCode = (await user.agent.post(`/api/rest/book/${bookId}/stock`).send({status: 0, location_id: locationId})).body.code;
+        const stockCode = (
+            await user.agent.post(`/api/rest/book/${bookId}/stock`).send({ status: 0, location_id: locationId })
+        ).body.code;
 
-        const lendRes = await user.agent.post(`/api/rest/customer/${customerId}/add/books`).send({books: [stockCode]});
+        const lendRes = await user.agent
+            .post(`/api/rest/customer/${customerId}/add/books`)
+            .send({ books: [stockCode] });
         expect(lendRes.status).toBe(200);
 
         // The other account sees the outstanding loan without being told about it.

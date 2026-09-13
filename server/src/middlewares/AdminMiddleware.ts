@@ -29,9 +29,9 @@
  *    logged back in, do it again: their session was never the problem. 403
  *    lets the client show "you don't have access" and stay put.
  */
-import {Request, Response, NextFunction} from "express";
-import {appService} from "../AppService";
-import {resolveSession} from "./AuthMiddleware";
+import { Request, Response, NextFunction } from "express";
+import { appService } from "../AppService";
+import { resolveSession } from "./AuthMiddleware";
 
 /** The value of `users.role` that unlocks the admin surface. */
 export const ADMIN_ROLE = "admin";
@@ -53,16 +53,16 @@ export const requireAdmin = async (req: Request, res: Response, next: NextFuncti
     const resolution = await resolveSession(req, res);
 
     if (resolution !== "ok") {
-        return res.status(401).json({message: "Unauthorized", sessionExpired: true});
+        return res.status(401).json({ message: "Unauthorized", sessionExpired: true });
     }
 
     try {
         if (!(await isAdminUser(appService.getSessionUser(req)))) {
-            return res.status(403).json({message: "Forbidden"});
+            return res.status(403).json({ message: "Forbidden" });
         }
     } catch (err: any) {
         appService.getLogger().error("Error resolving admin role: " + err);
-        return res.status(500).json({message: "Internal server error"});
+        return res.status(500).json({ message: "Internal server error" });
     }
 
     next();

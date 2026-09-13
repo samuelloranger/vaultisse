@@ -9,9 +9,9 @@
  * that view's Excel report. Returning a book is handled by the existing
  * `POST /book/return` (see BooksRoute.ts) - this route only lists.
  */
-import { Router, Request, Response } from 'express';
-import {appService} from "../AppService";
-import {requireAuth} from "../middlewares/AuthMiddleware";
+import { Router, Request, Response } from "express";
+import { appService } from "../AppService";
+import { requireAuth } from "../middlewares/AuthMiddleware";
 
 const router = Router();
 
@@ -45,7 +45,7 @@ const router = Router();
  *  }
  */
 // @ts-ignore
-router.get('', requireAuth, async (req: Request, res: Response) => {
+router.get("", requireAuth, async (req: Request, res: Response) => {
     const pool = appService.getDatabasePool();
 
     const groupId = req.query.group_id ? Number(req.query.group_id) : null;
@@ -58,9 +58,7 @@ router.get('', requireAuth, async (req: Request, res: Response) => {
         const skip = MAX_ROWS * page;
 
         const params: any[] = [];
-        const conditions: string[] = [
-            `bs.status = 2`
-        ];
+        const conditions: string[] = [`bs.status = 2`];
 
         if (groupId) {
             conditions.push(`cg.id = $${params.push(groupId)}`);
@@ -72,7 +70,7 @@ router.get('', requireAuth, async (req: Request, res: Response) => {
             conditions.push(`bs.loaned_at < $${params.push(dateTo)}::date + INTERVAL '1 day'`);
         }
 
-        const whereClause = `WHERE ${conditions.join(' AND ')}`;
+        const whereClause = `WHERE ${conditions.join(" AND ")}`;
 
         const fromClause = `
             FROM book_stocks bs
@@ -105,11 +103,11 @@ router.get('', requireAuth, async (req: Request, res: Response) => {
         res.status(200).json({
             total: Number(totalResult.rows[0].count),
             limit: MAX_ROWS,
-            loans: result.rows
+            loans: result.rows,
         });
     } catch (err: any) {
-        console.error('Error executing query', err.stack);
-        res.status(500).send('Internal Server Error');
+        console.error("Error executing query", err.stack);
+        res.status(500).send("Internal Server Error");
     }
 });
 
@@ -143,7 +141,7 @@ router.get('', requireAuth, async (req: Request, res: Response) => {
  * Response (400): "date_from and date_to are required" if either is missing.
  */
 // @ts-ignore
-router.get('/report', requireAuth, async (req: Request, res: Response) => {
+router.get("/report", requireAuth, async (req: Request, res: Response) => {
     const pool = appService.getDatabasePool();
 
     const dateFrom = req.query.date_from ? String(req.query.date_from) : null;
@@ -152,15 +150,12 @@ router.get('/report', requireAuth, async (req: Request, res: Response) => {
     const customerId = req.query.customer_id ? Number(req.query.customer_id) : null;
 
     if (!dateFrom || !dateTo) {
-        return res.status(400).send('date_from and date_to are required');
+        return res.status(400).send("date_from and date_to are required");
     }
 
     try {
         const params: any[] = [dateFrom, dateTo];
-        const conditions: string[] = [
-            `loaned_at >= $1::date`,
-            `loaned_at < $2::date + INTERVAL '1 day'`
-        ];
+        const conditions: string[] = [`loaned_at >= $1::date`, `loaned_at < $2::date + INTERVAL '1 day'`];
 
         if (groupId) {
             conditions.push(`group_id = $${params.push(groupId)}`);
@@ -177,15 +172,15 @@ router.get('/report', requireAuth, async (req: Request, res: Response) => {
                     loaned_at     AS "loanedAt",
                     returned_at   AS "returnedAt"
              FROM loan_history
-             WHERE ${conditions.join(' AND ')}
+             WHERE ${conditions.join(" AND ")}
              ORDER BY loaned_at DESC`,
             params
         );
 
-        res.status(200).json({rows: result.rows});
+        res.status(200).json({ rows: result.rows });
     } catch (err: any) {
-        console.error('Error executing query', err.stack);
-        res.status(500).send('Internal Server Error');
+        console.error("Error executing query", err.stack);
+        res.status(500).send("Internal Server Error");
     }
 });
 

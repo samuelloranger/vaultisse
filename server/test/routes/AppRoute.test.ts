@@ -1,6 +1,6 @@
 import request from "supertest";
-import {setupTestApp} from "../helpers/testApp";
-import {createAuthenticatedUser} from "../helpers/auth";
+import { setupTestApp } from "../helpers/testApp";
+import { createAuthenticatedUser } from "../helpers/auth";
 
 const app = setupTestApp();
 
@@ -22,21 +22,19 @@ describe("GET /app/policy", () => {
     });
 
     it("rejects a request with an invalid session cookie", async () => {
-        const res = await request(app)
-            .get("/api/rest/app/policy")
-            .set("Cookie", "token=not-a-real-jwt");
+        const res = await request(app).get("/api/rest/app/policy").set("Cookie", "token=not-a-real-jwt");
 
         expect(res.status).toBe(401);
-        expect(res.body).toMatchObject({sessionExpired: true});
+        expect(res.body).toMatchObject({ sessionExpired: true });
     });
 
     it("returns the bootstrap payload for a logged-in user", async () => {
-        const {agent, name, email} = await createAuthenticatedUser(app);
+        const { agent, name, email } = await createAuthenticatedUser(app);
 
         const res = await agent.get("/api/rest/app/policy");
 
         expect(res.status).toBe(200);
-        expect(res.body.user).toMatchObject({name, email});
+        expect(res.body.user).toMatchObject({ name, email });
         expect(Array.isArray(res.body.categories)).toBe(true);
         expect(Array.isArray(res.body.languages)).toBe(true);
         expect(Array.isArray(res.body.formats)).toBe(true);
@@ -58,7 +56,7 @@ describe("GET /app/policy", () => {
      * them from exactly where they always did.
      */
     it("serves the instance settings inside the user payload", async () => {
-        const {agent} = await createAuthenticatedUser(app);
+        const { agent } = await createAuthenticatedUser(app);
         const res = await agent.get("/api/rest/app/policy");
 
         expect(res.status).toBe(200);
@@ -73,9 +71,15 @@ describe("GET /app/policy", () => {
         const viewer = await createAuthenticatedUser(app);
         const stamp = Date.now();
 
-        const categoryId = (await contributor.agent.post("/api/rest/category").send({name: `Policy Category ${stamp}`})).body.id;
-        const locationId = (await contributor.agent.post("/api/rest/location").send({name: `Policy Shelf ${stamp}`, description: ""})).body.id;
-        const customerId = (await contributor.agent.post("/api/rest/customer").send({name: `Policy Customer ${stamp}`})).body.id;
+        const categoryId = (
+            await contributor.agent.post("/api/rest/category").send({ name: `Policy Category ${stamp}` })
+        ).body.id;
+        const locationId = (
+            await contributor.agent.post("/api/rest/location").send({ name: `Policy Shelf ${stamp}`, description: "" })
+        ).body.id;
+        const customerId = (
+            await contributor.agent.post("/api/rest/customer").send({ name: `Policy Customer ${stamp}` })
+        ).body.id;
 
         const res = await viewer.agent.get("/api/rest/app/policy");
         expect(res.body.categories.some((c: any) => c.id === categoryId)).toBe(true);

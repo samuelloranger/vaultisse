@@ -11,7 +11,7 @@
  * sharing - and so tripping - that limiter's bucket.
  */
 import request from "supertest";
-import {Express} from "express";
+import { Express } from "express";
 
 let ipCounter = 0;
 
@@ -50,20 +50,17 @@ export async function createAuthenticatedUser(app: Express, name = "Test User"):
     const registerRes = await agent
         .post("/register")
         .set("X-Forwarded-For", ip)
-        .send({userName: userCode, email, name, password});
+        .send({ userName: userCode, email, name, password });
 
     if (registerRes.status !== 201 && registerRes.status !== 200) {
         throw new Error(`Failed to register test user: ${registerRes.status} ${JSON.stringify(registerRes.body)}`);
     }
 
-    const loginRes = await agent
-        .post("/login")
-        .set("X-Forwarded-For", ip)
-        .send({username: userCode, password});
+    const loginRes = await agent.post("/login").set("X-Forwarded-For", ip).send({ username: userCode, password });
 
     if (loginRes.status !== 200 || !loginRes.body.success) {
         throw new Error(`Failed to log in test user: ${loginRes.status} ${JSON.stringify(loginRes.body)}`);
     }
 
-    return {agent, userCode, email, password, name};
+    return { agent, userCode, email, password, name };
 }

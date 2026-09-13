@@ -13,29 +13,29 @@
  * because POST /register in every *other* file reads this same row.
  */
 import request from "supertest";
-import {setupTestApp} from "../helpers/testApp";
-import {createAuthenticatedUser, ITestUser} from "../helpers/auth";
-import {appService} from "../../src/AppService";
+import { setupTestApp } from "../helpers/testApp";
+import { createAuthenticatedUser, ITestUser } from "../helpers/auth";
+import { appService } from "../../src/AppService";
 
 const app = setupTestApp();
 
 const SETTINGS = "/api/rest/admin/settings";
 
 async function idOf(user: ITestUser): Promise<number> {
-    const {rows} = await appService.getDatabasePool().query("SELECT id FROM users WHERE code = $1", [user.userCode]);
+    const { rows } = await appService.getDatabasePool().query("SELECT id FROM users WHERE code = $1", [user.userCode]);
     return rows[0].id;
 }
 
 /** A logged-in admin: a normal registered account, promoted afterwards. */
-async function createAdmin(): Promise<ITestUser & {id: number}> {
+async function createAdmin(): Promise<ITestUser & { id: number }> {
     const user = await createAuthenticatedUser(app, "Settings Admin");
     const id = await idOf(user);
     await appService.getDatabasePool().query("UPDATE users SET role = 'admin' WHERE id = $1", [id]);
-    return {...user, id};
+    return { ...user, id };
 }
 
 async function settingsRow(): Promise<Record<string, any>> {
-    const {rows} = await appService.getDatabasePool().query("SELECT * FROM app_settings");
+    const { rows } = await appService.getDatabasePool().query("SELECT * FROM app_settings");
     expect(rows).toHaveLength(1);
     return rows[0];
 }
@@ -46,7 +46,7 @@ describe("instance settings access control", () => {
 
         expect((await plain.agent.get(SETTINGS)).status).toBe(403);
 
-        const write = await plain.agent.patch(SETTINGS).send({leasingEnabled: true});
+        const write = await plain.agent.patch(SETTINGS).send({ leasingEnabled: true });
         expect(write.status).toBe(403);
         // A refusal that still wrote would be the whole bug, restated.
         expect(write.body.sessionExpired).toBeUndefined();
@@ -56,8 +56,8 @@ describe("instance settings access control", () => {
         const admin = await createAdmin();
         const plain = await createAuthenticatedUser(app);
 
-        await admin.agent.patch(SETTINGS).send({leasingEnabled: false});
-        await plain.agent.patch(SETTINGS).send({leasingEnabled: true});
+        await admin.agent.patch(SETTINGS).send({ leasingEnabled: false });
+        await plain.agent.patch(SETTINGS).send({ leasingEnabled: true });
 
         expect((await settingsRow()).leasing_enabled).toBe(false);
         // ...and the nav the non-admin was trying to move is still where the
@@ -69,7 +69,7 @@ describe("instance settings access control", () => {
         const res = await request(app).get(SETTINGS);
 
         expect(res.status).toBe(401);
-        expect(res.body).toMatchObject({sessionExpired: true});
+        expect(res.body).toMatchObject({ sessionExpired: true });
     });
 });
 
@@ -95,36 +95,36 @@ describe("PATCH /admin/settings", () => {
         const admin = await createAdmin();
         const plain = await createAuthenticatedUser(app);
 
-        await admin.agent.patch(SETTINGS).send({leasingEnabled: true});
+        await admin.agent.patch(SETTINGS).send({ leasingEnabled: true });
         expect((await plain.agent.get("/api/rest/app/policy")).body.user.leasingEnabled).toBe(true);
 
-        await admin.agent.patch(SETTINGS).send({leasingEnabled: false});
+        await admin.agent.patch(SETTINGS).send({ leasingEnabled: false });
         expect((await plain.agent.get("/api/rest/app/policy")).body.user.leasingEnabled).toBe(false);
 
         // ...and it really is the one app_settings row behind it.
         expect((await settingsRow()).leasing_enabled).toBe(false);
 
-        await admin.agent.patch(SETTINGS).send({leasingEnabled: true});
+        await admin.agent.patch(SETTINGS).send({ leasingEnabled: true });
     });
 
     it("rejects an empty body and every invalid value", async () => {
         const admin = await createAdmin();
 
         expect((await admin.agent.patch(SETTINGS).send({})).status).toBe(400);
-        expect((await admin.agent.patch(SETTINGS).send({leasingEnabled: "yes"})).status).toBe(400);
-        expect((await admin.agent.patch(SETTINGS).send({registrationRequiresApproval: 1})).status).toBe(400);
+        expect((await admin.agent.patch(SETTINGS).send({ leasingEnabled: "yes" })).status).toBe(400);
+        expect((await admin.agent.patch(SETTINGS).send({ registrationRequiresApproval: 1 })).status).toBe(400);
         // Not a row in app_languages - the column carries a FK to it, so this
         // has to be a 400 rather than a constraint violation surfacing as 500.
-        expect((await admin.agent.patch(SETTINGS).send({defaultLanguage: "zz"})).status).toBe(400);
-        expect((await admin.agent.patch(SETTINGS).send({defaultRegion: "canada"})).status).toBe(400);
-        expect((await admin.agent.patch(SETTINGS).send({defaultTheme: "midnight"})).status).toBe(400);
+        expect((await admin.agent.patch(SETTINGS).send({ defaultLanguage: "zz" })).status).toBe(400);
+        expect((await admin.agent.patch(SETTINGS).send({ defaultRegion: "canada" })).status).toBe(400);
+        expect((await admin.agent.patch(SETTINGS).send({ defaultTheme: "midnight" })).status).toBe(400);
     });
 
     it("records who changed what", async () => {
         const admin = await createAdmin();
-        await admin.agent.patch(SETTINGS).send({defaultRegion: "CA"});
+        await admin.agent.patch(SETTINGS).send({ defaultRegion: "CA" });
 
-        const {rows} = await appService.getDatabasePool().query(
+        const { rows } = await appService.getDatabasePool().query(
             `SELECT actor_id, action, entity_type, entity_id, metadata
                FROM activity_log
               WHERE entity_type = 'app_settings' AND actor_id = $1
@@ -137,9 +137,9 @@ describe("PATCH /admin/settings", () => {
             action: "instance_settings_changed",
             entity_id: 1,
         });
-        expect(rows[0].metadata).toMatchObject({defaultRegion: "CA"});
+        expect(rows[0].metadata).toMatchObject({ defaultRegion: "CA" });
 
-        await admin.agent.patch(SETTINGS).send({defaultRegion: "US"});
+        await admin.agent.patch(SETTINGS).send({ defaultRegion: "US" });
     });
 
     /**
@@ -194,15 +194,15 @@ describe("PATCH /admin/settings", () => {
         const admin = await createAdmin();
         const before = await settingsRow();
 
-        const off = await admin.agent.patch(SETTINGS).send({registrationRequiresApproval: false});
+        const off = await admin.agent.patch(SETTINGS).send({ registrationRequiresApproval: false });
         expect(off.body).toMatchObject({
             registrationRequiresApproval: false,
             registrationApprovalFromEnv: false,
         });
         expect((await settingsRow()).registration_requires_approval).toBe(false);
 
-        const on = await admin.agent.patch(SETTINGS).send({registrationRequiresApproval: true});
-        expect(on.body).toMatchObject({registrationRequiresApproval: true});
+        const on = await admin.agent.patch(SETTINGS).send({ registrationRequiresApproval: true });
+        expect(on.body).toMatchObject({ registrationRequiresApproval: true });
 
         // A registration now arrives disabled, without anybody restarting
         // anything - which is the entire reason this left .env.
@@ -211,6 +211,6 @@ describe("PATCH /admin/settings", () => {
 
         await admin.agent
             .patch(SETTINGS)
-            .send({registrationRequiresApproval: before.registration_requires_approval ?? false});
+            .send({ registrationRequiresApproval: before.registration_requires_approval ?? false });
     });
 });

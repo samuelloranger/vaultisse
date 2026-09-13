@@ -7,5 +7,5 @@
  * if (AppErrors.BOOK_NOT_FOUND === someCode) { ... }
  */
 export enum AppErrors {
-    BOOK_NOT_FOUND = 444
+    BOOK_NOT_FOUND = 444,
 }

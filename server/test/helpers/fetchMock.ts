@@ -16,7 +16,7 @@
  */
 // Imported explicitly rather than relied on as globals: bun only injects
 // the test globals into test files, not into the modules they import.
-import {afterAll, beforeAll, mock} from "bun:test";
+import { afterAll, beforeAll, mock } from "bun:test";
 
 const realFetch = globalThis.fetch;
 
@@ -38,7 +38,7 @@ export function useMockedFetch(): void {
 export function jsonResponse(body: unknown, status = 200): Response {
     return new Response(JSON.stringify(body), {
         status,
-        headers: {"content-type": "application/json"},
+        headers: { "content-type": "application/json" },
     });
 }
 
@@ -64,6 +64,6 @@ export function alwaysJson(body: unknown, status = 200): void {
 export function imageResponse(status = 200, contentType: string | null = "image/jpeg"): Response {
     return new Response(status === 200 ? "binary" : null, {
         status,
-        headers: contentType ? {"content-type": contentType} : {},
+        headers: contentType ? { "content-type": contentType } : {},
     });
 }

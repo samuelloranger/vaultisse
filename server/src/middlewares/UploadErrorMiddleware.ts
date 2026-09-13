@@ -15,7 +15,7 @@
  * a successful upload calls plain `next()`, which skips straight past this
  * (error handlers are only invoked via `next(err)`) to the real handler.
  */
-import {ErrorRequestHandler} from "express";
+import { ErrorRequestHandler } from "express";
 import multer from "multer";
 
 export function handleUploadError(maxSizeMb: number, format: "text" | "json" = "text"): ErrorRequestHandler {
@@ -28,10 +28,10 @@ export function handleUploadError(maxSizeMb: number, format: "text" | "json" = "
         const status = isTooLarge ? 413 : 400;
         const message = isTooLarge
             ? `File exceeds the maximum allowed upload size of ${maxSizeMb}MB`
-            : (err.message || "Upload failed");
+            : err.message || "Upload failed";
 
         if (format === "json") {
-            res.status(status).json({error: message});
+            res.status(status).json({ error: message });
         } else {
             res.status(status).send(message);
         }

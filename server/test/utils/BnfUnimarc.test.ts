@@ -13,10 +13,10 @@
  *
  * No test here touches the network.
  */
-import {describe, expect, it} from "bun:test";
+import { describe, expect, it } from "bun:test";
 import fs from "fs";
 import path from "path";
-import {parseBnfUnimarc, parseUnimarcPageCount, parseUnimarcYear, bnfSruUrl} from "../../src/utils/BnfUnimarc";
+import { parseBnfUnimarc, parseUnimarcPageCount, parseUnimarcYear, bnfSruUrl } from "../../src/utils/BnfUnimarc";
 
 function fixture(name: string): string {
     return fs.readFileSync(path.join(__dirname, "..", "fixtures", "bnf", `${name}.xml`), "utf-8");

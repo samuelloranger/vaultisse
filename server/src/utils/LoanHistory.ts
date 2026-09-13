@@ -12,7 +12,7 @@
  * user, but only to stamp `loan_history.created_by` - "Camille lent this out" -
  * which nothing ever filters on.
  */
-import {Pool, PoolClient} from "pg";
+import { Pool, PoolClient } from "pg";
 
 /**
  * Log a new loan: snapshots the book/customer/group names as they are right
@@ -23,7 +23,12 @@ import {Pool, PoolClient} from "pg";
  * @param stockCode The loaned copy's book_stocks.code.
  * @param customerId The customer the copy was loaned to.
  */
-export async function recordLoan(db: Pool | PoolClient, userId: number, stockCode: string, customerId: number): Promise<void> {
+export async function recordLoan(
+    db: Pool | PoolClient,
+    userId: number,
+    stockCode: string,
+    customerId: number
+): Promise<void> {
     await db.query(
         `INSERT INTO loan_history (created_by, book_id, book_name, stock_id, stock_code, customer_id, customer_name, group_id, group_name, loaned_at)
          SELECT $3, bs.book_id, b.name, bs.id, bs.code, c.id, c.name, cg.id, cg.name, NOW()

@@ -17,9 +17,9 @@
  */
 // Imported explicitly rather than relied on as globals: bun only injects
 // the test globals into test files, not into the modules they import.
-import {beforeAll} from "bun:test";
-import {Express} from "express";
-import {appService} from "../../src/AppService";
+import { beforeAll } from "bun:test";
+import { Express } from "express";
+import { appService } from "../../src/AppService";
 
 let initialized = false;
 

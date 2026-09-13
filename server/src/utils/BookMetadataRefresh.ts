@@ -52,8 +52,8 @@
  * author is left alone entirely; in `"overwrite"` unknown names are added to
  * the existing ones. Nothing here ever removes a link.
  */
-import {IBookMetadata} from "../types/book/IBookMetadata";
-import {BookMetadataProvenance, MetadataSourceId} from "./BookMetadata";
+import { IBookMetadata } from "../types/book/IBookMetadata";
+import { BookMetadataProvenance, MetadataSourceId } from "./BookMetadata";
 
 /**
  * A field of a book as this feature names it on the wire.
@@ -168,8 +168,7 @@ export function planMetadataRefresh(
     const changes: IBookFieldChange[] = [];
     const stillMissing: BookMetadataField[] = [];
 
-    const sourceOf = (field: BookMetadataField): MetadataSourceId | null =>
-        provenance[PROVENANCE_KEY[field]] ?? null;
+    const sourceOf = (field: BookMetadataField): MetadataSourceId | null => provenance[PROVENANCE_KEY[field]] ?? null;
 
     /**
      * @param fillOnly Never replace a value that is already there, whatever
@@ -190,12 +189,12 @@ export function planMetadataRefresh(
         const next = incomingValue as string;
 
         if (isBlank(currentValue)) {
-            changes.push({field, from: null, to: next, source: sourceOf(field)});
+            changes.push({ field, from: null, to: next, source: sourceOf(field) });
             return;
         }
 
         if (mode === "overwrite" && !fillOnly && (currentValue as string).trim() !== next.trim()) {
-            changes.push({field, from: currentValue, to: next, source: sourceOf(field)});
+            changes.push({ field, from: currentValue, to: next, source: sourceOf(field) });
         }
     };
 
@@ -230,10 +229,10 @@ export function planMetadataRefresh(
     }
 
     // Authors: add-only, and only when the book has none unless overwriting.
-    const incomingAuthors = incoming.authors.filter(name => !isBlank(name));
-    const currentAuthors = current.authors.filter(name => !isBlank(name));
-    const held = new Set(currentAuthors.map(name => name.trim().toLowerCase()));
-    const unknown = incomingAuthors.filter(name => !held.has(name.trim().toLowerCase()));
+    const incomingAuthors = incoming.authors.filter((name) => !isBlank(name));
+    const currentAuthors = current.authors.filter((name) => !isBlank(name));
+    const held = new Set(currentAuthors.map((name) => name.trim().toLowerCase()));
+    const unknown = incomingAuthors.filter((name) => !held.has(name.trim().toLowerCase()));
 
     const authorsToLink =
         incomingAuthors.length === 0
@@ -257,5 +256,5 @@ export function planMetadataRefresh(
         });
     }
 
-    return {changes, stillMissing, authorsToLink};
+    return { changes, stillMissing, authorsToLink };
 }

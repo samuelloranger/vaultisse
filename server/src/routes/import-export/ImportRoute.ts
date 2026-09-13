@@ -18,15 +18,15 @@
  * adding an origin means adding a parser and a line in `PARSERS` below, the
  * route logic itself doesn't change.
  */
-import {Router, Request, Response, NextFunction, ErrorRequestHandler, RequestHandler} from 'express';
+import { Router, Request, Response, NextFunction, ErrorRequestHandler, RequestHandler } from "express";
 import multer from "multer";
-import {appService} from "../../AppService";
-import {requireAuth} from "../../middlewares/AuthMiddleware";
-import {handleUploadError} from "../../middlewares/UploadErrorMiddleware";
-import {IImportedBook} from "./parsers/IImportedBook";
-import {parseGoodreadsCsv} from "./parsers/GoodreadsCsvParser";
-import {isAllowedImageUrl} from "../BooksRoute";
-import {parseVaultisseCsv, VAULTISSE_CSV_TEMPLATE} from "./parsers/VaultisseCsvParser";
+import { appService } from "../../AppService";
+import { requireAuth } from "../../middlewares/AuthMiddleware";
+import { handleUploadError } from "../../middlewares/UploadErrorMiddleware";
+import { IImportedBook } from "./parsers/IImportedBook";
+import { parseGoodreadsCsv } from "./parsers/GoodreadsCsvParser";
+import { isAllowedImageUrl } from "../BooksRoute";
+import { parseVaultisseCsv, VAULTISSE_CSV_TEMPLATE } from "./parsers/VaultisseCsvParser";
 
 const router = Router();
 
@@ -50,13 +50,17 @@ function uploadCsv(req: Request, res: Response, next: NextFunction) {
     if (!uploadCsvMiddleware) {
         uploadCsvMiddleware = multer({
             storage: multer.memoryStorage(),
-            limits: {fileSize: appService.getMaxImportFileSizeMb() * 1024 * 1024},
-            fileFilter: (fileFilterReq: Request, file: Express.Multer.File, cb: (error: any, acceptFile: boolean) => void) => {
+            limits: { fileSize: appService.getMaxImportFileSizeMb() * 1024 * 1024 },
+            fileFilter: (
+                fileFilterReq: Request,
+                file: Express.Multer.File,
+                cb: (error: any, acceptFile: boolean) => void
+            ) => {
                 if (!file.originalname.toLowerCase().endsWith(".csv")) {
                     return cb(new Error("Only CSV files are allowed"), false);
                 }
                 cb(null, true);
-            }
+            },
         }).single("file");
     }
     uploadCsvMiddleware(req, res, next);
@@ -112,12 +116,14 @@ const MAX_REPORTED_ERRORS = 50;
  * Response (404): {"error": "No template available for this origin"} -
  * e.g. "goodreads", which is exported directly from Goodreads, not hand-filled.
  */
-router.get('/template/:origin', requireAuth, (req: Request, res: Response) => {
-    const origin = String(req.params.origin ?? "").trim().toLowerCase();
+router.get("/template/:origin", requireAuth, (req: Request, res: Response) => {
+    const origin = String(req.params.origin ?? "")
+        .trim()
+        .toLowerCase();
     const template = TEMPLATES[origin];
 
     if (!template) {
-        return res.status(404).json({error: "No template available for this origin"});
+        return res.status(404).json({ error: "No template available for this origin" });
     }
 
     res.setHeader("Content-Type", "text/csv");
@@ -153,19 +159,21 @@ router.get('/template/:origin', requireAuth, (req: Request, res: Response) => {
  *            400 {"error": "Unsupported import origin: <origin>"} |
  *            400 {"error": "Invalid CSV file: <message>"}.
  */
-router.post('/library', requireAuth, uploadCsv, handleImportUploadError, async (req: Request, res: Response) => {
+router.post("/library", requireAuth, uploadCsv, handleImportUploadError, async (req: Request, res: Response) => {
     if (!req.file) {
-        return res.status(400).json({error: "No CSV file provided"});
+        return res.status(400).json({ error: "No CSV file provided" });
     }
 
-    const origin = String(req.body.origin ?? "").trim().toLowerCase();
+    const origin = String(req.body.origin ?? "")
+        .trim()
+        .toLowerCase();
     if (!origin) {
-        return res.status(400).json({error: "Missing import origin"});
+        return res.status(400).json({ error: "Missing import origin" });
     }
 
     const parseFile = PARSERS[origin];
     if (!parseFile) {
-        return res.status(400).json({error: `Unsupported import origin: ${origin}`});
+        return res.status(400).json({ error: `Unsupported import origin: ${origin}` });
     }
 
     let books: IImportedBook[];
@@ -173,7 +181,7 @@ router.post('/library', requireAuth, uploadCsv, handleImportUploadError, async (
         books = parseFile(req.file.buffer.toString("utf-8"));
     } catch (err: any) {
         appService.getLogger().debug(`Failed to parse ${origin} import file: ${err.message}`);
-        return res.status(400).json({error: `Invalid CSV file: ${err.message}`});
+        return res.status(400).json({ error: `Invalid CSV file: ${err.message}` });
     }
 
     const userId = appService.getSessionUser(req);
@@ -187,7 +195,7 @@ router.post('/library', requireAuth, uploadCsv, handleImportUploadError, async (
     try {
         for (const book of books) {
             if (!book.name) {
-                errors.push({row: book.row, reason: "Missing title"});
+                errors.push({ row: book.row, reason: "Missing title" });
                 continue;
             }
 
@@ -231,7 +239,7 @@ router.post('/library', requireAuth, uploadCsv, handleImportUploadError, async (
                         book.publishedDate,
                         book.languageCode ?? null,
                         book.pages,
-                        userId
+                        userId,
                     ]
                 );
                 const bookId = insertBook.rows[0].id;
@@ -242,7 +250,7 @@ router.post('/library', requireAuth, uploadCsv, handleImportUploadError, async (
                 imported++;
             } catch (err: any) {
                 await client.query("ROLLBACK");
-                errors.push({row: book.row, title: book.name, reason: err.message ?? "Unknown error"});
+                errors.push({ row: book.row, title: book.name, reason: err.message ?? "Unknown error" });
             }
         }
 
@@ -250,7 +258,7 @@ router.post('/library', requireAuth, uploadCsv, handleImportUploadError, async (
             imported,
             skipped,
             failed: errors.length,
-            errors: errors.slice(0, MAX_REPORTED_ERRORS)
+            errors: errors.slice(0, MAX_REPORTED_ERRORS),
         });
     } finally {
         client.release();
@@ -265,10 +273,7 @@ function truncate(value: string | null, maxLen: number): string | null {
 
 /** A book with this ISBN is already in the shared library (`books_isbn_unique`). */
 async function __existsByIsbn(client: any, isbn: string): Promise<boolean> {
-    const result = await client.query(
-        "SELECT 1 FROM books WHERE isbn = $1",
-        [isbn]
-    );
+    const result = await client.query("SELECT 1 FROM books WHERE isbn = $1", [isbn]);
     return result.rowCount > 0;
 }
 
@@ -280,10 +285,7 @@ async function __existsByIsbn(client: any, isbn: string): Promise<boolean> {
  * share a title.
  */
 async function __existsByName(client: any, name: string): Promise<boolean> {
-    const result = await client.query(
-        "SELECT 1 FROM books WHERE LOWER(name) = LOWER($1) AND isbn IS NULL",
-        [name]
-    );
+    const result = await client.query("SELECT 1 FROM books WHERE LOWER(name) = LOWER($1) AND isbn IS NULL", [name]);
     return result.rowCount > 0;
 }
 
@@ -303,7 +305,7 @@ async function __fetchOpenLibraryCover(isbn: string): Promise<string | null> {
         // throwing - so the status is checked explicitly. The body is never
         // read (only its existence and content type matter), so it is
         // cancelled rather than buffered.
-        const response = await fetch(url, {signal: AbortSignal.timeout(3000)});
+        const response = await fetch(url, { signal: AbortSignal.timeout(3000) });
         await response.body?.cancel();
 
         const contentType = String(response.headers.get("content-type") ?? "");
@@ -317,10 +319,7 @@ async function __fetchOpenLibraryCover(isbn: string): Promise<string | null> {
 async function __findFormatId(client: any, formatName: string | null): Promise<number | null> {
     if (!formatName) return null;
 
-    const result = await client.query(
-        "SELECT id FROM formats WHERE LOWER(name) = LOWER($1)",
-        [formatName]
-    );
+    const result = await client.query("SELECT id FROM formats WHERE LOWER(name) = LOWER($1)", [formatName]);
     return result.rowCount > 0 ? result.rows[0].id : null;
 }
 
@@ -330,16 +329,13 @@ async function __ensureCategory(client: any, name: string | null, userId: number
 
     const truncated = truncate(name, 100) as string;
 
-    const existing = await client.query(
-        "SELECT id FROM categories WHERE name = $1",
-        [truncated]
-    );
+    const existing = await client.query("SELECT id FROM categories WHERE name = $1", [truncated]);
     if (existing.rowCount > 0) return existing.rows[0].id;
 
-    const insert = await client.query(
-        "INSERT INTO categories (name, created_by) VALUES ($1, $2) RETURNING id",
-        [truncated, userId]
-    );
+    const insert = await client.query("INSERT INTO categories (name, created_by) VALUES ($1, $2) RETURNING id", [
+        truncated,
+        userId,
+    ]);
     return insert.rows[0].id;
 }
 
@@ -358,17 +354,17 @@ async function __ensureAuthors(client: any, bookId: number, authors: string[], u
     for (const name of authors) {
         const truncated = name.length > 100 ? name.substring(0, 100) : name;
 
-        const existing = await client.query(
-            "SELECT id FROM authors WHERE name = $1",
-            [truncated]
-        );
+        const existing = await client.query("SELECT id FROM authors WHERE name = $1", [truncated]);
 
-        const authorId = existing.rowCount > 0
-            ? existing.rows[0].id
-            : (await client.query(
-                "INSERT INTO authors (name, created_by) VALUES ($1, $2) RETURNING id",
-                [truncated, userId]
-            )).rows[0].id;
+        const authorId =
+            existing.rowCount > 0
+                ? existing.rows[0].id
+                : (
+                      await client.query("INSERT INTO authors (name, created_by) VALUES ($1, $2) RETURNING id", [
+                          truncated,
+                          userId,
+                      ])
+                  ).rows[0].id;
 
         await client.query(
             "INSERT INTO book_authors (book_id, author_id, created_by) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING",

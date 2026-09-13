@@ -17,16 +17,16 @@
  * POST /login directly - they get a short-lived `pending_2fa_token` cookie
  * instead, exchanged for the real session by POST /login/2fa.
  */
-import express, {Request, Response} from "express";
-import {appService} from "../AppService";
+import express, { Request, Response } from "express";
+import { appService } from "../AppService";
 import path from "path";
 import rateLimit from "express-rate-limit";
 import jwt from "jsonwebtoken";
-import {requireAuth, requireAuthPage} from "../middlewares/AuthMiddleware";
-import {verifyTotpCode, normalizeBackupCode} from "../utils/TwoFactorAuth";
-import {createUserSession} from "../utils/UserSessions";
-import {recordActivity, ActivityAction} from "../utils/ActivityLog";
-import {AdvisoryLock} from "../utils/AdvisoryLocks";
+import { requireAuth, requireAuthPage } from "../middlewares/AuthMiddleware";
+import { verifyTotpCode, normalizeBackupCode } from "../utils/TwoFactorAuth";
+import { createUserSession } from "../utils/UserSessions";
+import { recordActivity, ActivityAction } from "../utils/ActivityLog";
+import { AdvisoryLock } from "../utils/AdvisoryLocks";
 
 const router = express.Router();
 
@@ -74,7 +74,10 @@ async function consumeBackupCode(userId: number, code: string): Promise<boolean>
 
 // Compiled React app: alongside the server in production (Docker image),
 // under client-react/dist during local development.
-const clientDistPath = process.env.NODE_ENV === "production" ?  path.join(__dirname, "../../../client") : path.join(__dirname, '../../../client-react/dist')
+const clientDistPath =
+    process.env.NODE_ENV === "production"
+        ? path.join(__dirname, "../../../client")
+        : path.join(__dirname, "../../../client-react/dist");
 
 /**
  * GET /app/assets/*  (static)
@@ -82,13 +85,17 @@ const clientDistPath = process.env.NODE_ENV === "production" ?  path.join(__dirn
  * Serves the SPA's built JS/CSS assets. Auth-gated so the app bundle itself
  * isn't served to unauthenticated clients.
  */
-router.use("/app/assets", requireAuth, express.static(path.join(clientDistPath, "assets"), {
-    setHeaders: (res, path) => {
-        if (path.endsWith(".css")) {
-            res.set('Content-Type', 'text/css');
-        }
-    }
-}));
+router.use(
+    "/app/assets",
+    requireAuth,
+    express.static(path.join(clientDistPath, "assets"), {
+        setHeaders: (res, path) => {
+            if (path.endsWith(".css")) {
+                res.set("Content-Type", "text/css");
+            }
+        },
+    })
+);
 
 /**
  * GET /app
@@ -98,12 +105,12 @@ router.use("/app/assets", requireAuth, express.static(path.join(clientDistPath, 
  * failure - see `requireAuthPage` - rather than the JSON 401 `requireAuth`
  * uses elsewhere, since there's no SPA on screen yet to show that in).
  */
-router.get('/app', requireAuthPage, async (req: Request, res: Response) => {
+router.get("/app", requireAuthPage, async (req: Request, res: Response) => {
     const appPath = path.join(clientDistPath, "index.html");
 
     appService.getLogger().debug(`serving /app index: ${appPath}`);
     res.sendFile(appPath);
-})
+});
 
 /**
  * GET /app/*
@@ -112,12 +119,12 @@ router.get('/app', requireAuthPage, async (req: Request, res: Response) => {
  * resolve to the SPA shell on a hard refresh. Auth: required (see the
  * `requireAuthPage` note on `GET /app` just above).
  */
-router.get('/app/*splat', requireAuthPage, async (req: Request, res: Response) => {
+router.get("/app/*splat", requireAuthPage, async (req: Request, res: Response) => {
     const appPath = path.join(clientDistPath, "index.html");
 
     appService.getLogger().debug(`serving /app/* index: ${appPath}`);
     res.sendFile(appPath);
-})
+});
 
 /**
  * GET /
@@ -180,23 +187,26 @@ router.get("/login", (req: Request, res: Response) => {
  * Responses: 400 missing fields | 401 invalid credentials | 500 server error.
  */
 // @ts-ignore
-router.post("/login", authLimiter,  async (req: Request, res: Response) => {
+router.post("/login", authLimiter, async (req: Request, res: Response) => {
     appService.getLogger().debug("Handle login authentication");
     const username = typeof req.body.username === "string" ? req.body.username.trim() : req.body.username;
-    const {password} = req.body;
+    const { password } = req.body;
     if (!username || !password) {
-        return res.status(400).json({message: "Missing username or password"});
+        return res.status(400).json({ message: "Missing username or password" });
     }
 
     try {
         const pool = appService.getDatabasePool();
-        const userQuery = "SELECT id, code, password, token_version, totp_enabled FROM users WHERE (code = $1 OR email = $2) AND disabled = FALSE";
+        const userQuery =
+            "SELECT id, code, password, token_version, totp_enabled FROM users WHERE (code = $1 OR email = $2) AND disabled = FALSE";
         const userResult = await pool.query(userQuery, [username, username]);
 
         if (userResult.rows.length === 0) {
             appService.getLogger().debug("No user found for:" + username);
-            await recordActivity(pool, null, ActivityAction.LOGIN_FAILED, {metadata: {attemptedUsername: username, ip: req.ip}});
-            return res.status(401).json({message: "Invalid username or password."});
+            await recordActivity(pool, null, ActivityAction.LOGIN_FAILED, {
+                metadata: { attemptedUsername: username, ip: req.ip },
+            });
+            return res.status(401).json({ message: "Invalid username or password." });
         }
 
         const user = userResult.rows[0];
@@ -204,8 +214,8 @@ router.post("/login", authLimiter,  async (req: Request, res: Response) => {
         const comparePassword = await appService.comparePassword(password, user.password);
         if (!comparePassword) {
             appService.getLogger().debug("invalid password for user:" + username);
-            await recordActivity(pool, user.id, ActivityAction.LOGIN_FAILED, {metadata: {ip: req.ip}});
-            return res.status(401).json({message: "Invalid username or password."});
+            await recordActivity(pool, user.id, ActivityAction.LOGIN_FAILED, { metadata: { ip: req.ip } });
+            return res.status(401).json({ message: "Invalid username or password." });
         }
 
         if (user.totp_enabled) {
@@ -216,10 +226,10 @@ router.post("/login", authLimiter,  async (req: Request, res: Response) => {
                 httpOnly: true,
                 secure: process.env.NODE_ENV === "production",
                 sameSite: "strict",
-                maxAge: 5 * 60 * 1000
+                maxAge: 5 * 60 * 1000,
             });
 
-            return res.json({success: true, twoFactorRequired: true, message: "Enter your verification code"});
+            return res.json({ success: true, twoFactorRequired: true, message: "Enter your verification code" });
         }
 
         appService.getLogger().debug("Updating last login date for user:" + username);
@@ -233,8 +243,8 @@ router.post("/login", authLimiter,  async (req: Request, res: Response) => {
 
         appService.getLogger().debug("Setting session and cookie for user:" + username);
 
-        const {sessionKey} = await createUserSession(pool, user.id, req.get("user-agent"), req.ip);
-        await recordActivity(pool, user.id, ActivityAction.LOGIN, {metadata: {ip: req.ip}});
+        const { sessionKey } = await createUserSession(pool, user.id, req.get("user-agent"), req.ip);
+        await recordActivity(pool, user.id, ActivityAction.LOGIN, { metadata: { ip: req.ip } });
 
         const userToken = appService.createSessionToken(user.id, user.token_version, sessionKey);
 
@@ -243,15 +253,15 @@ router.post("/login", authLimiter,  async (req: Request, res: Response) => {
             httpOnly: true,
             secure: process.env.NODE_ENV === "production",
             sameSite: "strict",
-            maxAge: appService.getSessionTime()
+            maxAge: appService.getSessionTime(),
         });
 
         appService.getLogger().debug("Redirecting to /app for user:" + username);
 
-        res.json({success: true, message: "Login successful", redirectUrl: "/app"});
+        res.json({ success: true, message: "Login successful", redirectUrl: "/app" });
     } catch (error) {
         console.error("Login error:", error);
-        return res.status(500).json({message: "Internal server error"});
+        return res.status(500).json({ message: "Internal server error" });
     }
 });
 
@@ -276,18 +286,18 @@ router.post("/login", authLimiter,  async (req: Request, res: Response) => {
  */
 // @ts-ignore
 router.post("/login/2fa", twoFaLimiter, async (req: Request, res: Response) => {
-    const {code} = req.body;
+    const { code } = req.body;
     // @ts-ignore
     const pendingToken = req.cookies.pending_2fa_token;
 
     if (!code) {
-        return res.status(400).json({message: "Missing verification code"});
+        return res.status(400).json({ message: "Missing verification code" });
     }
 
     const userId = appService.verifyPending2faToken(pendingToken);
     if (userId === null) {
         res.clearCookie("pending_2fa_token");
-        return res.status(401).json({message: "Your login has expired. Please log in again."});
+        return res.status(401).json({ message: "Your login has expired. Please log in again." });
     }
 
     try {
@@ -299,7 +309,7 @@ router.post("/login/2fa", twoFaLimiter, async (req: Request, res: Response) => {
 
         if (userResult.rows.length === 0) {
             res.clearCookie("pending_2fa_token");
-            return res.status(401).json({message: "Your login has expired. Please log in again."});
+            return res.status(401).json({ message: "Your login has expired. Please log in again." });
         }
 
         const user = userResult.rows[0];
@@ -311,29 +321,31 @@ router.post("/login/2fa", twoFaLimiter, async (req: Request, res: Response) => {
         }
 
         if (!verified) {
-            await recordActivity(pool, user.id, ActivityAction.LOGIN_FAILED, {metadata: {stage: "2fa", ip: req.ip}});
-            return res.status(401).json({message: "Invalid verification code."});
+            await recordActivity(pool, user.id, ActivityAction.LOGIN_FAILED, {
+                metadata: { stage: "2fa", ip: req.ip },
+            });
+            return res.status(401).json({ message: "Invalid verification code." });
         }
 
         res.clearCookie("pending_2fa_token");
 
         await pool.query(`UPDATE users SET last_login_date = CURRENT_TIMESTAMP WHERE id = $1`, [user.id]);
 
-        const {sessionKey} = await createUserSession(pool, user.id, req.get("user-agent"), req.ip);
-        await recordActivity(pool, user.id, ActivityAction.LOGIN, {metadata: {ip: req.ip}});
+        const { sessionKey } = await createUserSession(pool, user.id, req.get("user-agent"), req.ip);
+        await recordActivity(pool, user.id, ActivityAction.LOGIN, { metadata: { ip: req.ip } });
 
         const userToken = appService.createSessionToken(user.id, user.token_version, sessionKey);
         res.cookie("token", userToken, {
             httpOnly: true,
             secure: process.env.NODE_ENV === "production",
             sameSite: "strict",
-            maxAge: appService.getSessionTime()
+            maxAge: appService.getSessionTime(),
         });
 
-        res.json({success: true, message: "Login successful", redirectUrl: "/app"});
+        res.json({ success: true, message: "Login successful", redirectUrl: "/app" });
     } catch (error) {
         console.error("2FA verification error:", error);
-        return res.status(500).json({message: "Internal server error"});
+        return res.status(500).json({ message: "Internal server error" });
     }
 });
 
@@ -414,7 +426,8 @@ router.post("/register", authLimiter, async (req: Request, res: Response) => {
     const passwordRegex = /^(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+[\]{};':"\\|,.<>/?]).{8,}$/;
     if (!passwordRegex.test(password)) {
         return res.status(400).json({
-            message: "Password must be at least 8 characters long and include a number, an uppercase letter, and a special symbol."
+            message:
+                "Password must be at least 8 characters long and include a number, an uppercase letter, and a special symbol.",
         });
     }
 
@@ -505,12 +518,12 @@ router.post("/register", authLimiter, async (req: Request, res: Response) => {
             requiresApproval: created.disabled,
             redirectUrl: "/login",
         });
-
     } catch (error: any) {
         // Handle unique constraint violation with a generic message - confirming
         // that a specific email/username is already registered would let an
         // attacker enumerate existing accounts (CWE-203).
-        if (error.code === "23505") { // PostgreSQL unique violation
+        if (error.code === "23505") {
+            // PostgreSQL unique violation
             return res.status(400).json({ message: "Unable to register with the provided information." });
         }
 
@@ -518,7 +531,6 @@ router.post("/register", authLimiter, async (req: Request, res: Response) => {
         return res.status(500).json({ message: "Internal server error" });
     }
 });
-
 
 /**
  * GET /logout
@@ -540,7 +552,7 @@ router.get("/logout", async (req: Request, res: Response) => {
             const decoded = jwt.verify(token, appService.getJwtSecret(), {
                 algorithms: ["HS256"],
                 audience: "vaultisse",
-                issuer: "vaultisse.com"
+                issuer: "vaultisse.com",
             }) as { user_id: number; sid: string };
 
             const pool = appService.getDatabasePool();
@@ -552,7 +564,7 @@ router.get("/logout", async (req: Request, res: Response) => {
             );
 
             if ((result.rowCount ?? 0) > 0) {
-                await recordActivity(pool, decoded.user_id, ActivityAction.LOGOUT, {metadata: {ip: req.ip}});
+                await recordActivity(pool, decoded.user_id, ActivityAction.LOGOUT, { metadata: { ip: req.ip } });
             }
         } catch (_err) {
             // Already invalid/expired - nothing to revoke, just clear the cookie below.

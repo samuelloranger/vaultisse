@@ -6,9 +6,9 @@
  * health check, and the "policy" bootstrap payload the client fetches once
  * on login to hydrate its dropdowns/labels/locale.
  */
-import { Router, Request, Response } from 'express';
-import {appService} from "../AppService";
-import {requireAuth} from "../middlewares/AuthMiddleware";
+import { Router, Request, Response } from "express";
+import { appService } from "../AppService";
+import { requireAuth } from "../middlewares/AuthMiddleware";
 
 const router = Router();
 
@@ -20,7 +20,7 @@ const router = Router();
  *
  * Example response (200): { "version": "0.1.2", "uptime": 12345.6 }
  */
-router.get('/version', (req: Request, res: Response) => {
+router.get("/version", (req: Request, res: Response) => {
     res.json({
         version: process.env.APP_VERSION || "dev",
         uptime: process.uptime(),
@@ -54,8 +54,8 @@ router.get('/version', (req: Request, res: Response) => {
  *  }
  */
 // @ts-ignore
-router.get('/policy', requireAuth, async (req: Request, res: Response) => {
-    const userId = appService.getSessionUser(req)
+router.get("/policy", requireAuth, async (req: Request, res: Response) => {
+    const userId = appService.getSessionUser(req);
 
     let categories: Record<string, any>[] = [];
     let languages: Record<string, any>[] = [];
@@ -67,40 +67,40 @@ router.get('/policy', requireAuth, async (req: Request, res: Response) => {
     try {
         categories = await getCategories();
     } catch (e) {
-        console.error("Error when getting categories. ", e)
+        console.error("Error when getting categories. ", e);
     }
 
     try {
         languages = await getLanguages();
     } catch (e) {
-        console.error("Error when getting languages. ", e)
+        console.error("Error when getting languages. ", e);
     }
 
     try {
         formats = await getFormats();
     } catch (e) {
-        console.error("Error when getting formats. ", e)
+        console.error("Error when getting formats. ", e);
     }
 
     try {
         locations = await getLocations();
     } catch (e) {
-        console.error("Error when getting locations. ", e)
+        console.error("Error when getting locations. ", e);
     }
 
     try {
         customers = await getCustomers();
     } catch (e) {
-        console.error("Error when getting customers. ", e)
+        console.error("Error when getting customers. ", e);
     }
 
     try {
         appLabels = await getAppLabels(userId);
     } catch (e) {
-        console.error("Error when getting app labels. ", e)
+        console.error("Error when getting app labels. ", e);
     }
 
-    const user = await  getUser(userId);
+    const user = await getUser(userId);
 
     // A public-institution instance shows a persistent security-measures notice
     // after login until they acknowledge it (see SecurityNoticeDialog.vue).
@@ -110,7 +110,7 @@ router.get('/policy', requireAuth, async (req: Request, res: Response) => {
         try {
             await recordSecurityNoticeSent(userId);
         } catch (e) {
-            console.error("Error recording security notice sent date. ", e)
+            console.error("Error recording security notice sent date. ", e);
         }
     }
 
@@ -121,7 +121,7 @@ router.get('/policy', requireAuth, async (req: Request, res: Response) => {
         try {
             await recordTermsOfServiceSent(userId);
         } catch (e) {
-            console.error("Error recording terms of service sent date. ", e)
+            console.error("Error recording terms of service sent date. ", e);
         }
     }
 
@@ -145,7 +145,7 @@ async function getCustomers(): Promise<Record<string, any>[]> {
         SELECT id,
                name
         FROM customers
-    `
+    `;
     // Use a prepared statement to fetch items by name
     appService.getLogger().debug(`executing query: ${query}`);
     const result = await pool.query(query);
@@ -153,7 +153,6 @@ async function getCustomers(): Promise<Record<string, any>[]> {
     // Return the result (found rows)
     return result.rows;
 }
-
 
 /** List `{id, name}` for every category in the shared library - used to populate the policy payload. */
 async function getCategories(): Promise<Record<string, any>[]> {
@@ -163,13 +162,13 @@ async function getCategories(): Promise<Record<string, any>[]> {
         SELECT id,
                name
         FROM categories
-    `
+    `;
     // Use a prepared statement to fetch items by name
     appService.getLogger().debug(`executing query: ${query}`);
     const result = await pool.query(query);
 
     // Return the result (found rows)
-     return result.rows;
+    return result.rows;
 }
 
 /** List every `{code, name}` row in the global `languages` table (not user-scoped). */
@@ -180,7 +179,7 @@ async function getLanguages(): Promise<Record<string, any>[]> {
         SELECT code,
                name
         FROM languages
-    `
+    `;
     // Use a prepared statement to fetch items by name
     appService.getLogger().debug(`executing query: ${query}`);
     const result = await pool.query(query);
@@ -197,7 +196,7 @@ async function getFormats(): Promise<Record<string, any>[]> {
         SELECT id,
                name
         FROM formats
-    `
+    `;
     // Use a prepared statement to fetch items by name
     appService.getLogger().debug(`executing query: ${query}`);
     const result = await pool.query(query);
@@ -214,7 +213,7 @@ async function getLocations(): Promise<Record<string, any>[]> {
                name,
                description
         FROM locations
-    `
+    `;
     // Use a prepared statement to fetch items by name
     appService.getLogger().debug(`executing query: ${query}`);
     const result = await pool.query(query);
@@ -234,7 +233,7 @@ async function getAppLabels(userId: number): Promise<Record<string, string>> {
           FROM app_labels, users
          WHERE users.id = $1
            AND app_labels.language = users.language
-    `
+    `;
     // Use a prepared statement to fetch items by name
     appService.getLogger().debug(`executing query: ${query}`);
     const result = await pool.query(query, [userId]);
@@ -305,7 +304,7 @@ async function getUser(userId: number): Promise<Record<string, any>> {
 
     if (user.image) {
         // Convert Buffer to base64 string with data URL prefix
-        const base64Image = user.image.toString('base64');
+        const base64Image = user.image.toString("base64");
 
         // You can detect the mime type or hardcode it if you know it’s PNG or JPEG
         // For example, assume PNG here:

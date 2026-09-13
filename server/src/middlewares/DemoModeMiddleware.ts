@@ -9,7 +9,7 @@
  * Mounted globally in AppService, ahead of the route registry, so it
  * covers both AuthRoute (mounted at "/") and every "/api/rest/*" router.
  */
-import {Request, Response, NextFunction} from "express";
+import { Request, Response, NextFunction } from "express";
 
 const ALLOWED_WRITE_PATHS = new Set(["/login", "/login/2fa"]);
 
@@ -23,5 +23,5 @@ export const blockWritesInDemo = (req: Request, res: Response, next: NextFunctio
         return next();
     }
 
-    return res.status(403).json({message: "This is a read-only demo - writes are disabled."});
+    return res.status(403).json({ message: "This is a read-only demo - writes are disabled." });
 };

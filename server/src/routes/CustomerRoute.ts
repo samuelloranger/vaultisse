@@ -13,11 +13,11 @@
  * borrowed what, and anyone can lend a copy out or take it back.
  * `created_by` is stamped on insert as attribution only and never filtered on.
  */
-import { Router, Request, Response } from 'express';
-import {requireAuth} from "../middlewares/AuthMiddleware";
-import {appService} from "../AppService";
-import {Pool} from "pg";
-import {recordLoan, recordReturn} from "../utils/LoanHistory";
+import { Router, Request, Response } from "express";
+import { requireAuth } from "../middlewares/AuthMiddleware";
+import { appService } from "../AppService";
+import { Pool } from "pg";
+import { recordLoan, recordReturn } from "../utils/LoanHistory";
 
 const router = Router();
 
@@ -26,7 +26,6 @@ const router = Router();
  * Customer groups endpoints
  *
  *********************************************************/
-
 
 /**
  * GET /customer/group
@@ -39,7 +38,7 @@ const router = Router();
  *  [{ "id": 1, "name": "Class 4B", "description": "", "total_customers": 22 }]
  */
 // @ts-ignore
-router.get('/group', requireAuth, async (req: Request, res: Response) => {
+router.get("/group", requireAuth, async (req: Request, res: Response) => {
     const pool = appService.getDatabasePool();
 
     try {
@@ -57,11 +56,10 @@ router.get('/group', requireAuth, async (req: Request, res: Response) => {
 
         res.status(200).json(result.rows);
     } catch (error) {
-        console.error('Error getting customer groups:', error);
-        res.status(500).send('Internal Server Error');
+        console.error("Error getting customer groups:", error);
+        res.status(500).send("Internal Server Error");
     }
 });
-
 
 /**
  * POST /customer/group
@@ -74,39 +72,37 @@ router.get('/group', requireAuth, async (req: Request, res: Response) => {
  * Responses: 400 "Group name is required" | 409 if the name is already taken.
  */
 // @ts-ignore
-router.post('/group', requireAuth, async (req: Request, res: Response) => {
+router.post("/group", requireAuth, async (req: Request, res: Response) => {
     const { name, description } = req.body;
     const userId = appService.getSessionUser(req);
 
     if (!name?.trim()) {
-        return res.status(400).send('Group name is required');
+        return res.status(400).send("Group name is required");
     }
 
     const pool = appService.getDatabasePool();
 
     try {
-        const result = await pool.query(`
+        const result = await pool.query(
+            `
             INSERT INTO customer_groups (name, description, created_by)
             VALUES ($1, $2, $3)
             RETURNING id, name, description
-        `, [
-            name.trim(),
-            description || null,
-            userId
-        ]);
+        `,
+            [name.trim(), description || null, userId]
+        );
 
         res.status(201).json(result.rows[0]);
     } catch (error: any) {
-        console.error('Error creating customer group:', error);
+        console.error("Error creating customer group:", error);
 
-        if (error.code === '23505') {
-            return res.status(409).send('A group with this name already exists');
+        if (error.code === "23505") {
+            return res.status(409).send("A group with this name already exists");
         }
 
-        res.status(500).send('Error creating customer group');
+        res.status(500).send("Error creating customer group");
     }
 });
-
 
 /**
  * PUT /customer/group/:id
@@ -119,49 +115,47 @@ router.post('/group', requireAuth, async (req: Request, res: Response) => {
  *            404 "Group not found" | 409 name already taken.
  */
 // @ts-ignore
-router.put('/group/:id', requireAuth, async (req: Request, res: Response) => {
+router.put("/group/:id", requireAuth, async (req: Request, res: Response) => {
     const groupId = Number(req.params.id);
     const { name, description } = req.body;
 
     if (!groupId) {
-        return res.status(400).send('No group ID provided');
+        return res.status(400).send("No group ID provided");
     }
 
     if (!name?.trim()) {
-        return res.status(400).send('Group name is required');
+        return res.status(400).send("Group name is required");
     }
 
     const pool = appService.getDatabasePool();
 
     try {
-        const result = await pool.query(`
+        const result = await pool.query(
+            `
             UPDATE customer_groups
                SET name = $1,
                    description = $2
              WHERE id = $3
          RETURNING id, name, description
-        `, [
-            name.trim(),
-            description || null,
-            groupId
-        ]);
+        `,
+            [name.trim(), description || null, groupId]
+        );
 
         if (result.rowCount === 0) {
-            return res.status(404).send('Group not found');
+            return res.status(404).send("Group not found");
         }
 
         res.status(200).json(result.rows[0]);
     } catch (error: any) {
-        console.error('Error updating customer group:', error);
+        console.error("Error updating customer group:", error);
 
-        if (error.code === '23505') {
-            return res.status(409).send('A group with this name already exists');
+        if (error.code === "23505") {
+            return res.status(409).send("A group with this name already exists");
         }
 
-        res.status(500).send('Error updating customer group');
+        res.status(500).send("Error updating customer group");
     }
 });
-
 
 /**
  * DELETE /customer/group/:id
@@ -174,34 +168,36 @@ router.put('/group/:id', requireAuth, async (req: Request, res: Response) => {
  * Responses: 200 {"message": "Customer group deleted successfully"} | 404 "Group not found".
  */
 // @ts-ignore
-router.delete('/group/:id', requireAuth, async (req: Request, res: Response) => {
+router.delete("/group/:id", requireAuth, async (req: Request, res: Response) => {
     const groupId = Number(req.params.id);
 
     if (!groupId) {
-        return res.status(400).send('No group ID provided');
+        return res.status(400).send("No group ID provided");
     }
 
     const pool = appService.getDatabasePool();
 
     try {
-        const result = await pool.query(`
+        const result = await pool.query(
+            `
             DELETE FROM customer_groups
              WHERE id = $1
-        `, [groupId]);
+        `,
+            [groupId]
+        );
 
         if (result.rowCount === 0) {
-            return res.status(404).send('Group not found');
+            return res.status(404).send("Group not found");
         }
 
         res.status(200).json({
-            message: 'Customer group deleted successfully'
+            message: "Customer group deleted successfully",
         });
     } catch (error) {
-        console.error('Error deleting customer group:', error);
-        res.status(500).send('Error deleting customer group');
+        console.error("Error deleting customer group:", error);
+        res.status(500).send("Error deleting customer group");
     }
 });
-
 
 /**
  * PUT /customer/:id/group/:groupId
@@ -214,51 +210,56 @@ router.delete('/group/:id', requireAuth, async (req: Request, res: Response) => 
  * Responses: 404 "Group not found" | 404 "Customer not found".
  */
 // @ts-ignore
-router.put('/:id/group/:groupId', requireAuth, async (req: Request, res: Response) => {
+router.put("/:id/group/:groupId", requireAuth, async (req: Request, res: Response) => {
     const customerId = Number(req.params.id);
     const groupId = Number(req.params.groupId);
 
     if (!customerId) {
-        return res.status(400).send('No customer ID provided');
+        return res.status(400).send("No customer ID provided");
     }
 
     if (!groupId) {
-        return res.status(400).send('No group ID provided');
+        return res.status(400).send("No group ID provided");
     }
 
     const pool = appService.getDatabasePool();
 
     try {
         // Make sure the group exists
-        const group = await pool.query(`
+        const group = await pool.query(
+            `
             SELECT id
               FROM customer_groups
              WHERE id = $1
-        `, [groupId]);
+        `,
+            [groupId]
+        );
 
         if (group.rowCount === 0) {
-            return res.status(404).send('Group not found');
+            return res.status(404).send("Group not found");
         }
 
         // Assign customer to group
-        const result = await pool.query(`
+        const result = await pool.query(
+            `
             UPDATE customers
                SET group_id = $1
              WHERE id = $2
          RETURNING id, name, group_id
-        `, [groupId, customerId]);
+        `,
+            [groupId, customerId]
+        );
 
         if (result.rowCount === 0) {
-            return res.status(404).send('Customer not found');
+            return res.status(404).send("Customer not found");
         }
 
         res.status(200).json(result.rows[0]);
     } catch (error) {
-        console.error('Error assigning customer to group:', error);
-        res.status(500).send('Error assigning customer to group');
+        console.error("Error assigning customer to group:", error);
+        res.status(500).send("Error assigning customer to group");
     }
 });
-
 
 /**
  * DELETE /customer/:id/group
@@ -271,34 +272,36 @@ router.put('/:id/group/:groupId', requireAuth, async (req: Request, res: Respons
  * Response (404): "Customer not found".
  */
 // @ts-ignore
-router.delete('/:id/group', requireAuth, async (req: Request, res: Response) => {
+router.delete("/:id/group", requireAuth, async (req: Request, res: Response) => {
     const customerId = Number(req.params.id);
 
     if (!customerId) {
-        return res.status(400).send('No customer ID provided');
+        return res.status(400).send("No customer ID provided");
     }
 
     const pool = appService.getDatabasePool();
 
     try {
-        const result = await pool.query(`
+        const result = await pool.query(
+            `
             UPDATE customers
                SET group_id = NULL
              WHERE id = $1
          RETURNING id, name, group_id
-        `, [customerId]);
+        `,
+            [customerId]
+        );
 
         if (result.rowCount === 0) {
-            return res.status(404).send('Customer not found');
+            return res.status(404).send("Customer not found");
         }
 
         res.status(200).json(result.rows[0]);
     } catch (error) {
-        console.error('Error removing customer from group:', error);
-        res.status(500).send('Error removing customer from group');
+        console.error("Error removing customer from group:", error);
+        res.status(500).send("Error removing customer from group");
     }
 });
-
 
 /*********************************************************
  *
@@ -320,7 +323,7 @@ router.delete('/:id/group', requireAuth, async (req: Request, res: Response) => 
  *  }
  */
 // @ts-ignore
-router.get('', requireAuth, async (req: Request, res: Response) => {
+router.get("", requireAuth, async (req: Request, res: Response) => {
     const pool = appService.getDatabasePool();
     const client = await pool.connect();
 
@@ -341,11 +344,11 @@ router.get('', requireAuth, async (req: Request, res: Response) => {
         `);
 
         res.status(200).json({
-            customers: result.rows
+            customers: result.rows,
         });
     } catch (err: any) {
-        console.error('Error executing query', err.stack);
-        res.status(500).send('Internal Server Error');
+        console.error("Error executing query", err.stack);
+        res.status(500).send("Internal Server Error");
     } finally {
         client.release();
     }
@@ -361,7 +364,7 @@ router.get('', requireAuth, async (req: Request, res: Response) => {
  * Example response (200): { "id": 7, "name": "Jane Doe", "group_id": null, "group_name": null }
  */
 // @ts-ignore
-router.post('', requireAuth, async (req: Request, res: Response) => {
+router.post("", requireAuth, async (req: Request, res: Response) => {
     const name = req.body.name;
 
     const pool = appService.getDatabasePool();
@@ -376,7 +379,8 @@ router.post('', requireAuth, async (req: Request, res: Response) => {
         );
 
         // fetch new data
-        const result = await pool.query(`
+        const result = await pool.query(
+            `
             SELECT customers.id,
                    customers.name,
                    customers.group_id,
@@ -385,7 +389,9 @@ router.post('', requireAuth, async (req: Request, res: Response) => {
              LEFT JOIN customer_groups
                        ON customer_groups.id = customers.group_id
             WHERE customers.id = $1
-        `, [insertCustomer.rows[0].id])
+        `,
+            [insertCustomer.rows[0].id]
+        );
 
         res.status(200).json(result.rows[0]);
     } catch (error) {
@@ -395,7 +401,6 @@ router.post('', requireAuth, async (req: Request, res: Response) => {
         client.release();
     }
 });
-
 
 /**
  * PUT /customer/:id
@@ -407,26 +412,23 @@ router.post('', requireAuth, async (req: Request, res: Response) => {
  * Example response (200): { "id": 7, "name": "...", "group_id": 1, "group_name": "Class 4B" }
  */
 // @ts-ignore
-router.put('/:id', requireAuth, async (req: Request, res: Response) => {
+router.put("/:id", requireAuth, async (req: Request, res: Response) => {
     const customerId = req.params.id;
     if (!customerId) {
-        return res.status(400).send('No customer ID provided');
+        return res.status(400).send("No customer ID provided");
     }
 
     // Body params
-    const {name} = req.body;
+    const { name } = req.body;
 
     const pool = appService.getDatabasePool();
 
     try {
         appService.getLogger().debug(`Updating customer ${customerId}`);
 
-        const queryResult = await pool.query(
-            'UPDATE customers SET name = $1 WHERE id = $2',
-            [name, customerId]
-        );
+        const queryResult = await pool.query("UPDATE customers SET name = $1 WHERE id = $2", [name, customerId]);
 
-        if(queryResult.rowCount !== 1) {
+        if (queryResult.rowCount !== 1) {
             return res.status(500).send();
         }
 
@@ -462,7 +464,7 @@ router.put('/:id', requireAuth, async (req: Request, res: Response) => {
  * Responses: 200 {"message": "Customer deleted successfully"} | 404 {"error": "Customer not found"}.
  */
 // @ts-ignore
-router.delete('/:id', requireAuth, async (req: Request, res: Response) => {
+router.delete("/:id", requireAuth, async (req: Request, res: Response) => {
     const id = Number(req.params.id);
     appService.getLogger().debug(`Delete customer, id: ${id}`);
 
@@ -472,22 +474,21 @@ router.delete('/:id', requireAuth, async (req: Request, res: Response) => {
 
     try {
         // Validate the existence of the book
-        const customerCheck = await client.query('SELECT id FROM customers WHERE id = $1', [id]);
+        const customerCheck = await client.query("SELECT id FROM customers WHERE id = $1", [id]);
         if (customerCheck.rowCount === 0) {
-            return res.status(404).send({error: "Customer not found"});
+            return res.status(404).send({ error: "Customer not found" });
         }
 
-        await client.query( 'DELETE FROM customers WHERE id = $1', [id]);
+        await client.query("DELETE FROM customers WHERE id = $1", [id]);
 
-        res.send({message: "Customer deleted successfully"});
+        res.send({ message: "Customer deleted successfully" });
     } catch (e) {
         console.error("Error while deleting customer", e);
-        res.status(500).send('Internal Server Error');
+        res.status(500).send("Internal Server Error");
     } finally {
         client.release();
     }
 });
-
 
 /**
  * GET /customer/:id/books
@@ -501,10 +502,10 @@ router.delete('/:id', requireAuth, async (req: Request, res: Response) => {
  *     "isbn": "9780261102217", "code": "a1b2c3d4e5" }]
  */
 // @ts-ignore
-router.get('/:id/books', requireAuth, async (req: Request, res: Response) => {
+router.get("/:id/books", requireAuth, async (req: Request, res: Response) => {
     const customerId = Number(req.params.id);
     if (!customerId) {
-        return res.status(400).send('No customer ID provided');
+        return res.status(400).send("No customer ID provided");
     }
     const pool = appService.getDatabasePool();
 
@@ -512,8 +513,8 @@ router.get('/:id/books', requireAuth, async (req: Request, res: Response) => {
         const books = await getCustomerBooks(pool, customerId);
         res.status(200).json(books);
     } catch (err: any) {
-        console.error('Error executing query', err.stack);
-        res.status(500).send('Internal Server Error');
+        console.error("Error executing query", err.stack);
+        res.status(500).send("Internal Server Error");
     }
 });
 
@@ -531,33 +532,30 @@ router.get('/:id/books', requireAuth, async (req: Request, res: Response) => {
  * (same shape as GET /customer/:id/books).
  */
 // @ts-ignore
-router.post('/:id/add/books', requireAuth, async (req: Request, res: Response) => {
+router.post("/:id/add/books", requireAuth, async (req: Request, res: Response) => {
     const customerId = Number(req.params.id);
     const books: string[] = req.body.books;
 
     if (!customerId) {
-        return res.status(400).send('No customer ID provided');
+        return res.status(400).send("No customer ID provided");
     }
 
     if (!Array.isArray(books) || books.length === 0) {
-        return res.status(400).send('No books provided');
+        return res.status(400).send("No books provided");
     }
 
     const pool = appService.getDatabasePool();
     const userId = appService.getSessionUser(req);
 
     try {
-        const existCustomer = await pool.query(
-            'SELECT id FROM customers WHERE id = $1',
-            [customerId]
-        );
+        const existCustomer = await pool.query("SELECT id FROM customers WHERE id = $1", [customerId]);
         if (existCustomer.rowCount !== 1) {
-            return res.status(404).send('Customer not found');
+            return res.status(404).send("Customer not found");
         }
 
         for (const bookStockCode of books) {
             await pool.query(
-                'UPDATE book_stocks SET customer_id = $1, status = $2, loaned_at = NOW() WHERE code = $3',
+                "UPDATE book_stocks SET customer_id = $1, status = $2, loaned_at = NOW() WHERE code = $3",
                 [customerId, 2, bookStockCode]
             );
             await recordLoan(pool, userId, bookStockCode, customerId);
@@ -567,8 +565,8 @@ router.post('/:id/add/books', requireAuth, async (req: Request, res: Response) =
 
         res.status(200).json(customerBooks);
     } catch (err: any) {
-        console.error('Error adding books to a customer', err.stack);
-        res.status(500).send('Internal Server Error');
+        console.error("Error adding books to a customer", err.stack);
+        res.status(500).send("Internal Server Error");
     }
 });
 
@@ -586,31 +584,31 @@ router.post('/:id/add/books', requireAuth, async (req: Request, res: Response) =
  * Response: 200 (empty body) on success.
  */
 // @ts-ignore
-router.delete('/:id/book/:bookStockCode', requireAuth, async (req: Request, res: Response) => {
+router.delete("/:id/book/:bookStockCode", requireAuth, async (req: Request, res: Response) => {
     const customerId = Number(req.params.id);
     const bookStockCode = String(req.params.bookStockCode);
 
     if (!customerId) {
-        return res.status(400).send('No customer ID provided');
+        return res.status(400).send("No customer ID provided");
     }
 
     if (!bookStockCode) {
-        return res.status(400).send('No book stock code provided');
+        return res.status(400).send("No book stock code provided");
     }
 
     const pool = appService.getDatabasePool();
 
     try {
         await pool.query(
-            'UPDATE book_stocks SET status = $1, customer_id = $2, loaned_at = NULL WHERE code = $3 AND customer_id = $4',
+            "UPDATE book_stocks SET status = $1, customer_id = $2, loaned_at = NULL WHERE code = $3 AND customer_id = $4",
             [0, null, bookStockCode, customerId]
         );
         await recordReturn(pool, bookStockCode);
 
         res.status(200).send();
     } catch (err: any) {
-        console.error('Error adding books to a customer', err.stack);
-        res.status(500).send('Internal Server Error');
+        console.error("Error adding books to a customer", err.stack);
+        res.status(500).send("Internal Server Error");
     }
 });
 
@@ -629,7 +627,7 @@ async function getCustomerBooks(pool: Pool, customerId: number) {
         [customerId]
     );
 
-   return customerQueryResult.rows;
+    return customerQueryResult.rows;
 }
 
 export default router;

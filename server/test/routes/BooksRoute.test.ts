@@ -1,9 +1,9 @@
 import fs from "fs";
 import path from "path";
-import {alwaysJson, imageResponse, jsonResponse, mockedFetch, useMockedFetch} from "../helpers/fetchMock";
-import {setupTestApp} from "../helpers/testApp";
-import {createAuthenticatedUser, ITestUser} from "../helpers/auth";
-import {appService, normalizeGoogleApiKey} from "../../src/AppService";
+import { alwaysJson, imageResponse, jsonResponse, mockedFetch, useMockedFetch } from "../helpers/fetchMock";
+import { setupTestApp } from "../helpers/testApp";
+import { createAuthenticatedUser, ITestUser } from "../helpers/auth";
+import { appService, normalizeGoogleApiKey } from "../../src/AppService";
 
 /**
  * Run `body` with a Google Books key configured on the shared `appService`.
@@ -23,7 +23,6 @@ async function withGoogleApiKey<T>(key: string | undefined, body: () => Promise<
         (appService as any).m_googleApiKey = previous;
     }
 }
-
 
 const app = setupTestApp();
 useMockedFetch();
@@ -86,10 +85,9 @@ describe("POST /book (manual create)", () => {
         const res = await user.agent.post("/api/rest/book").field("name", "Attributed Book");
         expect(res.status).toBe(200);
 
-        const {rows} = await appService.getDatabasePool().query(
-            "SELECT u.code FROM books b JOIN users u ON u.id = b.created_by WHERE b.id = $1",
-            [res.body]
-        );
+        const { rows } = await appService
+            .getDatabasePool()
+            .query("SELECT u.code FROM books b JOIN users u ON u.id = b.created_by WHERE b.id = $1", [res.body]);
         expect(rows).toHaveLength(1);
         expect(rows[0].code).toBe(user.userCode);
     });
@@ -102,7 +100,7 @@ describe("GET /book/:id", () => {
 
         const res = await user.agent.get(`/api/rest/book/${id}`);
         expect(res.status).toBe(200);
-        expect(res.body).toMatchObject({id, name: "The Hobbit"});
+        expect(res.body).toMatchObject({ id, name: "The Hobbit" });
         expect(res.body.authors).toEqual([]);
         expect(res.body.stocks).toEqual([]);
     });
@@ -117,16 +115,17 @@ describe("GET /book/:id", () => {
         const otherUser = await createAuthenticatedUser(app);
         const res = await otherUser.agent.get(`/api/rest/book/${id}`);
         expect(res.status).toBe(200);
-        expect(res.body).toMatchObject({id, name: "Shared Book"});
+        expect(res.body).toMatchObject({ id, name: "Shared Book" });
 
         const updateRes = await otherUser.agent.put(`/api/rest/book/${id}`).send({
-            name: "Edited By Someone Else", authors: [],
+            name: "Edited By Someone Else",
+            authors: [],
         });
         expect(updateRes.status).toBe(200);
 
         // The edit lands on the one shared row, not a private copy.
         const ownerRes = await user.agent.get(`/api/rest/book/${id}`);
-        expect(ownerRes.body).toMatchObject({id, name: "Edited By Someone Else"});
+        expect(ownerRes.body).toMatchObject({ id, name: "Edited By Someone Else" });
 
         const deleteRes = await otherUser.agent.delete(`/api/rest/book/${id}`);
         expect(deleteRes.status).toBe(200);
@@ -143,7 +142,7 @@ describe("PUT /book/:id", () => {
         const createRes = await user.agent.post("/api/rest/book").field("name", "Draft Title");
         const id = createRes.body;
 
-        const authorRes = await user.agent.post("/api/rest/author").send({name: "Jane Author"});
+        const authorRes = await user.agent.post("/api/rest/author").send({ name: "Jane Author" });
         const authorId = authorRes.body.id;
 
         const updateRes = await user.agent.put(`/api/rest/book/${id}`).send({
@@ -161,12 +160,12 @@ describe("PUT /book/:id", () => {
         expect(updateRes.status).toBe(200);
 
         const getRes = await user.agent.get(`/api/rest/book/${id}`);
-        expect(getRes.body).toMatchObject({name: "Final Title", description: "A great book.", publisher: "Acme"});
-        expect(getRes.body.authors).toEqual([{id: authorId, name: "Jane Author"}]);
+        expect(getRes.body).toMatchObject({ name: "Final Title", description: "A great book.", publisher: "Acme" });
+        expect(getRes.body.authors).toEqual([{ id: authorId, name: "Jane Author" }]);
     });
 
     it("404s updating a book that doesn't exist", async () => {
-        const res = await user.agent.put("/api/rest/book/999999999").send({name: "X"});
+        const res = await user.agent.put("/api/rest/book/999999999").send({ name: "X" });
         expect(res.status).toBe(404);
     });
 });
@@ -192,7 +191,7 @@ describe("DELETE /book/:id", () => {
 describe("GET /book/search", () => {
     it("finds a book by (partial, case-insensitive) name", async () => {
         await user.agent.post("/api/rest/book").field("name", "The Great Gatsby");
-        const res = await user.agent.get("/api/rest/book/search").query({query: "great gatsby"});
+        const res = await user.agent.get("/api/rest/book/search").query({ query: "great gatsby" });
         expect(res.status).toBe(200);
         expect(res.body.books.some((b: any) => b.name === "The Great Gatsby")).toBe(true);
     });
@@ -202,7 +201,7 @@ describe("GET /book/search", () => {
         const otherUser = await createAuthenticatedUser(app);
         const created = await otherUser.agent.post("/api/rest/book").field("name", "Added By Someone Else");
 
-        const res = await user.agent.get("/api/rest/book/search").query({query: "Added By Someone Else"});
+        const res = await user.agent.get("/api/rest/book/search").query({ query: "Added By Someone Else" });
         expect(res.status).toBe(200);
         expect(res.body.books.some((b: any) => b.id === created.body)).toBe(true);
     });
@@ -214,30 +213,34 @@ describe("GET /book/search", () => {
      * a correctness bug: an ISBN match would ignore the category filter.
      */
     it("keeps the free-text OR from escaping the other filters", async () => {
-        const categoryRes = await user.agent.post("/api/rest/category").send({name: `Precedence ${Date.now()}`});
+        const categoryRes = await user.agent.post("/api/rest/category").send({ name: `Precedence ${Date.now()}` });
         const categoryId = categoryRes.body.id;
 
         const isbn = freshIsbn();
         // Carries the searched-for ISBN but is NOT in the filtered category.
         const outsider = await user.agent
-            .post("/api/rest/book").field("name", "Outside The Category").field("isbn", isbn);
+            .post("/api/rest/book")
+            .field("name", "Outside The Category")
+            .field("isbn", isbn);
 
-        const res = await user.agent.get("/api/rest/book/search").query({query: isbn, category_id: categoryId});
+        const res = await user.agent.get("/api/rest/book/search").query({ query: isbn, category_id: categoryId });
         expect(res.status).toBe(200);
         expect(res.body.books.some((b: any) => b.id === outsider.body)).toBe(false);
         expect(res.body.total).toBe(0);
     });
 
     it("filters by category_id", async () => {
-        const categoryRes = await user.agent.post("/api/rest/category").send({name: "Sci-Fi Search Test"});
+        const categoryRes = await user.agent.post("/api/rest/category").send({ name: "Sci-Fi Search Test" });
         const categoryId = categoryRes.body.id;
 
         const createRes = await user.agent.post("/api/rest/book").field("name", "Categorized Book");
         await user.agent.put(`/api/rest/book/${createRes.body}`).send({
-            name: "Categorized Book", category_id: categoryId, authors: [],
+            name: "Categorized Book",
+            category_id: categoryId,
+            authors: [],
         });
 
-        const res = await user.agent.get("/api/rest/book/search").query({category_id: categoryId});
+        const res = await user.agent.get("/api/rest/book/search").query({ category_id: categoryId });
         expect(res.body.books.some((b: any) => b.id === createRes.body)).toBe(true);
     });
 });
@@ -275,21 +278,25 @@ describe("POST /book/isbn/:isbn (external metadata lookup)", () => {
      * provider specifically. If a real key is ever configured, this
      * intentionally isn't what would run in production.
      */
-    function mockOpenLibraryMetadata(overrides: {title?: string; authorName?: string[]; pages?: number} = {}) {
+    function mockOpenLibraryMetadata(overrides: { title?: string; authorName?: string[]; pages?: number } = {}) {
         mockedFetch.mockImplementation((input: string | URL) => {
             const url = String(input);
             if (url.includes("openlibrary.org/search.json")) {
-                return Promise.resolve(jsonResponse({
-                    docs: [{
-                        title: overrides.title ?? "Mocked Book Title",
-                        author_name: overrides.authorName ?? ["Mock Author"],
-                        subject: ["Fiction"],
-                        publisher: ["Mock Publisher"],
-                        first_publish_year: 1999,
-                        number_of_pages_median: overrides.pages ?? 123,
-                        language: ["eng"],
-                    }],
-                }));
+                return Promise.resolve(
+                    jsonResponse({
+                        docs: [
+                            {
+                                title: overrides.title ?? "Mocked Book Title",
+                                author_name: overrides.authorName ?? ["Mock Author"],
+                                subject: ["Fiction"],
+                                publisher: ["Mock Publisher"],
+                                first_publish_year: 1999,
+                                number_of_pages_median: overrides.pages ?? 123,
+                                language: ["eng"],
+                            },
+                        ],
+                    })
+                );
             }
             if (url.includes("covers.openlibrary.org")) {
                 return Promise.resolve(imageResponse());
@@ -308,14 +315,14 @@ describe("POST /book/isbn/:isbn (external metadata lookup)", () => {
         await withGoogleApiKey("a-test-key", async () => {
             mockedFetch.mockImplementation((input: string | URL) =>
                 String(input).includes("googleapis.com")
-                    ? Promise.resolve(jsonResponse({items: [{volumeInfo: googleCompleteForRoute()}]}))
+                    ? Promise.resolve(jsonResponse({ items: [{ volumeInfo: googleCompleteForRoute() }] }))
                     : Promise.resolve(jsonResponse({}))
             );
             const res = await user.agent.post(`/api/rest/book/isbn/${freshIsbn()}`);
             expect(res.status).toBe(200);
             const googleUrl = mockedFetch.mock.calls
                 .map((call: unknown[]) => String(call[0]))
-                .find(url => url.includes("googleapis.com"));
+                .find((url) => url.includes("googleapis.com"));
             expect(googleUrl).toContain("country=CA");
         });
     });
@@ -341,12 +348,12 @@ describe("POST /book/isbn/:isbn (external metadata lookup)", () => {
         const id = res.body;
 
         const getRes = await user.agent.get(`/api/rest/book/${id}`);
-        expect(getRes.body).toMatchObject({name: "Mocked Book Title", publisher: "Mock Publisher", pages: 123});
-        expect(getRes.body.authors).toEqual([{id: expect.any(Number), name: "Mock Author"}]);
+        expect(getRes.body).toMatchObject({ name: "Mocked Book Title", publisher: "Mock Publisher", pages: 123 });
+        expect(getRes.body.authors).toEqual([{ id: expect.any(Number), name: "Mock Author" }]);
     });
 
     it("reuses the existing book on a second lookup of the same ISBN (find-or-create)", async () => {
-        mockOpenLibraryMetadata({title: "Repeatable Book"});
+        mockOpenLibraryMetadata({ title: "Repeatable Book" });
         const isbn = freshIsbn();
 
         const first = await user.agent.post(`/api/rest/book/isbn/${isbn}`);
@@ -358,7 +365,7 @@ describe("POST /book/isbn/:isbn (external metadata lookup)", () => {
     // a second member scanning the same barcode lands on the existing book
     // rather than creating a duplicate entry for the same physical title.
     it("reuses a book another account created when they scan the same ISBN", async () => {
-        mockOpenLibraryMetadata({title: "Scanned By Two People"});
+        mockOpenLibraryMetadata({ title: "Scanned By Two People" });
         const isbn = freshIsbn();
 
         const first = await user.agent.post(`/api/rest/book/isbn/${isbn}`);
@@ -404,22 +411,22 @@ describe("POST /book/isbn/:isbn (external metadata lookup)", () => {
 
     it("calls it a data gap, not a misconfiguration, when the key is present", async () => {
         await withGoogleApiKey("a-test-key", async () => {
-            alwaysJson({docs: []});
+            alwaysJson({ docs: [] });
 
             const res = await user.agent.post(`/api/rest/book/isbn/${freshIsbn()}`);
 
             expect(res.status).toBe(404);
-            expect(res.body).toMatchObject({error: "no_metadata", unconfiguredSources: []});
+            expect(res.body).toMatchObject({ error: "no_metadata", unconfiguredSources: [] });
         });
     });
 
     it("502s when every source was reachable-but-broken rather than empty", async () => {
-        alwaysJson({error: "boom"}, 500);
+        alwaysJson({ error: "boom" }, 500);
 
         const res = await user.agent.post(`/api/rest/book/isbn/${freshIsbn()}`);
 
         expect(res.status).toBe(502);
-        expect(res.body).toMatchObject({error: "source_unavailable"});
+        expect(res.body).toMatchObject({ error: "source_unavailable" });
     });
 });
 
@@ -462,7 +469,7 @@ describe("POST /book/isbn/:isbn (BnF gap-filling)", () => {
                     publishedDate: "2025-10-08",
                     description: "Comme beaucoup de femmes célibataires de New York...",
                     language: "fr",
-                    imageLinks: {thumbnail: "https://books.google.com/books/content?id=abc"},
+                    imageLinks: { thumbnail: "https://books.google.com/books/content?id=abc" },
                     pageCount: 0,
                 },
             },
@@ -491,7 +498,7 @@ describe("POST /book/isbn/:isbn (BnF gap-filling)", () => {
                 // Google's "fr", not the BnF's "fre" - Google answered first.
                 language_code: "fr",
             });
-            expect(book.body.authors).toEqual([{id: expect.any(Number), name: "Freida McFadden"}]);
+            expect(book.body.authors).toEqual([{ id: expect.any(Number), name: "Freida McFadden" }]);
         });
     });
 
@@ -509,7 +516,7 @@ describe("POST /book/isbn/:isbn (BnF gap-filling)", () => {
 
         const book = await user.agent.get(`/api/rest/book/${res.body}`);
         // 101$a is "fre" in the record.
-        expect(book.body).toMatchObject({name: "La prof", pages: 388, language_code: "fr"});
+        expect(book.body).toMatchObject({ name: "La prof", pages: 388, language_code: "fr" });
     });
 
     it("makes no BnF request for a book Google already has whole", async () => {
@@ -529,7 +536,7 @@ describe("POST /book/isbn/:isbn (BnF gap-filling)", () => {
                                           categories: ["Fiction"],
                                           pageCount: 1178,
                                           language: "en",
-                                          imageLinks: {thumbnail: "https://books.google.com/books/content?id=xyz"},
+                                          imageLinks: { thumbnail: "https://books.google.com/books/content?id=xyz" },
                                       },
                                   },
                               ],
@@ -542,8 +549,8 @@ describe("POST /book/isbn/:isbn (BnF gap-filling)", () => {
             expect(res.status).toBe(200);
 
             const urls = mockedFetch.mock.calls.map((call: unknown[]) => String(call[0]));
-            expect(urls.some(url => url.includes("catalogue.bnf.fr"))).toBe(false);
-            expect(urls.some(url => url.includes("openlibrary.org"))).toBe(false);
+            expect(urls.some((url) => url.includes("catalogue.bnf.fr"))).toBe(false);
+            expect(urls.some((url) => url.includes("openlibrary.org"))).toBe(false);
 
             const book = await user.agent.get(`/api/rest/book/${res.body}`);
             expect(book.body).toMatchObject({
@@ -598,7 +605,7 @@ describe("POST /book/:id/refresh (re-fetch an existing book)", () => {
                     publishedDate: "2025-10-08",
                     description: "Comme beaucoup de femmes celibataires de New York...",
                     language: "fr",
-                    imageLinks: {thumbnail: "https://books.google.com/books/content?id=abc"},
+                    imageLinks: { thumbnail: "https://books.google.com/books/content?id=abc" },
                     pageCount: 0,
                 },
             },
@@ -623,7 +630,7 @@ describe("POST /book/:id/refresh (re-fetch an existing book)", () => {
      * route while Google was the only source that answered, so it has a title,
      * a cover and `pages = 0`, and nothing else.
      */
-    async function createDamagedBook(): Promise<{id: number; isbn: string}> {
+    async function createDamagedBook(): Promise<{ id: number; isbn: string }> {
         const isbn = freshFrenchIsbn();
 
         await withGoogleApiKey("a-test-key", async () => {
@@ -641,45 +648,45 @@ describe("POST /book/:id/refresh (re-fetch an existing book)", () => {
             expect(res.status).toBe(200);
         });
 
-        const {rows} = await appService.getDatabasePool().query("SELECT id FROM books WHERE isbn = $1", [isbn]);
+        const { rows } = await appService.getDatabasePool().query("SELECT id FROM books WHERE isbn = $1", [isbn]);
         // Recreate the exact production residue: the fix at the provider edge
         // stops new zeroes, it does not repair the rows already carrying one.
-        await appService.getDatabasePool().query("UPDATE books SET pages = 0, publisher = NULL WHERE id = $1", [
-            rows[0].id,
-        ]);
+        await appService
+            .getDatabasePool()
+            .query("UPDATE books SET pages = 0, publisher = NULL WHERE id = $1", [rows[0].id]);
 
-        return {id: rows[0].id, isbn};
+        return { id: rows[0].id, isbn };
     }
 
     it("fills the publisher and page count a pre-merge book is missing, naming the source of each", async () => {
         const book = await createDamagedBook();
         mockGoogleThenBnf();
 
-        const res = await withGoogleApiKey("a-test-key", () =>
-            user.agent.post(`/api/rest/book/${book.id}/refresh`)
-        );
+        const res = await withGoogleApiKey("a-test-key", () => user.agent.post(`/api/rest/book/${book.id}/refresh`));
 
         expect(res.status).toBe(200);
         expect(res.body.mode).toBe("fill");
         expect(res.body.changed).toEqual(
             expect.arrayContaining([
-                {field: "publisher", from: null, to: "City roman", source: "bnf"},
-                {field: "pages", from: 0, to: 391, source: "bnf"},
+                { field: "publisher", from: null, to: "City roman", source: "bnf" },
+                { field: "pages", from: 0, to: 391, source: "bnf" },
             ])
         );
 
         const after = await user.agent.get(`/api/rest/book/${book.id}`);
-        expect(after.body).toMatchObject({publisher: "City roman", pages: 391});
+        expect(after.body).toMatchObject({ publisher: "City roman", pages: 391 });
     });
 
     it("preserves hand edits made while catalogue requests are in flight", async () => {
         const book = await createDamagedBook();
         mockedFetch.mockImplementation(async (input: string | URL) => {
             if (String(input).includes("googleapis.com")) {
-                await appService.getDatabasePool().query(
-                    "UPDATE books SET publisher = 'Hand edit during lookup', pages = 777, image_url = '/uploaded-cover.jpg' WHERE id = $1",
-                    [book.id]
-                );
+                await appService
+                    .getDatabasePool()
+                    .query(
+                        "UPDATE books SET publisher = 'Hand edit during lookup', pages = 777, image_url = '/uploaded-cover.jpg' WHERE id = $1",
+                        [book.id]
+                    );
                 return jsonResponse(googlePartial);
             }
             if (String(input).includes("catalogue.bnf.fr")) {
@@ -703,7 +710,8 @@ describe("POST /book/:id/refresh (re-fetch an existing book)", () => {
                 await appService.getDatabasePool().query("UPDATE books SET isbn = NULL WHERE id = $1", [book.id]);
                 return jsonResponse(googlePartial);
             }
-            if (String(input).includes("catalogue.bnf.fr")) return new Response(bnfFixture("le-boyfriend-9782824627151"));
+            if (String(input).includes("catalogue.bnf.fr"))
+                return new Response(bnfFixture("le-boyfriend-9782824627151"));
             return jsonResponse({});
         });
         const res = await withGoogleApiKey("a-test-key", () => user.agent.post(`/api/rest/book/${book.id}/refresh`));
@@ -754,9 +762,7 @@ describe("POST /book/:id/refresh (re-fetch an existing book)", () => {
         const pool = appService.getDatabasePool();
         const before = await pool.query("SELECT COUNT(*)::int AS n FROM categories");
 
-        const res = await withGoogleApiKey("a-test-key", () =>
-            user.agent.post(`/api/rest/book/${book.id}/refresh`)
-        );
+        const res = await withGoogleApiKey("a-test-key", () => user.agent.post(`/api/rest/book/${book.id}/refresh`));
 
         expect(res.body.changed.some((change: any) => change.field === "category")).toBe(false);
         expect(res.body.stillMissing).toContain("category");
@@ -779,32 +785,28 @@ describe("POST /book/:id/refresh (re-fetch an existing book)", () => {
         const book = await createDamagedBook();
         mockGoogleThenBnf();
 
-        const first = await withGoogleApiKey("a-test-key", () =>
-            user.agent.post(`/api/rest/book/${book.id}/refresh`)
-        );
+        const first = await withGoogleApiKey("a-test-key", () => user.agent.post(`/api/rest/book/${book.id}/refresh`));
         expect(first.body.changed.length).toBeGreaterThan(0);
 
         const pool = appService.getDatabasePool();
-        const {rows: afterFirst} = await pool.query("SELECT date_updated FROM books WHERE id = $1", [book.id]);
+        const { rows: afterFirst } = await pool.query("SELECT date_updated FROM books WHERE id = $1", [book.id]);
 
-        const second = await withGoogleApiKey("a-test-key", () =>
-            user.agent.post(`/api/rest/book/${book.id}/refresh`)
-        );
+        const second = await withGoogleApiKey("a-test-key", () => user.agent.post(`/api/rest/book/${book.id}/refresh`));
 
         expect(second.status).toBe(200);
         expect(second.body.changed).toEqual([]);
 
-        const {rows: afterSecond} = await pool.query("SELECT date_updated FROM books WHERE id = $1", [book.id]);
+        const { rows: afterSecond } = await pool.query("SELECT date_updated FROM books WHERE id = $1", [book.id]);
         expect(String(afterSecond[0].date_updated)).toBe(String(afterFirst[0].date_updated));
 
-        const {rows: links} = await pool.query(
+        const { rows: links } = await pool.query(
             `SELECT authors.name FROM book_authors JOIN authors ON authors.id = book_authors.author_id
              WHERE book_authors.book_id = $1`,
             [book.id]
         );
-        expect(links.map(row => row.name)).toEqual(["Freida McFadden"]);
+        expect(links.map((row) => row.name)).toEqual(["Freida McFadden"]);
 
-        const {rows: categories} = await pool.query("SELECT COUNT(*)::int AS n FROM categories");
+        const { rows: categories } = await pool.query("SELECT COUNT(*)::int AS n FROM categories");
         expect(categories[0].n).toBeGreaterThanOrEqual(0);
     });
 
@@ -826,9 +828,7 @@ describe("POST /book/:id/refresh (re-fetch an existing book)", () => {
 
         mockGoogleThenBnf();
 
-        const res = await withGoogleApiKey("a-test-key", () =>
-            user.agent.post(`/api/rest/book/${book.id}/refresh`)
-        );
+        const res = await withGoogleApiKey("a-test-key", () => user.agent.post(`/api/rest/book/${book.id}/refresh`));
 
         expect(res.body.changed.some((change: any) => change.field === "publisher")).toBe(false);
         expect(res.body.changed.some((change: any) => change.field === "description")).toBe(false);
@@ -849,21 +849,19 @@ describe("POST /book/:id/refresh (re-fetch an existing book)", () => {
         mockGoogleThenBnf();
 
         const res = await withGoogleApiKey("a-test-key", () =>
-            user.agent.post(`/api/rest/book/${book.id}/refresh`).send({overwrite: true})
+            user.agent.post(`/api/rest/book/${book.id}/refresh`).send({ overwrite: true })
         );
 
         expect(res.body.mode).toBe("overwrite");
         expect(res.body.changed).toEqual(
-            expect.arrayContaining([
-                {field: "publisher", from: "Stale Publisher", to: "City roman", source: "bnf"},
-            ])
+            expect.arrayContaining([{ field: "publisher", from: "Stale Publisher", to: "City roman", source: "bnf" }])
         );
     });
 
     it("leaves stocks and loans alone", async () => {
         const book = await createDamagedBook();
-        const location = await user.agent.post("/api/rest/location").send({name: "Refresh Shelf", description: ""});
-        await user.agent.post(`/api/rest/book/${book.id}/stock`).send({status: 0, location_id: location.body.id});
+        const location = await user.agent.post("/api/rest/location").send({ name: "Refresh Shelf", description: "" });
+        await user.agent.post(`/api/rest/book/${book.id}/stock`).send({ status: 0, location_id: location.body.id });
 
         const before = await user.agent.get(`/api/rest/book/${book.id}`);
         mockGoogleThenBnf();
@@ -907,14 +905,12 @@ describe("POST /book/:id/refresh (re-fetch an existing book)", () => {
 describe("POST /book/refresh (bulk)", () => {
     async function createAdmin(): Promise<ITestUser> {
         const admin = await createAuthenticatedUser(app, "Refresh Admin");
-        await appService
-            .getDatabasePool()
-            .query("UPDATE users SET role = 'admin' WHERE code = $1", [admin.userCode]);
+        await appService.getDatabasePool().query("UPDATE users SET role = 'admin' WHERE code = $1", [admin.userCode]);
         return admin;
     }
 
     it("refuses a non-admin with 403", async () => {
-        const res = await user.agent.post("/api/rest/book/refresh").send({ids: [1]});
+        const res = await user.agent.post("/api/rest/book/refresh").send({ ids: [1] });
 
         expect(res.status).toBe(403);
         expect(res.body.sessionExpired).toBeUndefined();
@@ -924,11 +920,11 @@ describe("POST /book/refresh (bulk)", () => {
         const admin = await createAdmin();
 
         expect((await admin.agent.post("/api/rest/book/refresh").send({})).status).toBe(400);
-        expect((await admin.agent.post("/api/rest/book/refresh").send({ids: []})).status).toBe(400);
+        expect((await admin.agent.post("/api/rest/book/refresh").send({ ids: [] })).status).toBe(400);
 
         const tooMany = await admin.agent
             .post("/api/rest/book/refresh")
-            .send({ids: Array.from({length: 51}, (_, i) => i + 1)});
+            .send({ ids: Array.from({ length: 51 }, (_, i) => i + 1) });
         expect(tooMany.status).toBe(400);
         expect(tooMany.body.error).toBe("too_many_ids");
     });
@@ -936,7 +932,7 @@ describe("POST /book/refresh (bulk)", () => {
     it("rejects every malformed ID without processing the valid subset", async () => {
         const admin = await createAdmin();
         for (const invalid of [null, true, "1", "bad", 0, -1, 1.5, 9007199254740992]) {
-            const res = await admin.agent.post("/api/rest/book/refresh").send({ids: [99999999, invalid]});
+            const res = await admin.agent.post("/api/rest/book/refresh").send({ ids: [99999999, invalid] });
             expect(res.status).toBe(400);
             expect(res.body.error).toBe("invalid_ids");
         }
@@ -944,10 +940,10 @@ describe("POST /book/refresh (bulk)", () => {
 
     it("deduplicates explicit IDs before looking up books", async () => {
         const admin = await createAdmin();
-        const res = await admin.agent.post("/api/rest/book/refresh").send({ids: [99999999, 99999999]});
+        const res = await admin.agent.post("/api/rest/book/refresh").send({ ids: [99999999, 99999999] });
         expect(res.status).toBe(200);
         expect(res.body.results).toHaveLength(1);
-        expect(res.body.results[0]).toMatchObject({bookId: 99999999, status: "not_found"});
+        expect(res.body.results[0]).toMatchObject({ bookId: 99999999, status: "not_found" });
     });
 
     it("summarises each book by field name and records the run in activity_log", async () => {
@@ -956,7 +952,7 @@ describe("POST /book/refresh (bulk)", () => {
 
         mockedFetch.mockImplementation(() => Promise.resolve(jsonResponse({})));
 
-        const res = await admin.agent.post("/api/rest/book/refresh").send({ids: [noIsbn.body]});
+        const res = await admin.agent.post("/api/rest/book/refresh").send({ ids: [noIsbn.body] });
 
         expect(res.status).toBe(200);
         expect(res.body.results).toEqual([
@@ -969,10 +965,12 @@ describe("POST /book/refresh (bulk)", () => {
             },
         ]);
 
-        const {rows} = await appService
+        const { rows } = await appService
             .getDatabasePool()
-            .query("SELECT metadata FROM activity_log WHERE action = 'books_metadata_refreshed' ORDER BY id DESC LIMIT 1");
-        expect(rows[0].metadata).toMatchObject({mode: "fill", requested: 1});
+            .query(
+                "SELECT metadata FROM activity_log WHERE action = 'books_metadata_refreshed' ORDER BY id DESC LIMIT 1"
+            );
+        expect(rows[0].metadata).toMatchObject({ mode: "fill", requested: 1 });
     });
 });
 
@@ -994,7 +992,7 @@ describe("normalizeGoogleApiKey", () => {
 
 describe("book stock lifecycle", () => {
     async function createLocation(agent: ITestUser["agent"], name: string) {
-        const res = await agent.post("/api/rest/location").send({name, description: ""});
+        const res = await agent.post("/api/rest/location").send({ name, description: "" });
         return res.body.id;
     }
 
@@ -1003,18 +1001,22 @@ describe("book stock lifecycle", () => {
         const bookId = bookRes.body;
         const locationId = await createLocation(user.agent, "Main Shelf");
 
-        const addRes = await user.agent.post(`/api/rest/book/${bookId}/stock`).send({status: 0, location_id: locationId});
+        const addRes = await user.agent
+            .post(`/api/rest/book/${bookId}/stock`)
+            .send({ status: 0, location_id: locationId });
         expect(addRes.status).toBe(200);
         const stockId = addRes.body.id;
         expect(addRes.body.status).toBe(0);
 
         // Can't create a stock as already-booked.
-        const bookedCreateRes = await user.agent.post(`/api/rest/book/${bookId}/stock`).send({status: 2, location_id: locationId});
+        const bookedCreateRes = await user.agent
+            .post(`/api/rest/book/${bookId}/stock`)
+            .send({ status: 2, location_id: locationId });
         expect(bookedCreateRes.status).toBe(406);
 
         const updateRes = await user.agent
             .put(`/api/rest/book/${bookId}/stock/${stockId}`)
-            .send({status: 0, location_id: locationId, customer_id: null});
+            .send({ status: 0, location_id: locationId, customer_id: null });
         expect(updateRes.status).toBe(200);
 
         const deleteRes = await user.agent.delete(`/api/rest/book/${bookId}/stock/${stockId}`);
@@ -1026,10 +1028,12 @@ describe("book stock lifecycle", () => {
         const bookRes = await user.agent.post("/api/rest/book").field("name", "Loanable Book");
         const bookId = bookRes.body;
         const locationId = await createLocation(user.agent, "Loan Shelf");
-        const customerRes = await user.agent.post("/api/rest/customer").send({name: "Jane Borrower"});
+        const customerRes = await user.agent.post("/api/rest/customer").send({ name: "Jane Borrower" });
         const customerId = customerRes.body.id;
 
-        const stockRes = await user.agent.post(`/api/rest/book/${bookId}/stock`).send({status: 0, location_id: locationId});
+        const stockRes = await user.agent
+            .post(`/api/rest/book/${bookId}/stock`)
+            .send({ status: 0, location_id: locationId });
         const stockId = stockRes.body.id;
 
         // Transition into "booked" (2) - this exact statement used to crash
@@ -1037,9 +1041,9 @@ describe("book stock lifecycle", () => {
         // parameter $1") before the $1::smallint cast fix in BooksRoute.ts.
         const loanRes = await user.agent
             .put(`/api/rest/book/${bookId}/stock/${stockId}`)
-            .send({status: 2, location_id: locationId, customer_id: customerId});
+            .send({ status: 2, location_id: locationId, customer_id: customerId });
         expect(loanRes.status).toBe(200);
-        expect(loanRes.body).toMatchObject({status: 2, customer_id: customerId});
+        expect(loanRes.body).toMatchObject({ status: 2, customer_id: customerId });
 
         // Find this stock by id rather than taking stocks[0]: with one shared
         // library, POST /book auto-places a copy whenever the library happens
@@ -1047,18 +1051,16 @@ describe("book stock lifecycle", () => {
         // the book can carry a second stock this test never created.
         const afterLoanRes = await user.agent.get(`/api/rest/book/${bookId}`);
         const loanedStock = afterLoanRes.body.stocks.find((s: any) => s.id === stockId);
-        expect(loanedStock).toMatchObject({status: 2, customer_id: customerId});
+        expect(loanedStock).toMatchObject({ status: 2, customer_id: customerId });
 
         const returnRes = await user.agent
             .put(`/api/rest/book/${bookId}/stock/${stockId}`)
-            .send({status: 0, location_id: locationId, customer_id: null});
+            .send({ status: 0, location_id: locationId, customer_id: null });
         expect(returnRes.status).toBe(200);
         expect(returnRes.body.customer_id).toBeNull();
 
         const today = new Date().toISOString().slice(0, 10);
-        const reportRes = await user.agent
-            .get("/api/rest/loans/report")
-            .query({date_from: today, date_to: today});
+        const reportRes = await user.agent.get("/api/rest/loans/report").query({ date_from: today, date_to: today });
         expect(reportRes.status).toBe(200);
         const entry = reportRes.body.rows.find((l: any) => l.stockCode === stockRes.body.code);
         expect(entry).toBeDefined();
@@ -1073,15 +1075,19 @@ describe("book stock lifecycle", () => {
         const otherUser = await createAuthenticatedUser(app);
         const otherLocationId = await createLocation(otherUser.agent, `Someone Else's Shelf ${Date.now()}`);
 
-        const res = await user.agent.post(`/api/rest/book/${bookRes.body}/stock`).send({status: 0, location_id: otherLocationId});
+        const res = await user.agent
+            .post(`/api/rest/book/${bookRes.body}/stock`)
+            .send({ status: 0, location_id: otherLocationId });
         expect(res.status).toBe(200);
-        expect(res.body).toMatchObject({location_id: otherLocationId, status: 0});
+        expect(res.body).toMatchObject({ location_id: otherLocationId, status: 0 });
     });
 
     // Still 404 - not because of ownership, but because the id names nothing.
     it("404s adding a stock at a location that doesn't exist", async () => {
         const bookRes = await user.agent.post("/api/rest/book").field("name", "Unplaceable Book");
-        const res = await user.agent.post(`/api/rest/book/${bookRes.body}/stock`).send({status: 0, location_id: 999999999});
+        const res = await user.agent
+            .post(`/api/rest/book/${bookRes.body}/stock`)
+            .send({ status: 0, location_id: 999999999 });
         expect(res.status).toBe(404);
     });
 
@@ -1089,7 +1095,9 @@ describe("book stock lifecycle", () => {
     // stock row (see the spec's upstream security report).
     it("404s adding a stock to a book that doesn't exist", async () => {
         const locationId = await createLocation(user.agent, `Orphan Shelf ${Date.now()}`);
-        const res = await user.agent.post(`/api/rest/book/999999999/stock`).send({status: 0, location_id: locationId});
+        const res = await user.agent
+            .post(`/api/rest/book/999999999/stock`)
+            .send({ status: 0, location_id: locationId });
         expect(res.status).toBe(404);
     });
 });

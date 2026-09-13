@@ -28,9 +28,9 @@
  *    routes (AuthRoute.ts). Failure: redirects to `/login` either way,
  *    since there's no SPA yet on screen to show a JSON error in.
  */
-import {Request, Response, NextFunction} from "express";
+import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
-import {appService} from "../AppService";
+import { appService } from "../AppService";
 
 /** Sentinel `sid` for the fake ALLOW_DEV_AUTH token - never matches a real `user_sessions` row. Exported so handlers reissuing a token (e.g. password change) can fall back to it when `req.sessionKey` is unset. */
 export const DEV_SESSION_KEY = "dev";
@@ -52,13 +52,11 @@ export async function resolveSession(req: Request, res: Response): Promise<Sessi
 
     // only development
     if (appService.allowDevAuth()) {
-        appService.getLogger().info("Serving DEVELOPMENT token")
+        appService.getLogger().info("Serving DEVELOPMENT token");
 
         // Look up the real current token_version for the fake user so the
         // check below (identical for dev and real tokens) accepts it.
-        const devUser = await pool.query(
-            "SELECT token_version FROM users WHERE id = 1 AND disabled = FALSE"
-        );
+        const devUser = await pool.query("SELECT token_version FROM users WHERE id = 1 AND disabled = FALSE");
         const devTokenVersion = devUser.rows[0]?.token_version ?? 0;
 
         // Fake decoded token for dev
@@ -75,7 +73,7 @@ export async function resolveSession(req: Request, res: Response): Promise<Sessi
         decoded = jwt.verify(token, appService.getJwtSecret(), {
             algorithms: ["HS256"],
             audience: "vaultisse",
-            issuer: "vaultisse.com"
+            issuer: "vaultisse.com",
         }) as { user_id: number; token_version: number; sid: string; exp: number };
     } catch (err: any) {
         appService.getLogger().error(err.toString());
@@ -106,7 +104,7 @@ export async function resolveSession(req: Request, res: Response): Promise<Sessi
                      AND s.user_id = u.id
                      AND s.revoked_date IS NULL
                WHERE u.id = $1 AND u.disabled = FALSE`,
-        values: [decoded.user_id, decoded.sid]
+        values: [decoded.user_id, decoded.sid],
     });
 
     if (result.rowCount === 0) {
@@ -156,7 +154,7 @@ export async function resolveSession(req: Request, res: Response): Promise<Sessi
             httpOnly: true,
             secure: process.env.NODE_ENV === "production",
             sameSite: "strict",
-            maxAge: appService.getSessionTime()
+            maxAge: appService.getSessionTime(),
         });
     }
 
@@ -171,7 +169,7 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
         return res.redirect("/login");
     }
     if (resolution === "unauthorized") {
-        return res.status(401).json({message: "Unauthorized", sessionExpired: true});
+        return res.status(401).json({ message: "Unauthorized", sessionExpired: true });
     }
 
     next();

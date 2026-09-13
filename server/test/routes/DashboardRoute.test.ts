@@ -1,12 +1,12 @@
 import request from "supertest";
-import {setupTestApp} from "../helpers/testApp";
-import {createAuthenticatedUser} from "../helpers/auth";
+import { setupTestApp } from "../helpers/testApp";
+import { createAuthenticatedUser } from "../helpers/auth";
 
 const app = setupTestApp();
 
 describe("GET /dashboard", () => {
     it("requires auth", async () => {
-        const {agent: unauth} = await createAuthenticatedUser(app);
+        const { agent: unauth } = await createAuthenticatedUser(app);
         // sanity: an authenticated agent works, then compare against no auth at all.
         const authedRes = await unauth.get("/api/rest/dashboard");
         expect(authedRes.status).toBe(200);

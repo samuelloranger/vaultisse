@@ -19,17 +19,17 @@
  * read and modify any book. `created_by` is stamped on insert as attribution
  * ("added by Camille") and is never filtered on.
  */
-import {Router, Request, Response} from 'express';
+import { Router, Request, Response } from "express";
 import crypto from "crypto";
-import {appService} from "../AppService";
-import {requireAuth} from "../middlewares/AuthMiddleware";
+import { appService } from "../AppService";
+import { requireAuth } from "../middlewares/AuthMiddleware";
 import multer from "multer";
-import {IBookAddMd} from "../types/book/IBookAddMd";
-import {IBookFile} from "../types/book/IBookFile";
-import {Pool, PoolClient} from "pg";
-import {SearchFilter} from "../types/search/SearchFilter";
-import {SortType} from "../types/search/SortType";
-import {normalizeAndValidateIsbn} from "../utils/IsbnVerification";
+import { IBookAddMd } from "../types/book/IBookAddMd";
+import { IBookFile } from "../types/book/IBookFile";
+import { Pool, PoolClient } from "pg";
+import { SearchFilter } from "../types/search/SearchFilter";
+import { SortType } from "../types/search/SortType";
+import { normalizeAndValidateIsbn } from "../utils/IsbnVerification";
 import {
     BookMetadataProvenance,
     IBookLookupResult,
@@ -37,7 +37,7 @@ import {
     lookupBookMetadata,
     normalizeLanguageCode,
 } from "../utils/BookMetadata";
-import {IBookMetadata} from "../types/book/IBookMetadata";
+import { IBookMetadata } from "../types/book/IBookMetadata";
 import {
     BookMetadataField,
     IBookMetadataRefreshPlan,
@@ -45,12 +45,12 @@ import {
     RefreshMode,
     planMetadataRefresh,
 } from "../utils/BookMetadataRefresh";
-import {requireAdmin} from "../middlewares/AdminMiddleware";
-import {ActivityAction, recordActivity} from "../utils/ActivityLog";
-import {isValidEpub, isValidMobi, isValidPdf} from "../utils/FileSignature";
-import {recordLoan, recordReturn} from "../utils/LoanHistory";
-import {handleUploadError} from "../middlewares/UploadErrorMiddleware";
-import {validatedRegion} from "../utils/Regions";
+import { requireAdmin } from "../middlewares/AdminMiddleware";
+import { ActivityAction, recordActivity } from "../utils/ActivityLog";
+import { isValidEpub, isValidMobi, isValidPdf } from "../utils/FileSignature";
+import { recordLoan, recordReturn } from "../utils/LoanHistory";
+import { handleUploadError } from "../middlewares/UploadErrorMiddleware";
+import { validatedRegion } from "../utils/Regions";
 // @ts-ignore
 const router: Router = Router();
 
@@ -59,37 +59,36 @@ const storage = multer.memoryStorage();
 const maxCoverImageSizeMb = 4;
 const upload = multer({
     storage,
-    limits: {fileSize: maxCoverImageSizeMb * 1024 * 1024},
+    limits: { fileSize: maxCoverImageSizeMb * 1024 * 1024 },
     fileFilter: (req: Request, file: Express.Multer.File, cb: (error: any, acceptFile: boolean) => void) => {
         // @ts-ignore
         if (file.mimetype !== "image/png" && file.mimetype !== "image/jpeg") {
             return cb(new Error("Only PNG or JPG images are allowed"), false);
         }
         cb(null, true);
-    }
+    },
 });
 
 // Max size for the ebook-file backups, configurable via MAX_EBOOK_FILE_SIZE_MB
 // so deployers can raise (or lower) the limit without a code change.
 // Defaults to 10MB when unset or not a valid positive number.
 const parsedMaxEbookFileSizeMb = Number(process.env.MAX_EBOOK_FILE_SIZE_MB);
-const maxEbookFileSizeMb = Number.isFinite(parsedMaxEbookFileSizeMb) && parsedMaxEbookFileSizeMb > 0
-    ? parsedMaxEbookFileSizeMb
-    : 10;
+const maxEbookFileSizeMb =
+    Number.isFinite(parsedMaxEbookFileSizeMb) && parsedMaxEbookFileSizeMb > 0 ? parsedMaxEbookFileSizeMb : 10;
 
 // Multer setup for the book ebook-file backups (epub/pdf/Kindle) - also stored
 // in memory, validated by extension since browsers report inconsistent
 // mimetypes for .epub/.mobi/.azw3.
 const fileUpload = multer({
     storage,
-    limits: {fileSize: maxEbookFileSizeMb * 1024 * 1024},
+    limits: { fileSize: maxEbookFileSizeMb * 1024 * 1024 },
     fileFilter: (req: Request, file: Express.Multer.File, cb: (error: any, acceptFile: boolean) => void) => {
         const name = file.originalname.toLowerCase();
         if (!name.endsWith(".epub") && !name.endsWith(".pdf") && !name.endsWith(".mobi") && !name.endsWith(".azw3")) {
             return cb(new Error("Only EPUB, PDF or Kindle files are allowed"), false);
         }
         cb(null, true);
-    }
+    },
 });
 
 /**
@@ -132,17 +131,17 @@ const fileUpload = multer({
  *  }
  */
 // @ts-ignore
-router.get('/search', requireAuth, async (req: Request, res: Response) => {
+router.get("/search", requireAuth, async (req: Request, res: Response) => {
     // Params
     const query = req.query.query ? String(req.query.query) : undefined;
     // Array of categories
     const category_id = req.query.category_id;
     const page = Math.max(0, Number(req.query.page)) || 0;
-    const filters: SearchFilter[] = req.query.filters ? String(req.query.filters).split(",") as SearchFilter[] : [];
+    const filters: SearchFilter[] = req.query.filters ? (String(req.query.filters).split(",") as SearchFilter[]) : [];
     const dateFrom = req.query.date_from ? String(req.query.date_from) : undefined;
     const dateTo = req.query.date_to ? String(req.query.date_to) : undefined;
     const sort = Object.values(SortType).includes(req.query.sort as SortType)
-        ? req.query.sort as SortType
+        ? (req.query.sort as SortType)
         : SortType.NAME_ASC;
 
     const pool = appService.getDatabasePool();
@@ -175,7 +174,6 @@ router.get('/search', requireAuth, async (req: Request, res: Response) => {
                      LEFT JOIN authors ON book_authors.author_id = authors.id
         `;
 
-
         if (query) {
             // Parenthesised on purpose. `conditions` is joined with ' AND ',
             // and AND binds tighter than OR - so an unwrapped
@@ -186,13 +184,15 @@ router.get('/search', requireAuth, async (req: Request, res: Response) => {
             // (see the spec's "Upstream security report"); there is no
             // ownership check left to escape here, but category/date/stock
             // filters would still be silently ignored for any ISBN match.
-            conditions.push(`(LOWER(books.name) ILIKE $${params.push(`%${query.toLocaleLowerCase()}%`)} OR LOWER(books.isbn) ILIKE $${params.push(`%${query.toLocaleLowerCase()}%`)})`);
+            conditions.push(
+                `(LOWER(books.name) ILIKE $${params.push(`%${query.toLocaleLowerCase()}%`)} OR LOWER(books.isbn) ILIKE $${params.push(`%${query.toLocaleLowerCase()}%`)})`
+            );
         }
 
         if (category_id) {
             const ids = Array.isArray(category_id)
                 ? category_id.map(Number)
-                : String(category_id).split(',').map(Number);
+                : String(category_id).split(",").map(Number);
 
             conditions.push(`category_id = ANY($${params.length + 1})`);
             params.push(ids);
@@ -218,7 +218,7 @@ router.get('/search', requireAuth, async (req: Request, res: Response) => {
                         break;
                     }
                 }
-            })
+            });
         }
 
         if (dateFrom) {
@@ -230,7 +230,7 @@ router.get('/search', requireAuth, async (req: Request, res: Response) => {
         }
 
         if (conditions.length > 0) {
-            sqlStatement += ` WHERE ${conditions.join(' AND ')}`;
+            sqlStatement += ` WHERE ${conditions.join(" AND ")}`;
         }
 
         /**
@@ -238,7 +238,7 @@ router.get('/search', requireAuth, async (req: Request, res: Response) => {
          */
         let totalQuery = "SELECT COUNT(*) FROM books";
         if (conditions.length > 0) {
-            totalQuery += ` WHERE ${conditions.join(' AND ')}`;
+            totalQuery += ` WHERE ${conditions.join(" AND ")}`;
         }
         appService.getLogger().debug(`execute total results query: ${totalQuery}`);
         const totalResults = await client.query(totalQuery, params);
@@ -250,7 +250,7 @@ router.get('/search', requireAuth, async (req: Request, res: Response) => {
             [SortType.NAME_ASC]: "books.name ASC",
             [SortType.NAME_DESC]: "books.name DESC",
             [SortType.DATE_NEWEST]: "books.date_created DESC",
-            [SortType.DATE_OLDEST]: "books.date_created ASC"
+            [SortType.DATE_OLDEST]: "books.date_created ASC",
         };
 
         sqlStatement += `
@@ -274,11 +274,11 @@ router.get('/search', requireAuth, async (req: Request, res: Response) => {
         res.status(200).json({
             total: totalResults.rows[0] ? Number(totalResults.rows[0].count) : -1,
             limit: MAX_ROWS,
-            books: result.rows
+            books: result.rows,
         });
     } catch (err: any) {
-        console.error('Error executing query', err.stack);
-        res.status(500).send('Internal Server Error');
+        console.error("Error executing query", err.stack);
+        res.status(500).send("Internal Server Error");
     } finally {
         client.release();
     }
@@ -297,7 +297,7 @@ router.get('/search', requireAuth, async (req: Request, res: Response) => {
  *  { "total": 42, "recent": 3, "onLoan": 5, "noStock": 10 }
  */
 // @ts-ignore
-router.get('/counters', requireAuth, async (req: Request, res: Response) => {
+router.get("/counters", requireAuth, async (req: Request, res: Response) => {
     const pool = appService.getDatabasePool();
 
     try {
@@ -315,8 +315,8 @@ router.get('/counters', requireAuth, async (req: Request, res: Response) => {
             noStock: Number(noStock.rows[0].count),
         });
     } catch (err: any) {
-        console.error('Error executing query', err.stack);
-        res.status(500).send('Internal Server Error');
+        console.error("Error executing query", err.stack);
+        res.status(500).send("Internal Server Error");
     }
 });
 
@@ -357,13 +357,14 @@ router.get('/counters', requireAuth, async (req: Request, res: Response) => {
  * Response (404): "Book not found" - when no book with that id exists.
  */
 // @ts-ignore
-router.get('/:id', requireAuth, async (req: Request, res: Response) => {
+router.get("/:id", requireAuth, async (req: Request, res: Response) => {
     const id = Number(req.params.id);
     appService.getLogger().debug(`Get book, id: ${id}`);
     const pool = appService.getDatabasePool();
     const client = await pool.connect();
     try {
-        const result = await client.query(`
+        const result = await client.query(
+            `
             SELECT books.id,
                    books.name,
                    books.description,
@@ -436,7 +437,9 @@ router.get('/:id', requireAuth, async (req: Request, res: Response) => {
                      books.date_updated,
                      books.pages,
                      books.format_id;
-        `, [id]);
+        `,
+            [id]
+        );
 
         if (result.rows.length !== 1) {
             res.status(404).send("Book not found");
@@ -444,8 +447,8 @@ router.get('/:id', requireAuth, async (req: Request, res: Response) => {
             res.status(200).json(result.rows[0]);
         }
     } catch (err: any) {
-        console.error('Error executing query', err.stack);
-        res.status(500).send('Internal Server Error');
+        console.error("Error executing query", err.stack);
+        res.status(500).send("Internal Server Error");
     } finally {
         client.release();
     }
@@ -484,7 +487,7 @@ router.get('/:id', requireAuth, async (req: Request, res: Response) => {
  *            404 {"error": "Book not found"} | 500 on failure (rolls back).
  */
 // @ts-ignore
-router.put('/:id', requireAuth, async (req: Request, res: Response) => {
+router.put("/:id", requireAuth, async (req: Request, res: Response) => {
     const id = Number(req.params.id);
     appService.getLogger().debug(`Update book, id: ${id}`);
 
@@ -500,11 +503,11 @@ router.put('/:id', requireAuth, async (req: Request, res: Response) => {
         publisher,
         published_date,
         pages,
-        format_id
+        format_id,
     } = req.body;
 
     if (image_url && !isAllowedImageUrl(image_url)) {
-        return res.status(400).send({error: "Invalid image URL"});
+        return res.status(400).send({ error: "Invalid image URL" });
     }
 
     // Database connection
@@ -513,13 +516,13 @@ router.put('/:id', requireAuth, async (req: Request, res: Response) => {
 
     try {
         // Validate the existence of the book
-        const bookCheck = await client.query('SELECT id FROM books WHERE id = $1', [id]);
+        const bookCheck = await client.query("SELECT id FROM books WHERE id = $1", [id]);
         if (bookCheck.rowCount === 0) {
-            return res.status(404).send({error: "Book not found"});
+            return res.status(404).send({ error: "Book not found" });
         }
 
         // Start transaction
-        await client.query('BEGIN');
+        await client.query("BEGIN");
 
         // Update the books table
         const updateQuery = `
@@ -548,41 +551,37 @@ router.put('/:id', requireAuth, async (req: Request, res: Response) => {
             published_date,
             language_code,
             pages,
-            id
+            id,
         ];
         await client.query(updateQuery, updateValues);
 
         // Handle authors relationship in the book_authors table
         if (authors && Array.isArray(authors)) {
             // Fetch existing authors associated with the book
-            const existingAuthorsResult = await client.query(
-                'SELECT author_id FROM book_authors WHERE book_id = $1',
-                [id]
-            );
-            const existingAuthors = existingAuthorsResult.rows.map(row => row.author_id);
+            const existingAuthorsResult = await client.query("SELECT author_id FROM book_authors WHERE book_id = $1", [
+                id,
+            ]);
+            const existingAuthors = existingAuthorsResult.rows.map((row) => row.author_id);
 
             // Determine authors to remove (present in the database but not in the new list)
-            const authorsToRemove = existingAuthors.filter(authorId => !authors.includes(authorId));
+            const authorsToRemove = existingAuthors.filter((authorId) => !authors.includes(authorId));
 
             // Determine authors to add (present in the new list but not in the database)
-            const authorsToAdd = authors.filter(authorId => !existingAuthors.includes(authorId));
+            const authorsToAdd = authors.filter((authorId) => !existingAuthors.includes(authorId));
 
             // Remove authors no longer associated with the book
             for (const authorId of authorsToRemove) {
-                await client.query(
-                    'DELETE FROM book_authors WHERE book_id = $1 AND author_id = $2',
-                    [id, authorId]
-                );
+                await client.query("DELETE FROM book_authors WHERE book_id = $1 AND author_id = $2", [id, authorId]);
             }
 
             // Add new authors to the book
             for (const authorId of authorsToAdd) {
                 // Ensure the author exists in the authors table
-                const authorCheck = await client.query('SELECT id FROM authors WHERE id = $1', [authorId]);
+                const authorCheck = await client.query("SELECT id FROM authors WHERE id = $1", [authorId]);
                 if (authorCheck.rowCount !== 0) {
                     // Associate the author with the book
                     await client.query(
-                        'INSERT INTO book_authors (book_id, author_id, created_by) VALUES ($1, $2, $3)',
+                        "INSERT INTO book_authors (book_id, author_id, created_by) VALUES ($1, $2, $3)",
                         [id, authorId, appService.getSessionUser(req)]
                     );
                 } else {
@@ -592,13 +591,13 @@ router.put('/:id', requireAuth, async (req: Request, res: Response) => {
         }
 
         // Commit transaction
-        await client.query('COMMIT');
-        res.send({message: "Book updated successfully"});
+        await client.query("COMMIT");
+        res.send({ message: "Book updated successfully" });
     } catch (e) {
         // Rollback transaction in case of error
-        await client.query('ROLLBACK');
+        await client.query("ROLLBACK");
         console.error("Error while updating book", e);
-        res.status(500).send('Internal Server Error');
+        res.status(500).send("Internal Server Error");
     } finally {
         client.release();
     }
@@ -617,7 +616,7 @@ router.put('/:id', requireAuth, async (req: Request, res: Response) => {
  *            404 {"error": "Book not found"} | 500 on failure.
  */
 // @ts-ignore
-router.delete('/:id', requireAuth, async (req: Request, res: Response) => {
+router.delete("/:id", requireAuth, async (req: Request, res: Response) => {
     const id = Number(req.params.id);
     appService.getLogger().debug(`Delete book, id: ${id}`);
 
@@ -627,22 +626,21 @@ router.delete('/:id', requireAuth, async (req: Request, res: Response) => {
 
     try {
         // Validate the existence of the book
-        const bookCheck = await client.query('SELECT id FROM books WHERE id = $1', [id]);
+        const bookCheck = await client.query("SELECT id FROM books WHERE id = $1", [id]);
         if (bookCheck.rowCount === 0) {
-            return res.status(404).send({error: "Book not found"});
+            return res.status(404).send({ error: "Book not found" });
         }
 
-        await client.query('DELETE FROM books WHERE id = $1', [id]);
+        await client.query("DELETE FROM books WHERE id = $1", [id]);
 
-        res.send({message: "Book deleted successfully"});
+        res.send({ message: "Book deleted successfully" });
     } catch (e) {
         console.error("Error while deleting book", e);
-        res.status(500).send('Internal Server Error');
+        res.status(500).send("Internal Server Error");
     } finally {
         client.release();
     }
 });
-
 
 /**
  * POST /book/:id/image
@@ -659,30 +657,33 @@ router.delete('/:id', requireAuth, async (req: Request, res: Response) => {
  *
  * Response (200): number of rows updated (0 or 1), e.g. `1`.
  */
-router.post('/:id/image', requireAuth, upload.single("image"), handleUploadError(maxCoverImageSizeMb), async (req: Request, res: Response) => {
-    const id = Number(req.params.id);
-    let imageUrl = "";
+router.post(
+    "/:id/image",
+    requireAuth,
+    upload.single("image"),
+    handleUploadError(maxCoverImageSizeMb),
+    async (req: Request, res: Response) => {
+        const id = Number(req.params.id);
+        let imageUrl = "";
 
-    if (req.file) {
-        const base64 = req.file.buffer.toString("base64");
-        imageUrl = `data:${req.file.mimetype};base64,${base64}`;
+        if (req.file) {
+            const base64 = req.file.buffer.toString("base64");
+            imageUrl = `data:${req.file.mimetype};base64,${base64}`;
+        }
+
+        const pool = appService.getDatabasePool();
+
+        try {
+            const updatedBook = await pool.query("UPDATE books SET image_url = $1 WHERE id = $2", [imageUrl, id]);
+
+            res.status(200).json(updatedBook.rowCount);
+        } catch (error) {
+            // Rollback on error
+            console.error("Transaction error:", error);
+            res.status(500).send("Error adding book");
+        }
     }
-
-    const pool = appService.getDatabasePool();
-
-    try {
-        const updatedBook = await pool.query(
-            "UPDATE books SET image_url = $1 WHERE id = $2",
-            [imageUrl, id]
-        );
-
-        res.status(200).json(updatedBook.rowCount);
-    } catch (error) {
-        // Rollback on error
-        console.error("Transaction error:", error);
-        res.status(500).send("Error adding book");
-    }
-});
+);
 
 /** @param fileName Original uploaded file name. @returns The `book_files.file_type` its extension maps to. */
 function fileTypeFromName(fileName: string): "epub" | "pdf" | "mobi" {
@@ -721,35 +722,43 @@ function fileTypeFromName(fileName: string): "epub" | "pdf" | "mobi" {
  * Response (400): "No file provided" | "File content does not match a valid EPUB, PDF or Kindle file" | "Only EPUB, PDF or Kindle files are allowed" (from fileFilter, via `handleUploadError`).
  * Response (413): "File exceeds the maximum allowed upload size of {N}MB" - when the file is larger than MAX_EBOOK_FILE_SIZE_MB.
  */
-router.post('/:id/file', requireAuth, fileUpload.single("file"), handleUploadError(maxEbookFileSizeMb), async (req: Request, res: Response) => {
-    const id = Number(req.params.id);
+router.post(
+    "/:id/file",
+    requireAuth,
+    fileUpload.single("file"),
+    handleUploadError(maxEbookFileSizeMb),
+    async (req: Request, res: Response) => {
+        const id = Number(req.params.id);
 
-    if (!req.file) {
-        return res.status(400).send("No file provided");
-    }
-
-    const fileType = fileTypeFromName(req.file.originalname);
-
-    // Trust the actual bytes, not just the file name (which fileFilter above only
-    // checked by extension - trivially spoofed by renaming any file to .pdf/.epub/.mobi/.azw3).
-    const isValidContent = fileType === "epub" ? isValidEpub(req.file.buffer)
-        : fileType === "pdf" ? isValidPdf(req.file.buffer)
-            : isValidMobi(req.file.buffer);
-    if (!isValidContent) {
-        return res.status(400).send("File content does not match a valid EPUB, PDF or Kindle file");
-    }
-
-    const pool = appService.getDatabasePool();
-    const userId = appService.getSessionUser(req);
-
-    try {
-        const book = await pool.query("SELECT id FROM books WHERE id = $1", [id]);
-        if (book.rowCount !== 1) {
-            return res.status(404).send("Book not found");
+        if (!req.file) {
+            return res.status(400).send("No file provided");
         }
 
-        const result = await pool.query(
-            `INSERT INTO book_files (book_id, created_by, file_type, file_name, file_size, file_data)
+        const fileType = fileTypeFromName(req.file.originalname);
+
+        // Trust the actual bytes, not just the file name (which fileFilter above only
+        // checked by extension - trivially spoofed by renaming any file to .pdf/.epub/.mobi/.azw3).
+        const isValidContent =
+            fileType === "epub"
+                ? isValidEpub(req.file.buffer)
+                : fileType === "pdf"
+                  ? isValidPdf(req.file.buffer)
+                  : isValidMobi(req.file.buffer);
+        if (!isValidContent) {
+            return res.status(400).send("File content does not match a valid EPUB, PDF or Kindle file");
+        }
+
+        const pool = appService.getDatabasePool();
+        const userId = appService.getSessionUser(req);
+
+        try {
+            const book = await pool.query("SELECT id FROM books WHERE id = $1", [id]);
+            if (book.rowCount !== 1) {
+                return res.status(404).send("Book not found");
+            }
+
+            const result = await pool.query(
+                `INSERT INTO book_files (book_id, created_by, file_type, file_name, file_size, file_data)
              VALUES ($1, $2, $3, $4, $5, $6)
              ON CONFLICT (book_id, file_type) DO UPDATE
                  SET file_name    = EXCLUDED.file_name,
@@ -757,16 +766,17 @@ router.post('/:id/file', requireAuth, fileUpload.single("file"), handleUploadErr
                      file_data    = EXCLUDED.file_data,
                      date_created = CURRENT_TIMESTAMP
              RETURNING id, file_type, file_name, file_size, date_created`,
-            [id, userId, fileType, req.file.originalname, req.file.size, req.file.buffer]
-        );
+                [id, userId, fileType, req.file.originalname, req.file.size, req.file.buffer]
+            );
 
-        const file: IBookFile = result.rows[0];
-        res.status(200).json(file);
-    } catch (error) {
-        console.error("Error uploading book file:", error);
-        res.status(500).send("Error uploading book file");
+            const file: IBookFile = result.rows[0];
+            res.status(200).json(file);
+        } catch (error) {
+            console.error("Error uploading book file:", error);
+            res.status(500).send("Error uploading book file");
+        }
     }
-});
+);
 
 /**
  * GET /book/:id/file/:fileId/download
@@ -779,7 +789,7 @@ router.post('/:id/file', requireAuth, fileUpload.single("file"), handleUploadErr
  * `Content-Disposition: attachment` set from the stored file's name/type.
  * Response (404): "File not found" - when no such backed-up file exists for this book.
  */
-router.get('/:id/file/:fileId/download', requireAuth, async (req: Request, res: Response) => {
+router.get("/:id/file/:fileId/download", requireAuth, async (req: Request, res: Response) => {
     const id = Number(req.params.id);
     const fileId = Number(req.params.fileId);
     const pool = appService.getDatabasePool();
@@ -794,13 +804,19 @@ router.get('/:id/file/:fileId/download', requireAuth, async (req: Request, res: 
             return res.status(404).send("File not found");
         }
 
-        const {file_data, file_name, file_type} = result.rows[0];
-        const contentType = file_type === "epub" ? "application/epub+zip"
-            : file_type === "pdf" ? "application/pdf"
-                : "application/x-mobipocket-ebook";
+        const { file_data, file_name, file_type } = result.rows[0];
+        const contentType =
+            file_type === "epub"
+                ? "application/epub+zip"
+                : file_type === "pdf"
+                  ? "application/pdf"
+                  : "application/x-mobipocket-ebook";
         res.setHeader("Content-Type", contentType);
         const asciiName = file_name.replace(/[^\x20-\x7E]/g, "_").replace(/"/g, "");
-        res.setHeader("Content-Disposition", `attachment; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(file_name)}`);
+        res.setHeader(
+            "Content-Disposition",
+            `attachment; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(file_name)}`
+        );
         res.status(200).send(file_data);
     } catch (error) {
         console.error("Error downloading book file:", error);
@@ -817,16 +833,13 @@ router.get('/:id/file/:fileId/download', requireAuth, async (req: Request, res: 
  *
  * Response (200): whether a file was actually deleted, e.g. `true` | `false`.
  */
-router.delete('/:id/file/:fileId', requireAuth, async (req: Request, res: Response) => {
+router.delete("/:id/file/:fileId", requireAuth, async (req: Request, res: Response) => {
     const id = Number(req.params.id);
     const fileId = Number(req.params.fileId);
     const pool = appService.getDatabasePool();
 
     try {
-        const result = await pool.query(
-            "DELETE FROM book_files WHERE id = $1 AND book_id = $2",
-            [fileId, id]
-        );
+        const result = await pool.query("DELETE FROM book_files WHERE id = $1 AND book_id = $2", [fileId, id]);
 
         res.status(200).json(result.rowCount === 1);
     } catch (error) {
@@ -856,52 +869,55 @@ router.delete('/:id/file/:fileId', requireAuth, async (req: Request, res: Respon
  * Response (200): the new book's id, e.g. `42`.
  */
 // @ts-ignore
-router.post('', requireAuth, upload.single("image"), handleUploadError(maxCoverImageSizeMb), async (req: Request, res: Response) => {
-    const name = req.body.name;
-    const description = req.body.description;
-    const isbn = req.body.isbn;
-    let imageUrl = "";
+router.post(
+    "",
+    requireAuth,
+    upload.single("image"),
+    handleUploadError(maxCoverImageSizeMb),
+    async (req: Request, res: Response) => {
+        const name = req.body.name;
+        const description = req.body.description;
+        const isbn = req.body.isbn;
+        let imageUrl = "";
 
-    if (req.file) {
-        const base64 = req.file.buffer.toString("base64");
-        imageUrl = `data:${req.file.mimetype};base64,${base64}`;
-    }
-
-    const pool = appService.getDatabasePool();
-    const userId = appService.getSessionUser(req);
-
-    try {
-        // If the user give us a isbn code, check if exist
-        if (isbn) {
-            const existIsbn = await pool.query(
-                'SELECT id FROM books WHERE isbn = $1',
-                [isbn]
-            );
-            if (existIsbn.rowCount === 1) {
-                return res.status(404).send("Book with provided ISBN code already exist");
-            }
+        if (req.file) {
+            const base64 = req.file.buffer.toString("base64");
+            imageUrl = `data:${req.file.mimetype};base64,${base64}`;
         }
 
-        const insertBook = await pool.query(
-            "INSERT INTO books (name, description, image_url, isbn, created_by) VALUES ($1, $2, $3, $4, $5) RETURNING id",
-            [name, description, imageUrl, isbn, userId]
-        );
+        const pool = appService.getDatabasePool();
+        const userId = appService.getSessionUser(req);
 
-        const bookId = insertBook.rows[0].id;
+        try {
+            // If the user give us a isbn code, check if exist
+            if (isbn) {
+                const existIsbn = await pool.query("SELECT id FROM books WHERE isbn = $1", [isbn]);
+                if (existIsbn.rowCount === 1) {
+                    return res.status(404).send("Book with provided ISBN code already exist");
+                }
+            }
 
-        /************************************************************
-         * LOCATION
-         * Try to add the book to a location
-         * *********************************************************/
-        await __automaticallyAddBookToLocation(pool, bookId, userId);
+            const insertBook = await pool.query(
+                "INSERT INTO books (name, description, image_url, isbn, created_by) VALUES ($1, $2, $3, $4, $5) RETURNING id",
+                [name, description, imageUrl, isbn, userId]
+            );
 
-        res.status(200).json(bookId);
-    } catch (error) {
-        // Rollback on error
-        console.error("Transaction error:", error);
-        res.status(500).send("Error adding book");
+            const bookId = insertBook.rows[0].id;
+
+            /************************************************************
+             * LOCATION
+             * Try to add the book to a location
+             * *********************************************************/
+            await __automaticallyAddBookToLocation(pool, bookId, userId);
+
+            res.status(200).json(bookId);
+        } catch (error) {
+            // Rollback on error
+            console.error("Transaction error:", error);
+            res.status(500).send("Error adding book");
+        }
     }
-});
+);
 
 /**
  * POST /book/isbn/:isbn
@@ -933,145 +949,124 @@ router.post('', requireAuth, upload.single("image"), handleUploadError(maxCoverI
  * Response (502): the same body, when every source that ran failed outright.
  */
 // @ts-ignore
-router.post(
-    '/isbn/:isbn',
-    requireAuth,
-    async (req: Request, res: Response) => {
-        const isbnCode = normalizeAndValidateIsbn(req.params.isbn);
-        if (!isbnCode) {
-            return res.status(400).send('No ISBN code provided');
+router.post("/isbn/:isbn", requireAuth, async (req: Request, res: Response) => {
+    const isbnCode = normalizeAndValidateIsbn(req.params.isbn);
+    if (!isbnCode) {
+        return res.status(400).send("No ISBN code provided");
+    }
+
+    const locationId: string | null = req.body.location;
+    const userId = appService.getSessionUser(req);
+
+    try {
+        /**
+         * =========================
+         * FETCH BOOK (Google + BnF + OpenLibrary, merged)
+         * =========================
+         */
+        const region = await __requestingUserRegion(userId);
+        const lookup = await lookupBookMetadata(isbnCode, appService.getGoogleApiKey(), region);
+        const metadata = lookup.metadata;
+
+        // books.name is NOT NULL - without a title there's nothing to insert.
+        if (!metadata?.title) {
+            return __respondWithoutMetadata(res, isbnCode, lookup);
         }
 
-        const locationId: string | null = req.body.location;
-        const userId = appService.getSessionUser(req);
+        /**
+         * IMAGE (whatever a provider handed back → OpenLibrary Covers fallback)
+         */
+        const imageUrl: string | null = metadata.imageUrl ?? (await fetchOpenLibraryCover(isbnCode));
+
+        // The same normalisation the refresh flow uses - truncation to the
+        // VARCHAR widths, YYYY-MM-DD, two-letter language code - so a book
+        // created by a scan and the same book refreshed later land on
+        // identical values instead of differing by a trailing space.
+        const {
+            name,
+            description,
+            categoryName,
+            publisher,
+            publishedDate: formattedPublishedDate,
+            pages,
+            languageCode,
+            authors,
+        } = __snapshotFromMetadata(metadata, imageUrl);
+
+        /**
+         * =========================
+         * DATABASE TRANSACTION ONLY
+         * =========================
+         */
+        const pool = appService.getDatabasePool();
+        const client = await pool.connect();
 
         try {
-            /**
-             * =========================
-             * FETCH BOOK (Google + BnF + OpenLibrary, merged)
-             * =========================
-             */
-            const region = await __requestingUserRegion(userId);
-            const lookup = await lookupBookMetadata(isbnCode, appService.getGoogleApiKey(), region);
-            const metadata = lookup.metadata;
+            await client.query("BEGIN");
 
-            // books.name is NOT NULL - without a title there's nothing to insert.
-            if (!metadata?.title) {
-                return __respondWithoutMetadata(res, isbnCode, lookup);
+            /**
+             * LANGUAGE
+             */
+            await ensureLanguage(client, languageCode);
+
+            /**
+             * CATEGORY
+             */
+            const categoryId = await __ensureCategory(client, categoryName, userId);
+
+            /**
+             * BOOK
+             */
+            const bookId = await __getOrCreateBook(
+                client,
+                {
+                    name,
+                    description,
+                    imageUrl,
+                    isbnCode,
+                    categoryId,
+                    publisher,
+                    formattedPublishedDate,
+                    languageCode,
+                    pages,
+                },
+                userId
+            );
+
+            /**
+             * AUTHORS
+             */
+            if (authors.length) {
+                await __ensureAuthors(client, bookId, authors, userId);
             }
 
             /**
-             * IMAGE (whatever a provider handed back → OpenLibrary Covers fallback)
+             * LOCATION
              */
-            const imageUrl: string | null = metadata.imageUrl ?? (await fetchOpenLibraryCover(isbnCode));
-
-            // The same normalisation the refresh flow uses - truncation to the
-            // VARCHAR widths, YYYY-MM-DD, two-letter language code - so a book
-            // created by a scan and the same book refreshed later land on
-            // identical values instead of differing by a trailing space.
-            const {
-                name,
-                description,
-                categoryName,
-                publisher,
-                publishedDate: formattedPublishedDate,
-                pages,
-                languageCode,
-                authors,
-            } = __snapshotFromMetadata(metadata, imageUrl);
-
-            /**
-             * =========================
-             * DATABASE TRANSACTION ONLY
-             * =========================
-             */
-            const pool = appService.getDatabasePool();
-            const client = await pool.connect();
-
-            try {
-                await client.query('BEGIN');
-
-                /**
-                 * LANGUAGE
-                 */
-                await ensureLanguage(client, languageCode);
-
-                /**
-                 * CATEGORY
-                 */
-                const categoryId = await __ensureCategory(
-                    client,
-                    categoryName,
-                    userId
-                );
-
-                /**
-                 * BOOK
-                 */
-                const bookId = await __getOrCreateBook(
-                    client,
-                    {
-                        name,
-                        description,
-                        imageUrl,
-                        isbnCode,
-                        categoryId,
-                        publisher,
-                        formattedPublishedDate,
-                        languageCode,
-                        pages,
-                    },
-                    userId
-                );
-
-                /**
-                 * AUTHORS
-                 */
-                if (authors.length) {
-                    await __ensureAuthors(client, bookId, authors, userId);
-                }
-
-                /**
-                 * LOCATION
-                 */
-                if (locationId) {
-                    await __addBookToLocation(
-                        client,
-                        bookId,
-                        locationId,
-                        userId
-                    );
-                } else {
-                    await __automaticallyAddBookToLocation(
-                        client,
-                        bookId,
-                        userId
-                    );
-                }
-
-                await client.query('COMMIT');
-                res.status(200).json(bookId);
-            } catch (dbError) {
-                await client.query('ROLLBACK');
-                console.error('DB transaction error:', dbError);
-                return res
-                    .status(500)
-                    .send('Error processing book in database');
-            } finally {
-                client.release();
+            if (locationId) {
+                await __addBookToLocation(client, bookId, locationId, userId);
+            } else {
+                await __automaticallyAddBookToLocation(client, bookId, userId);
             }
-        } catch (error: unknown) {
-            // `lookupBookMetadata` never throws - a provider that fails comes
-            // back in `lookup.failed` and is answered with a 502 by
-            // `__respondWithoutMetadata`. Anything reaching here is ours.
-            console.error('Error fetching book details:', error);
 
-            return res
-                .status(500)
-                .send('Unexpected server error');
+            await client.query("COMMIT");
+            res.status(200).json(bookId);
+        } catch (dbError) {
+            await client.query("ROLLBACK");
+            console.error("DB transaction error:", dbError);
+            return res.status(500).send("Error processing book in database");
+        } finally {
+            client.release();
         }
+    } catch (error: unknown) {
+        // `lookupBookMetadata` never throws - a provider that fails comes
+        // back in `lookup.failed` and is answered with a 502 by
+        // `__respondWithoutMetadata`. Anything reaching here is ours.
+        console.error("Error fetching book details:", error);
+
+        return res.status(500).send("Unexpected server error");
     }
-);
+});
 
 /**
  * The answer when a lookup produced no usable book.
@@ -1102,16 +1097,16 @@ function __respondWithoutMetadata(res: Response, isbn: string, lookup: IBookLook
     const unavailable = lookup.failed.length > 0 && lookup.sources.length === 0;
 
     const error = unavailable
-        ? 'source_unavailable'
+        ? "source_unavailable"
         : lookup.unconfigured.length > 0
-          ? 'source_not_configured'
-          : 'no_metadata';
+          ? "source_not_configured"
+          : "no_metadata";
 
     const message = unavailable
-        ? 'Every metadata source failed to answer'
+        ? "Every metadata source failed to answer"
         : lookup.unconfigured.length > 0
-          ? `No metadata found, and these sources are not configured: ${lookup.unconfigured.join(', ')}`
-          : 'No metadata source has this ISBN';
+          ? `No metadata found, and these sources are not configured: ${lookup.unconfigured.join(", ")}`
+          : "No metadata source has this ISBN";
 
     return res.status(unavailable ? 502 : 404).json({
         error,
@@ -1184,14 +1179,14 @@ function __respondWithoutMetadata(res: Response, isbn: string, lookup: IBookLook
  *   source has the ISBN | 500 on failure (rolls back).
  */
 // @ts-ignore
-router.post('/:id/refresh', requireAuth, async (req: Request, res: Response) => {
+router.post("/:id/refresh", requireAuth, async (req: Request, res: Response) => {
     const id = Number(req.params.id);
 
     if (!Number.isInteger(id)) {
-        return res.status(400).send('No book ID provided');
+        return res.status(400).send("No book ID provided");
     }
 
-    const mode: RefreshMode = req.body?.overwrite === true ? 'overwrite' : 'fill';
+    const mode: RefreshMode = req.body?.overwrite === true ? "overwrite" : "fill";
     const userId = appService.getSessionUser(req);
 
     let outcome: IRefreshOutcome;
@@ -1199,24 +1194,28 @@ router.post('/:id/refresh', requireAuth, async (req: Request, res: Response) => 
     try {
         outcome = await __refreshBookMetadata(id, mode, userId, await __requestingUserRegion(userId));
     } catch (error) {
-        console.error('Error refreshing book metadata:', error);
-        return res.status(500).send('Error refreshing book metadata');
+        console.error("Error refreshing book metadata:", error);
+        return res.status(500).send("Error refreshing book metadata");
     }
 
     switch (outcome.status) {
-        case 'isbn_changed':
-            return res.status(409).json({error: 'isbn_changed', message: 'The ISBN changed during the lookup. Refresh again to use the current ISBN.', bookId: id});
-        case 'not_found':
-            return res.status(404).send('Book not found');
-        case 'no_isbn':
-            return res.status(400).json({
-                error: 'no_isbn',
-                message: 'This book has no usable ISBN, and every metadata source is keyed on one.',
+        case "isbn_changed":
+            return res.status(409).json({
+                error: "isbn_changed",
+                message: "The ISBN changed during the lookup. Refresh again to use the current ISBN.",
                 bookId: id,
             });
-        case 'no_metadata':
+        case "not_found":
+            return res.status(404).send("Book not found");
+        case "no_isbn":
+            return res.status(400).json({
+                error: "no_isbn",
+                message: "This book has no usable ISBN, and every metadata source is keyed on one.",
+                bookId: id,
+            });
+        case "no_metadata":
             return __respondWithoutMetadata(res, outcome.isbn, outcome.lookup);
-        case 'ok':
+        case "ok":
             return res.status(200).json({
                 bookId: id,
                 isbn: outcome.isbn,
@@ -1286,32 +1285,32 @@ const MAX_BULK_REFRESH = 50;
  *            401/403 from `requireAdmin` | 500 on failure.
  */
 // @ts-ignore
-router.post('/refresh', requireAdmin, async (req: Request, res: Response) => {
+router.post("/refresh", requireAdmin, async (req: Request, res: Response) => {
     const raw = Array.isArray(req.body?.ids) ? req.body.ids : null;
 
     if (!raw || raw.length === 0) {
         return res.status(400).json({
-            error: 'no_ids',
+            error: "no_ids",
             message: 'Name the books to refresh in "ids".',
         });
     }
 
     if (raw.length > MAX_BULK_REFRESH) {
         return res.status(400).json({
-            error: 'too_many_ids',
+            error: "too_many_ids",
             message: `At most ${MAX_BULK_REFRESH} books per call.`,
         });
     }
 
-    if (raw.some((id: unknown) => typeof id !== 'number' || !Number.isSafeInteger(id) || id <= 0)) {
+    if (raw.some((id: unknown) => typeof id !== "number" || !Number.isSafeInteger(id) || id <= 0)) {
         return res.status(400).json({
-            error: 'invalid_ids',
-            message: 'Every book ID must be a positive integer number.',
+            error: "invalid_ids",
+            message: "Every book ID must be a positive integer number.",
         });
     }
 
     const ids = [...new Set<number>(raw)];
-    const mode: RefreshMode = req.body?.overwrite === true ? 'overwrite' : 'fill';
+    const mode: RefreshMode = req.body?.overwrite === true ? "overwrite" : "fill";
     const userId = appService.getSessionUser(req);
     const region = await __requestingUserRegion(userId);
 
@@ -1326,7 +1325,7 @@ router.post('/refresh', requireAdmin, async (req: Request, res: Response) => {
     try {
         for (const [index, id] of ids.entries()) {
             if (index > 0) {
-                await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_LOOKUPS_MS));
+                await new Promise((resolve) => setTimeout(resolve, DELAY_BETWEEN_LOOKUPS_MS));
             }
 
             let outcome: IRefreshOutcome;
@@ -1335,16 +1334,16 @@ router.post('/refresh', requireAdmin, async (req: Request, res: Response) => {
                 outcome = await __refreshBookMetadata(id, mode, userId, region);
             } catch (error) {
                 console.error(`Error refreshing book ${id}:`, error);
-                results.push({bookId: id, name: null, status: 'error', changed: [], stillMissing: []});
+                results.push({ bookId: id, name: null, status: "error", changed: [], stillMissing: [] });
                 continue;
             }
 
             results.push({
                 bookId: id,
-                name: outcome.status === 'not_found' ? null : outcome.name,
+                name: outcome.status === "not_found" ? null : outcome.name,
                 status: outcome.status,
-                changed: outcome.status === 'ok' ? outcome.plan.changes.map(change => change.field) : [],
-                stillMissing: outcome.status === 'ok' ? outcome.plan.stillMissing : [],
+                changed: outcome.status === "ok" ? outcome.plan.changes.map((change) => change.field) : [],
+                stillMissing: outcome.status === "ok" ? outcome.plan.stillMissing : [],
             });
         }
 
@@ -1354,29 +1353,29 @@ router.post('/refresh', requireAdmin, async (req: Request, res: Response) => {
         // write (create, edit, delete) is either, and logging one of the four
         // would be worse than logging none.
         await recordActivity(appService.getDatabasePool(), userId, ActivityAction.BOOKS_METADATA_REFRESHED, {
-            entityType: 'book',
+            entityType: "book",
             metadata: {
                 mode,
                 requested: ids.length,
-                changed: results.filter(result => result.changed.length > 0).length,
+                changed: results.filter((result) => result.changed.length > 0).length,
                 bookIds: ids,
             },
         });
 
-        return res.status(200).json({mode, results});
+        return res.status(200).json({ mode, results });
     } catch (error) {
-        console.error('Error refreshing books:', error);
-        return res.status(500).send('Error refreshing books');
+        console.error("Error refreshing books:", error);
+        return res.status(500).send("Error refreshing books");
     }
 });
 
 /** What `__refreshBookMetadata` found. `name` is carried so the bulk answer can say which book it means. */
 type IRefreshOutcome =
-    | {status: "not_found"}
-    | {status: "isbn_changed"; name: string}
-    | {status: "no_isbn"; name: string}
-    | {status: "no_metadata"; name: string; isbn: string; lookup: IBookLookupResult}
-    | {status: "ok"; name: string; isbn: string; lookup: IBookLookupResult; plan: IBookMetadataRefreshPlan};
+    | { status: "not_found" }
+    | { status: "isbn_changed"; name: string }
+    | { status: "no_isbn"; name: string }
+    | { status: "no_metadata"; name: string; isbn: string; lookup: IBookLookupResult }
+    | { status: "ok"; name: string; isbn: string; lookup: IBookLookupResult; plan: IBookMetadataRefreshPlan };
 
 /**
  * Re-run the provider chain for one existing book and apply what it is allowed
@@ -1424,14 +1423,14 @@ async function __refreshBookMetadata(
     const existing = await pool.query(selectBook, [bookId]);
 
     if (existing.rowCount !== 1) {
-        return {status: "not_found"};
+        return { status: "not_found" };
     }
 
     const book = existing.rows[0];
     const isbnCode = normalizeAndValidateIsbn(book.isbn ?? "");
 
     if (!isbnCode) {
-        return {status: "no_isbn", name: book.name};
+        return { status: "no_isbn", name: book.name };
     }
 
     const lookup = await lookupBookMetadata(isbnCode, appService.getGoogleApiKey(), region);
@@ -1441,7 +1440,7 @@ async function __refreshBookMetadata(
     // provenance entry is added by hand because that call is outside the
     // chain - and this is a cover URL the book did not have, so saying where
     // it came from is the same courtesy the other fields get.
-    const provenance: BookMetadataProvenance = {...lookup.provenance};
+    const provenance: BookMetadataProvenance = { ...lookup.provenance };
     let imageUrl = lookup.metadata?.imageUrl ?? null;
 
     if (lookup.metadata && !imageUrl && !book.image_url?.trim()) {
@@ -1455,26 +1454,28 @@ async function __refreshBookMetadata(
     const client = await pool.connect();
 
     try {
-        await client.query('BEGIN');
+        await client.query("BEGIN");
 
         // No locks during provider I/O. Lock first, then read the complete
         // current snapshot in a fresh statement: an edit may have committed
         // while the catalogues were answering or while this lock was waiting.
-        const locked = await client.query('SELECT id FROM books WHERE id = $1 FOR UPDATE', [bookId]);
+        const locked = await client.query("SELECT id FROM books WHERE id = $1 FOR UPDATE", [bookId]);
         if (locked.rowCount !== 1) {
-            await client.query('COMMIT');
-            return {status: 'not_found'};
+            await client.query("COMMIT");
+            return { status: "not_found" };
         }
-        const {rows: [latest]} = await client.query(selectBook, [bookId]);
-        if (normalizeAndValidateIsbn(latest.isbn ?? '') !== isbnCode) {
-            await client.query('COMMIT');
-            return {status: 'isbn_changed', name: latest.name};
+        const {
+            rows: [latest],
+        } = await client.query(selectBook, [bookId]);
+        if (normalizeAndValidateIsbn(latest.isbn ?? "") !== isbnCode) {
+            await client.query("COMMIT");
+            return { status: "isbn_changed", name: latest.name };
         }
         // A source gap is about this ISBN only while the current row still
         // has it. All lookup outcomes share the same existence/ISBN recheck.
         if (!lookup.metadata) {
-            await client.query('COMMIT');
-            return {status: 'no_metadata', name: latest.name, isbn: isbnCode, lookup};
+            await client.query("COMMIT");
+            return { status: "no_metadata", name: latest.name, isbn: isbnCode, lookup };
         }
         const incoming = __snapshotFromMetadata(lookup.metadata, imageUrl);
         const current: IBookMetadataSnapshot = {
@@ -1490,8 +1491,8 @@ async function __refreshBookMetadata(
         };
         const plan = planMetadataRefresh(current, incoming, provenance, mode);
         if (plan.changes.length === 0) {
-            await client.query('COMMIT');
-            return {status: 'ok', name: latest.name, isbn: isbnCode, lookup, plan};
+            await client.query("COMMIT");
+            return { status: "ok", name: latest.name, isbn: isbnCode, lookup, plan };
         }
 
         const columns: string[] = [];
@@ -1550,15 +1551,14 @@ async function __refreshBookMetadata(
             await __ensureAuthors(client, bookId, plan.authorsToLink, userId);
         }
 
-        await client.query('COMMIT');
-        return {status: "ok", name: latest.name, isbn: isbnCode, lookup, plan};
+        await client.query("COMMIT");
+        return { status: "ok", name: latest.name, isbn: isbnCode, lookup, plan };
     } catch (error) {
-        await client.query('ROLLBACK');
+        await client.query("ROLLBACK");
         throw error;
     } finally {
         client.release();
     }
-
 }
 
 /**
@@ -1582,16 +1582,13 @@ function __snapshotFromMetadata(metadata: IBookMetadata, imageUrl: string | null
         publishedDate: formatPublishedDate(metadata.publishedDate),
         pages: metadata.pageCount,
         languageCode: normalizeLanguageCode(metadata.language),
-        authors: (metadata.authors ?? []).map(author => truncate(author, 100) ?? author),
+        authors: (metadata.authors ?? []).map((author) => truncate(author, 100) ?? author),
     };
 }
 
 /** Read the caller's validated two-letter country for Google Books. */
 async function __requestingUserRegion(userId: number): Promise<string> {
-    const result = await appService.getDatabasePool().query(
-        'SELECT region FROM users WHERE id = $1',
-        [userId]
-    );
+    const result = await appService.getDatabasePool().query("SELECT region FROM users WHERE id = $1", [userId]);
     return validatedRegion(result.rows[0]?.region);
 }
 
@@ -1616,16 +1613,10 @@ function truncate(value: string | null | undefined, maxLen: number): string | nu
 async function ensureLanguage(client: any, code: string | null) {
     if (!code) return;
 
-    const result = await client.query(
-        'SELECT code FROM languages WHERE code = $1',
-        [code]
-    );
+    const result = await client.query("SELECT code FROM languages WHERE code = $1", [code]);
 
     if (result.rowCount === 0) {
-        await client.query(
-            'INSERT INTO languages (code, name) VALUES ($1, $2)',
-            [code, code]
-        );
+        await client.query("INSERT INTO languages (code, name) VALUES ($1, $2)", [code, code]);
     }
 }
 
@@ -1635,26 +1626,19 @@ async function ensureLanguage(client: any, code: string | null) {
  * The lookup key matches `unique_category_name UNIQUE (name)`, so a category
  * someone else already created is reused rather than duplicated.
  */
-async function __ensureCategory(
-    client: any,
-    name: string | null,
-    userId: number
-): Promise<number | null> {
+async function __ensureCategory(client: any, name: string | null, userId: number): Promise<number | null> {
     if (!name) return null;
 
-    const result = await client.query(
-        'SELECT id FROM categories WHERE name = $1',
-        [name]
-    );
+    const result = await client.query("SELECT id FROM categories WHERE name = $1", [name]);
 
     if (result.rowCount > 0) {
         return result.rows[0].id;
     }
 
-    const insert = await client.query(
-        'INSERT INTO categories (name, created_by) VALUES ($1, $2) RETURNING id',
-        [name, userId]
-    );
+    const insert = await client.query("INSERT INTO categories (name, created_by) VALUES ($1, $2) RETURNING id", [
+        name,
+        userId,
+    ]);
 
     return insert.rows[0].id;
 }
@@ -1666,10 +1650,7 @@ async function __ensureCategory(
  * `books_isbn_unique UNIQUE (isbn)`. Returns the book id either way.
  */
 async function __getOrCreateBook(client: any, book: any, userId: number) {
-    const existing = await client.query(
-        'SELECT id FROM books WHERE isbn = $1',
-        [book.isbnCode]
-    );
+    const existing = await client.query("SELECT id FROM books WHERE isbn = $1", [book.isbnCode]);
 
     if (existing.rowCount > 0) {
         return existing.rows[0].id;
@@ -1705,25 +1686,17 @@ async function __getOrCreateBook(client: any, book: any, userId: number) {
  * adding "Ursula K. Le Guin" land on one author row and their books don't split
  * across two.
  */
-async function __ensureAuthors(
-    client: any,
-    bookId: number,
-    authors: string[],
-    userId: number
-) {
+async function __ensureAuthors(client: any, bookId: number, authors: string[], userId: number) {
     for (const author of authors) {
-        const result = await client.query(
-            'SELECT id FROM authors WHERE name = $1',
-            [author]
-        );
+        const result = await client.query("SELECT id FROM authors WHERE name = $1", [author]);
 
         let authorId: number;
 
         if (result.rowCount === 0) {
-            const insert = await client.query(
-                'INSERT INTO authors (name, created_by) VALUES ($1,$2) RETURNING id',
-                [author, userId]
-            );
+            const insert = await client.query("INSERT INTO authors (name, created_by) VALUES ($1,$2) RETURNING id", [
+                author,
+                userId,
+            ]);
             authorId = insert.rows[0].id;
         } else {
             authorId = result.rows[0].id;
@@ -1743,16 +1716,8 @@ async function __ensureAuthors(
  * `locationId`, silently doing nothing if no such location exists. Used by the
  * ISBN auto-create flow when a location is supplied.
  */
-async function __addBookToLocation(
-    client: any,
-    bookId: number,
-    locationId: string,
-    userId: number
-) {
-    const exist = await client.query(
-        'SELECT id FROM locations WHERE id = $1',
-        [locationId]
-    );
+async function __addBookToLocation(client: any, bookId: number, locationId: string, userId: number) {
+    const exist = await client.query("SELECT id FROM locations WHERE id = $1", [locationId]);
 
     if (exist.rowCount !== 1) return;
 
@@ -1791,13 +1756,13 @@ async function __addBookToLocation(
  *            406 if status is "booked" (2) | 500 on failure.
  */
 // @ts-ignore
-router.post('/:id/stock', requireAuth, async (req: Request, res: Response) => {
+router.post("/:id/stock", requireAuth, async (req: Request, res: Response) => {
     const bookId = req.params.id;
     const status = req.body.status;
     const customerId = req.body.customer_id;
     const locationId = req.body.location_id;
     if (!bookId) {
-        return res.status(400).send('No book ID provided');
+        return res.status(400).send("No book ID provided");
     }
 
     const BOOKED_STATUS = 2;
@@ -1815,27 +1780,18 @@ router.post('/:id/stock', requireAuth, async (req: Request, res: Response) => {
         // row could be hung off a nonexistent (there, someone else's) book id.
         // Sharing the library removes the cross-account half of that, not the
         // dangling-id half - so check it.
-        const existBook = await pool.query(
-            'SELECT id FROM books WHERE id = $1',
-            [bookId]
-        );
+        const existBook = await pool.query("SELECT id FROM books WHERE id = $1", [bookId]);
         if (existBook.rowCount !== 1) {
             return res.status(404).send("Book not found");
         }
 
-        const existLocation = await pool.query(
-            'SELECT id FROM locations WHERE id = $1',
-            [locationId]
-        );
+        const existLocation = await pool.query("SELECT id FROM locations WHERE id = $1", [locationId]);
         if (existLocation.rowCount !== 1) {
             return res.status(404).send("Location not found");
         }
 
         if (customerId) {
-            const existCustomer = await pool.query(
-                'SELECT id FROM customers WHERE id = $1',
-                [customerId]
-            );
+            const existCustomer = await pool.query("SELECT id FROM customers WHERE id = $1", [customerId]);
             if (existCustomer.rowCount !== 1) {
                 return res.status(404).send("Customer not found");
             }
@@ -1870,7 +1826,6 @@ router.post('/:id/stock', requireAuth, async (req: Request, res: Response) => {
             [insertStock.rows[0].id]
         );
 
-
         res.status(200).json(result.rows[0]);
     } catch (error) {
         // Rollback on error
@@ -1894,11 +1849,11 @@ router.post('/:id/stock', requireAuth, async (req: Request, res: Response) => {
  * Response (200): boolean - `true` if a row was deleted, `false` otherwise.
  */
 // @ts-ignore
-router.delete('/:id/stock/:stock_id', requireAuth, async (req: Request, res: Response) => {
+router.delete("/:id/stock/:stock_id", requireAuth, async (req: Request, res: Response) => {
     const bookId = req.params.id;
     const stockId = req.params.stock_id;
     if (!bookId || !stockId) {
-        return res.status(400).send('No book ID or stock ID provided');
+        return res.status(400).send("No book ID or stock ID provided");
     }
 
     const pool = appService.getDatabasePool();
@@ -1906,10 +1861,10 @@ router.delete('/:id/stock/:stock_id', requireAuth, async (req: Request, res: Res
     try {
         appService.getLogger().debug(`Removing book stock with status ${stockId} and book id: ${bookId}`);
 
-        const deleteQueryResult = await pool.query(
-            'DELETE FROM book_stocks WHERE book_id = $1 AND id = $2',
-            [bookId, stockId]
-        );
+        const deleteQueryResult = await pool.query("DELETE FROM book_stocks WHERE book_id = $1 AND id = $2", [
+            bookId,
+            stockId,
+        ]);
 
         res.status(200).json(deleteQueryResult.rowCount === 1);
     } catch (error) {
@@ -1939,38 +1894,28 @@ router.delete('/:id/stock/:stock_id', requireAuth, async (req: Request, res: Res
  * Response (404): "Location not found" if `location_id` doesn't exist.
  */
 // @ts-ignore
-router.put('/:id/stock/:stock_id', requireAuth, async (req: Request, res: Response) => {
+router.put("/:id/stock/:stock_id", requireAuth, async (req: Request, res: Response) => {
     const bookId = req.params.id;
     const stockId = req.params.stock_id;
     if (!bookId || !stockId) {
-        return res.status(400).send('No book ID or stock ID provided');
+        return res.status(400).send("No book ID or stock ID provided");
     }
 
     // Body params
-    const {
-        status,
-        location_id,
-        customer_id
-    } = req.body;
+    const { status, location_id, customer_id } = req.body;
 
     const pool = appService.getDatabasePool();
 
     try {
         appService.getLogger().debug(`Updating book stock ${stockId}`);
 
-        const existLocation = await pool.query(
-            'SELECT id FROM locations WHERE id = $1',
-            [location_id]
-        );
+        const existLocation = await pool.query("SELECT id FROM locations WHERE id = $1", [location_id]);
         if (existLocation.rowCount !== 1) {
             return res.status(404).send("Location not found");
         }
 
         if (customer_id) {
-            const existCustomer = await pool.query(
-                'SELECT id FROM customers WHERE id = $1',
-                [customer_id]
-            );
+            const existCustomer = await pool.query("SELECT id FROM customers WHERE id = $1", [customer_id]);
             if (existCustomer.rowCount !== 1) {
                 return res.status(404).send("Customer not found");
             }
@@ -1979,10 +1924,10 @@ router.put('/:id/stock/:stock_id', requireAuth, async (req: Request, res: Respon
         // Needed to detect a status transition into/out of "booked" below,
         // since loan_history (unlike loaned_at) can't be updated in the same
         // statement as book_stocks.
-        const previousStock = await pool.query(
-            'SELECT status FROM book_stocks WHERE id = $1 AND book_id = $2',
-            [stockId, bookId]
-        );
+        const previousStock = await pool.query("SELECT status FROM book_stocks WHERE id = $1 AND book_id = $2", [
+            stockId,
+            bookId,
+        ]);
         const previousStatus = previousStock.rows[0]?.status;
 
         // loaned_at is set only on the transition *into* booked (status wasn't
@@ -2065,7 +2010,7 @@ router.put('/:id/stock/:stock_id', requireAuth, async (req: Request, res: Respon
  * Response (404): "Book stock not found".
  */
 // @ts-ignore
-router.get('/:bookCode/add/md', requireAuth, async (req: Request, res: Response) => {
+router.get("/:bookCode/add/md", requireAuth, async (req: Request, res: Response) => {
     const bookCode = String(req.params.bookCode).trim();
 
     const pool = appService.getDatabasePool();
@@ -2102,9 +2047,9 @@ router.get('/:bookCode/add/md', requireAuth, async (req: Request, res: Response)
                 {
                     id: row.stock_id,
                     code: row.stock_code,
-                    status: row.status
-                }
-            ]
+                    status: row.status,
+                },
+            ],
         };
         return res.status(200).json(response);
     } catch (error) {
@@ -2128,34 +2073,37 @@ router.get('/:bookCode/add/md', requireAuth, async (req: Request, res: Response)
  * Response: 200 (empty body) on success, 500 on failure.
  */
 // @ts-ignore
-router.post('/return', requireAuth, upload.single("image"), handleUploadError(maxCoverImageSizeMb), async (req: Request, res: Response) => {
-    const books: string[] = req.body.books;
-    const pool = appService.getDatabasePool();
+router.post(
+    "/return",
+    requireAuth,
+    upload.single("image"),
+    handleUploadError(maxCoverImageSizeMb),
+    async (req: Request, res: Response) => {
+        const books: string[] = req.body.books;
+        const pool = appService.getDatabasePool();
 
-    try {
-        for (const bookStockCode of books) {
-            await pool.query(
-                'UPDATE book_stocks SET customer_id = $1, status = $2, loaned_at = NULL WHERE code = $3',
-                [null, 0, bookStockCode]
-            );
-            await recordReturn(pool, bookStockCode);
+        try {
+            for (const bookStockCode of books) {
+                await pool.query(
+                    "UPDATE book_stocks SET customer_id = $1, status = $2, loaned_at = NULL WHERE code = $3",
+                    [null, 0, bookStockCode]
+                );
+                await recordReturn(pool, bookStockCode);
+            }
+
+            res.status(200).send();
+        } catch (error) {
+            // Rollback on error
+            console.error("Transaction error:", error);
+            res.status(500).send("Error returning books");
         }
-
-        res.status(200).send();
-    } catch (error) {
-        // Rollback on error
-        console.error("Transaction error:", error);
-        res.status(500).send("Error returning books");
     }
-});
+);
 
 // Helper function to format date to YYYY-MM-DD
 // Hosts our ISBN metadata lookups (Google Books, Open Library covers) are
 // allowed to point book cover images at.
-const ALLOWED_IMAGE_HOSTS = new Set([
-    'books.google.com',
-    'covers.openlibrary.org',
-]);
+const ALLOWED_IMAGE_HOSTS = new Set(["books.google.com", "covers.openlibrary.org"]);
 
 /**
  * Only allow images we generated ourselves (data: URIs from the upload
@@ -2169,13 +2117,14 @@ const ALLOWED_IMAGE_HOSTS = new Set([
  * a security-relevant allowlist that could silently drift from this one.
  */
 export function isAllowedImageUrl(url: string): boolean {
-    if (url.startsWith('data:image/png;base64,') || url.startsWith('data:image/jpeg;base64,')) {
+    if (url.startsWith("data:image/png;base64,") || url.startsWith("data:image/jpeg;base64,")) {
         return true;
     }
     try {
         const parsed = new URL(url);
-        return (parsed.protocol === 'http:' || parsed.protocol === 'https:')
-            && ALLOWED_IMAGE_HOSTS.has(parsed.hostname);
+        return (
+            (parsed.protocol === "http:" || parsed.protocol === "https:") && ALLOWED_IMAGE_HOSTS.has(parsed.hostname)
+        );
     } catch {
         return false;
     }
@@ -2204,7 +2153,7 @@ function formatPublishedDate(date: string | Date | null | undefined): string | n
     }
 
     // Return the date in the format YYYY-MM-DD
-    return parsedDate.toISOString().split('T')[0];
+    return parsedDate.toISOString().split("T")[0];
 }
 
 /**
@@ -2218,16 +2167,12 @@ async function generateBookStockCode(): Promise<string> {
 
     const pool = appService.getDatabasePool();
 
-
     while (!isUnique) {
         // Generate a random 10-character code
-        code = crypto.randomUUID().replace(/-/g, '').substring(0, 10);
+        code = crypto.randomUUID().replace(/-/g, "").substring(0, 10);
 
         // Check if the code already exists
-        const {rowCount} = await pool.query(
-            "SELECT 1 FROM book_stocks WHERE code = $1",
-            [code]
-        );
+        const { rowCount } = await pool.query("SELECT 1 FROM book_stocks WHERE code = $1", [code]);
 
         if (rowCount === 0) {
             isUnique = true;
@@ -2245,7 +2190,6 @@ async function generateBookStockCode(): Promise<string> {
  * @param userId The account adding the book, recorded as the stock's created_by.
  */
 async function __automaticallyAddBookToLocation(client: Pool | PoolClient, bookId: number, userId: number) {
-
     const locations = await client.query(`
         SELECT id
         FROM locations
@@ -2256,10 +2200,12 @@ async function __automaticallyAddBookToLocation(client: Pool | PoolClient, bookI
 
         const code = await generateBookStockCode();
 
-        await client.query(
-            "INSERT INTO book_stocks (book_id, code, location_id, created_by) VALUES ($1, $2, $3, $4)",
-            [bookId, code, locationId, userId]
-        );
+        await client.query("INSERT INTO book_stocks (book_id, code, location_id, created_by) VALUES ($1, $2, $3, $4)", [
+            bookId,
+            code,
+            locationId,
+            userId,
+        ]);
     }
 }
 

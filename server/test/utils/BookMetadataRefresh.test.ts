@@ -1,8 +1,5 @@
-import {
-    IBookMetadataSnapshot,
-    planMetadataRefresh,
-} from "../../src/utils/BookMetadataRefresh";
-import {BookMetadataProvenance} from "../../src/utils/BookMetadata";
+import { IBookMetadataSnapshot, planMetadataRefresh } from "../../src/utils/BookMetadataRefresh";
+import { BookMetadataProvenance } from "../../src/utils/BookMetadata";
 
 /**
  * The planner is where every "did the refresh just destroy my typing" question
@@ -67,9 +64,9 @@ describe("planMetadataRefresh - fill mode", () => {
         const plan = planMetadataRefresh(damagedBook, fullAnswer, provenance, "fill");
 
         expect(plan.changes).toEqual([
-            {field: "publisher", from: null, to: "City roman", source: "bnf"},
-            {field: "published_date", from: null, to: "2025-10-08", source: "bnf"},
-            {field: "pages", from: 0, to: 391, source: "bnf"},
+            { field: "publisher", from: null, to: "City roman", source: "bnf" },
+            { field: "published_date", from: null, to: "2025-10-08", source: "bnf" },
+            { field: "pages", from: 0, to: 391, source: "bnf" },
         ]);
     });
 
@@ -78,24 +75,24 @@ describe("planMetadataRefresh - fill mode", () => {
     // fixing would be the ones a naive "only write nulls" rule refused.
     it("treats pages = 0 as missing, not as a value worth keeping", () => {
         const plan = planMetadataRefresh(
-            snapshot({name: "L'intruse", pages: 0}),
-            snapshot({name: "L'intruse", pages: 362}),
-            {pageCount: "bnf"},
+            snapshot({ name: "L'intruse", pages: 0 }),
+            snapshot({ name: "L'intruse", pages: 362 }),
+            { pageCount: "bnf" },
             "fill"
         );
 
-        expect(plan.changes).toEqual([{field: "pages", from: 0, to: 362, source: "bnf"}]);
+        expect(plan.changes).toEqual([{ field: "pages", from: 0, to: 362, source: "bnf" }]);
     });
 
     it("treats an empty string as missing too", () => {
         const plan = planMetadataRefresh(
-            snapshot({name: "A book", publisher: "   "}),
-            snapshot({name: "A book", publisher: "City"}),
-            {publisher: "bnf"},
+            snapshot({ name: "A book", publisher: "   " }),
+            snapshot({ name: "A book", publisher: "City" }),
+            { publisher: "bnf" },
             "fill"
         );
 
-        expect(plan.changes).toEqual([{field: "publisher", from: null, to: "City", source: "bnf"}]);
+        expect(plan.changes).toEqual([{ field: "publisher", from: null, to: "City", source: "bnf" }]);
     });
 
     it("leaves every hand-edited field alone", () => {
@@ -112,9 +109,7 @@ describe("planMetadataRefresh - fill mode", () => {
 
         const plan = planMetadataRefresh(edited, fullAnswer, provenance, "fill");
 
-        expect(plan.changes).toEqual([
-            {field: "published_date", from: null, to: "2025-10-08", source: "bnf"},
-        ]);
+        expect(plan.changes).toEqual([{ field: "published_date", from: null, to: "2025-10-08", source: "bnf" }]);
     });
 
     it("changes nothing at all on a book that is already complete", () => {
@@ -132,15 +127,15 @@ describe("planMetadataRefresh - nothing is invented", () => {
     it("leaves a category no source has empty, and reports it as still missing", () => {
         const plan = planMetadataRefresh(damagedBook, fullAnswer, provenance, "fill");
 
-        expect(plan.changes.some(change => change.field === "category")).toBe(false);
+        expect(plan.changes.some((change) => change.field === "category")).toBe(false);
         expect(plan.stillMissing).toContain("category");
     });
 
     it("reports every unfillable empty field rather than writing a placeholder", () => {
         const plan = planMetadataRefresh(
-            snapshot({name: "A bare record"}),
-            snapshot({name: "A bare record"}),
-            {title: "bnf"},
+            snapshot({ name: "A bare record" }),
+            snapshot({ name: "A bare record" }),
+            { title: "bnf" },
             "fill"
         );
 
@@ -159,9 +154,9 @@ describe("planMetadataRefresh - nothing is invented", () => {
 
     it("does not null out a field the book has and the sources do not", () => {
         const plan = planMetadataRefresh(
-            snapshot({name: "A book", publisher: "City", pages: 391}),
-            snapshot({name: "A book"}),
-            {title: "google-books"},
+            snapshot({ name: "A book", publisher: "City", pages: 391 }),
+            snapshot({ name: "A book" }),
+            { title: "google-books" },
             "overwrite"
         );
 
@@ -173,15 +168,15 @@ describe("planMetadataRefresh - nothing is invented", () => {
 describe("planMetadataRefresh - overwrite mode", () => {
     it("replaces a filled field, naming what it replaces", () => {
         const plan = planMetadataRefresh(
-            snapshot({name: "Le boyfriend", publisher: "City", pages: 12}),
-            snapshot({name: "Le boyfriend", publisher: "City roman", pages: 391}),
-            {publisher: "bnf", pageCount: "bnf"},
+            snapshot({ name: "Le boyfriend", publisher: "City", pages: 12 }),
+            snapshot({ name: "Le boyfriend", publisher: "City roman", pages: 391 }),
+            { publisher: "bnf", pageCount: "bnf" },
             "overwrite"
         );
 
         expect(plan.changes).toEqual([
-            {field: "publisher", from: "City", to: "City roman", source: "bnf"},
-            {field: "pages", from: 12, to: 391, source: "bnf"},
+            { field: "publisher", from: "City", to: "City roman", source: "bnf" },
+            { field: "pages", from: 12, to: 391, source: "bnf" },
         ]);
     });
 
@@ -190,9 +185,9 @@ describe("planMetadataRefresh - overwrite mode", () => {
     // is worth trading it for.
     it("never replaces a cover, even when asked to overwrite", () => {
         const plan = planMetadataRefresh(
-            snapshot({name: "A book", imageUrl: "data:image/png;base64,AAAA"}),
-            snapshot({name: "A book", imageUrl: "https://books.google.com/thumb"}),
-            {imageUrl: "google-books"},
+            snapshot({ name: "A book", imageUrl: "data:image/png;base64,AAAA" }),
+            snapshot({ name: "A book", imageUrl: "https://books.google.com/thumb" }),
+            { imageUrl: "google-books" },
             "overwrite"
         );
 
@@ -202,9 +197,9 @@ describe("planMetadataRefresh - overwrite mode", () => {
     it("fills a missing cover in either mode", () => {
         for (const mode of ["fill", "overwrite"] as const) {
             const plan = planMetadataRefresh(
-                snapshot({name: "A book"}),
-                snapshot({name: "A book", imageUrl: "https://covers.openlibrary.org/x-M.jpg"}),
-                {imageUrl: "open-library"},
+                snapshot({ name: "A book" }),
+                snapshot({ name: "A book", imageUrl: "https://covers.openlibrary.org/x-M.jpg" }),
+                { imageUrl: "open-library" },
                 mode
             );
 
@@ -223,23 +218,21 @@ describe("planMetadataRefresh - overwrite mode", () => {
 describe("planMetadataRefresh - authors", () => {
     it("links the source's authors when the book has none", () => {
         const plan = planMetadataRefresh(
-            snapshot({name: "L'intruse"}),
-            snapshot({name: "L'intruse", authors: ["Freida McFadden"]}),
-            {authors: "bnf"},
+            snapshot({ name: "L'intruse" }),
+            snapshot({ name: "L'intruse", authors: ["Freida McFadden"] }),
+            { authors: "bnf" },
             "fill"
         );
 
         expect(plan.authorsToLink).toEqual(["Freida McFadden"]);
-        expect(plan.changes).toEqual([
-            {field: "authors", from: null, to: "Freida McFadden", source: "bnf"},
-        ]);
+        expect(plan.changes).toEqual([{ field: "authors", from: null, to: "Freida McFadden", source: "bnf" }]);
     });
 
     it("leaves an author list the book already has completely alone in fill mode", () => {
         const plan = planMetadataRefresh(
-            snapshot({name: "L'intruse", authors: ["F. McFadden"]}),
-            snapshot({name: "L'intruse", authors: ["Freida McFadden", "Karine Xaragai"]}),
-            {authors: "bnf"},
+            snapshot({ name: "L'intruse", authors: ["F. McFadden"] }),
+            snapshot({ name: "L'intruse", authors: ["Freida McFadden", "Karine Xaragai"] }),
+            { authors: "bnf" },
             "fill"
         );
 
@@ -249,24 +242,24 @@ describe("planMetadataRefresh - authors", () => {
 
     it("adds unknown authors in overwrite mode without unlinking the known ones", () => {
         const plan = planMetadataRefresh(
-            snapshot({name: "A book", authors: ["Ann Author"]}),
-            snapshot({name: "A book", authors: ["ann author", "Bee Writer"]}),
-            {authors: "google-books"},
+            snapshot({ name: "A book", authors: ["Ann Author"] }),
+            snapshot({ name: "A book", authors: ["ann author", "Bee Writer"] }),
+            { authors: "google-books" },
             "overwrite"
         );
 
         // Matched case-insensitively, so re-adding "Ann Author" is not a change.
         expect(plan.authorsToLink).toEqual(["Bee Writer"]);
         expect(plan.changes).toEqual([
-            {field: "authors", from: "Ann Author", to: "Ann Author, Bee Writer", source: "google-books"},
+            { field: "authors", from: "Ann Author", to: "Ann Author, Bee Writer", source: "google-books" },
         ]);
     });
 
     it("adds nothing on a second overwrite run", () => {
         const plan = planMetadataRefresh(
-            snapshot({name: "A book", authors: ["Ann Author", "Bee Writer"]}),
-            snapshot({name: "A book", authors: ["Ann Author", "Bee Writer"]}),
-            {authors: "google-books"},
+            snapshot({ name: "A book", authors: ["Ann Author", "Bee Writer"] }),
+            snapshot({ name: "A book", authors: ["Ann Author", "Bee Writer"] }),
+            { authors: "google-books" },
             "overwrite"
         );
 
