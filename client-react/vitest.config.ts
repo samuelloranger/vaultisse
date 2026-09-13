@@ -38,6 +38,10 @@ export default defineConfig({
     'process.env.TAMAGUI_TARGET': JSON.stringify('web'),
   },
   test: {
+    // Limit concurrent jsdom/Tamagui workers when client and server suites
+    // run together. Per-file isolation still spawns 28 workers in total, but
+    // running too many at once starves normal Testing Library waits.
+    maxWorkers: 4,
     server: {
       deps: {
         // Vitest externalises `node_modules` by default and loads them through
