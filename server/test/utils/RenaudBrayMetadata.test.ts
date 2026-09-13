@@ -66,9 +66,9 @@ describe("parseRenaudBrayPage", () => {
         expect(result?.imageUrl).toBeNull();
     });
 
-    it("does not return a JPG URL carrying Renaud-Bray's placeholder query", () => {
+    it("retains a JPG URL carrying Renaud-Bray's documented fallback query", () => {
         const result = parseRenaudBrayPage(page(isbn, "https://images.renaud-bray.com/cover.jpg?404=404RB.gif"), isbn);
-        expect(result?.imageUrl).toBeNull();
+        expect(result?.imageUrl).toBe("https://images.renaud-bray.com/cover.jpg?404=404RB.gif");
     });
 
     it("fills absent JSON-LD fields from labelled product fields", () => {
@@ -114,7 +114,7 @@ describe("parseRenaudBrayPage", () => {
         expect(parseRenaudBrayPage(html, isbn)).toMatchObject({
             title: "Le titre", authors: ["Une autrice"], description: "Un résumé explicite",
             categories: ["Romans policiers"], publisher: "Un éditeur", publishedDate: "16 octobre 2025",
-            pageCount: 448, imageUrl: null,
+            pageCount: 448, imageUrl: "https://images.renaud-bray.com/images/PG/4490/4490625-gf.jpg?404=404RB.gif",
         });
     });
 });

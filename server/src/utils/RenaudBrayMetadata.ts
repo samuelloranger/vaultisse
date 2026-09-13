@@ -91,9 +91,10 @@ function coverUrl(value: unknown): string | null {
     if (typeof candidate !== "string") return null;
     try {
         const url = new URL(candidate);
-        // Renaud-Bray appends `?404=404RB.gif` to image URLs; that query
-        // indicates its placeholder fallback even when the path is a .jpg.
-        if (/(?:^|[?&])[^#]*404rb\.gif(?:$|&)/i.test(url.search) || /(?:^|\/)404rb\.gif(?:$|[?#])/i.test(url.pathname)) return null;
+        // Renaud-Bray appends `?404=404RB.gif` as an on-error fallback to
+        // legitimate JPGs. The byte-level check below distinguishes a real
+        // image from that fallback; only a literal placeholder path is unsafe.
+        if (/(?:^|\/)404rb\.gif$/i.test(url.pathname)) return null;
         return url.hostname === "images.renaud-bray.com" && url.protocol === "https:" ? url.toString() : null;
     } catch { return null; }
 }

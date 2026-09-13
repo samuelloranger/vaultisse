@@ -1,0 +1,16 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "broken-image",
+        "value": "*",
+        "files": [
+          "server/src/utils/RenaudBrayMetadata.ts"
+        ],
+        "createdAt": "2026-09-13T09:41:26.811Z"
+      }
+    ]
+  }
+}
